@@ -1,18 +1,51 @@
 import { runAgent } from "@/agents/susan";
+import { useState } from "react";
 
 export default function Home() {
-    const callSusan = () => { 
+    const [userInput, setUserInput] = useState("");
+    const [conversationHistory, setConversationHistory] = useState<{ speaker: string; message: string }[]>([]);
+
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter' && userInput.trim() !== "") {
+            event.preventDefault();
+
+            const currentInput = userInput;
+            setUserInput("");
+
+            setConversationHistory(prev => [{ speaker: "User", message: currentInput }, ...prev]);
+
+            callSusan(currentInput);
+        }
+    };
+
+    const callSusan = (input: string) => {
         console.log("Calling Susan...");
-        runAgent("Hello Susan! Can you help me find the latest news about AI?").then(result => {
+        runAgent(input).then(result => {
             console.log("Final Answer:", result.finalAnswer);
-            console.log("Updated History:", result.updatedHistory);
-        })
-    }
+
+            setConversationHistory(prev => [
+                { speaker: "Susan", message: result.finalAnswer.toString() },
+                ...prev
+            ]);
+        });
+    };
+
     return (
         <div>
-            <h1>Home Page</h1>
-            <p>Welcome to the main page.</p>
-            <button className="btn btn-primary" onClick={callSusan}>Call Susan</button>
+            <input
+                type="text"
+                placeholder="Type your message to Susan..."
+                value={userInput}
+                onChange={e => setUserInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+            />
+            <div>
+                {conversationHistory.map((entry, index) => (
+                    <div key={index}>
+                        <strong>{entry.speaker}:</strong> {entry.message}
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

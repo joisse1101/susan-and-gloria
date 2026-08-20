@@ -1,8 +1,13 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
+const maxSnippetLength = 300; // Define a maximum length for the snippet
+
 export const duckDuckGoSearchTool = tool(
     async ({ query }) => {
+        if (query.trim().length === 0) {
+            return "This tool is for specific factual questions or real-time news. Please provide a specific query.";
+        }
         try {
             const url = `/api/duckduckgo/html/?q=${encodeURIComponent(query)}`;
             const response = await fetch(url);
@@ -19,9 +24,12 @@ export const duckDuckGoSearchTool = tool(
             const results = Array.from(doc.querySelectorAll('.result__body'))
                 .slice(0, 5)
                 .map((el) => ({
-                    title: el.querySelector('.result__title')?.textContent?.trim() || '',
-                    snippet: el.querySelector('.result__snippet')?.textContent?.trim() || '',
-                    link: el.querySelector('.result__url')?.getAttribute('href') || '',
+                    title: (el.querySelector('.result__title')?.textContent?.trim() || '')
+                        .replace(/\s+/g, ' '),
+                    snippet: (el.querySelector('.result__snippet')?.textContent?.trim() || '')
+                        .replace(/https?:\/\/\S+/g, '') // Strips any raw URLs inside the text
+                        .replace(/\s+/g, ' ')           // Collapses multiple spaces and newlines
+                        .slice(0, maxSnippetLength),
                 }));
 
             return JSON.stringify(results);
@@ -32,9 +40,10 @@ export const duckDuckGoSearchTool = tool(
     },
     {
         name: "web_search",
-        description: "Searches DuckDuckGo for quick facts, summaries, and definitions.",
+        description:
+            "A quick fact-checking tool for specific factual questions or real-time news. NEVER use this tool for greetings, pleasantries, small talk, or casual conversation (e.g., 'hi', 'heya', 'how are you').",
         schema: z.object({
-            query: z.string().describe("The topic or factual question to look up."),
+            query: z.string().describe("The specific search query. Must NOT be 'greeting' or casual text."),
         }),
     }
 );
