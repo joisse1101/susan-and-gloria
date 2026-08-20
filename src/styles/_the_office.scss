@@ -1,0 +1,95 @@
+#app {
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #1e1e2e;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+#office-floor {
+  position: relative;
+  width: 600px;
+  height: 400px;
+  background-color: #d1c7bd; /* Wooden floor tone */
+  border: 4px solid #5c4033;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.character {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.player { background-color: #3b82f6; color: white; }
+.gloria { background-color: #ec4899; color: white; }
+.susan { background-color: #10b981; color: white; }
+
+.name {
+  font-size: 10px;
+  position: absolute;
+  bottom: -15px;
+  color: #333;
+  background: rgba(255,255,255,0.8);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.bubble {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  color: #111;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  pointer-events: none;
+}
+
+.hidden { display: none; }
+
+#control-panel {
+  margin-top: 15px;
+  width: 600px;
+  background: #2b2b3b;
+  padding: 15px;
+  border-radius: 8px;
+  color: white;
+  box-sizing: border-box;
+}
+
+.admin-group, .player-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #444;
+}
+
+button {
+  padding: 8px 16px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}

@@ -3,6 +3,7 @@ import './styles/main.scss';
 import MainLayout from './layouts/MainLayout';
 import Home from './pages/Home';
 // import About from './pages/About';
+import TheOffice from './pages/TheOffice';
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
           <Route index element={<Home />} />
           {/* <Route path="about" element={<About />} /> */}
         </Route>
+        <Route path="/office" element={<TheOffice />} />
       </Routes>
     </HashRouter>
   );
