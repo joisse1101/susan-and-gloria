@@ -1,0 +1,158 @@
+@use 'variables' as *;
+
+// --- Base Button Component ---
+button,
+.btn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  
+  // Default Size (Medium)
+  min-height: $btn-size-md-height;
+  padding: $btn-padding-md;
+  
+  font-family: $btn-font-family;
+  font-size: $font-sm;
+  font-weight: $btn-font-weight;
+  line-height: $btn-line-height;
+  text-decoration: none;
+  white-space: nowrap;
+  text-shadow: $shadow-text-sm;
+  
+  border-radius: $radius-md;
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  
+  transition: 
+    background-color $transition-speed ease,
+    border-color $transition-speed ease,
+    color $transition-speed ease,
+    box-shadow $transition-speed ease,
+    transform 0.1s ease;
+
+  // Active click physics
+  &:active:not(:disabled):not(.is-disabled) {
+    transform: scale(0.98);
+  }
+
+  // Accessibility Focus Ring
+  &:focus-visible {
+    outline: none;
+    box-shadow: $shadow-focus-ring;
+    border-color: $border-focus;
+  }
+
+  // --- Primary Variant (Default Fallback) ---
+  &,
+  &-primary {
+    background-color: $btn-primary-bg;
+    color: $btn-primary-text;
+    border-color: $btn-primary-border;
+    
+    &:hover:not(:disabled):not(.is-disabled) {
+      background-color: $btn-primary-hover-bg;
+      box-shadow: $shadow-glow;
+    }
+
+    &:active:not(:disabled):not(.is-disabled) {
+      background-color: $btn-primary-active-bg;
+    }
+  }
+
+  // --- Secondary Variant ---
+  &-secondary {
+    background-color: $btn-secondary-bg;
+    color: $btn-secondary-text;
+    border-color: $btn-secondary-border;
+
+    &:hover:not(:disabled):not(.is-disabled) {
+      background-color: $btn-secondary-hover-bg;
+      border-color: $btn-secondary-hover-border;
+      color: $text-main;
+    }
+  }
+
+  // --- Ghost / Minimal Variant ---
+  &-ghost {
+    background-color: $btn-ghost-bg;
+    color: $btn-ghost-text;
+
+    &:hover:not(:disabled):not(.is-disabled) {
+      background-color: $btn-ghost-hover-bg;
+      color: $btn-ghost-hover-text;
+    }
+  }
+
+  // --- Danger / Destructive Variant ---
+  &-danger {
+    background-color: $btn-danger-bg;
+    color: $btn-danger-text;
+    border-color: $btn-danger-border;
+
+    &:hover:not(:disabled):not(.is-disabled) {
+      background-color: $btn-danger-hover-bg;
+    }
+
+    &:active:not(:disabled):not(.is-disabled) {
+      background-color: $btn-danger-active-bg;
+    }
+  }
+
+  // --- Sizing Modifiers ---
+  &-sm {
+    min-height: $btn-size-sm-height;
+    padding: $btn-padding-sm;
+    font-size: $font-xs;
+    border-radius: $radius-sm;
+  }
+
+  &-lg {
+    min-height: $btn-size-lg-height;
+    padding: $btn-padding-lg;
+    font-size: $font-base;
+    border-radius: $radius-lg;
+  }
+
+  // Layout modifier (full width)
+  &-block {
+    width: 100%;
+  }
+
+  // --- Disabled State ---
+  &:disabled,
+  &.is-disabled {
+    background-color: $disabled-bg !important;
+    color: $disabled-text !important;
+    border-color: transparent !important;
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+}
+
+.btn-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  width: 100%;
+  @media (max-width: 600px) {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .btn-wrapper {
+    display: flex;
+    gap: 0.5rem;
+
+    @media (max-width: 600px) {
+      flex-direction: column;
+      width: 100%;
+    }
+  }
+}

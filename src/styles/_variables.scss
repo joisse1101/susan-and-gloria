@@ -1,0 +1,287 @@
+// ==========================================================================
+// SCSS Variables: High-Contrast Dark Charcoal & Warm Rose
+// ==========================================================================
+
+// --- Typography & Google Fonts ---
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Urbanist:wght@600;700;800&display=swap');
+
+$font-family-display: 'Urbanist', system-ui, -apple-system, sans-serif;
+$font-family-body: 'Figtree', system-ui, -apple-system, sans-serif;
+$font-family-mono: 'JetBrains Mono', monospace;
+
+// --- Background Layers (Elevated Neutral Charcoal) ---
+$bg-main: #121214;         // Dark charcoal floor
+$bg-surface: #1a1a1e;      // Surface cards & modals
+$bg-surface-hover: #26262b;// Surface hover state
+$bg-overlay: #2d2d34;      // Popovers & floating panels
+$bg-glass: rgba(26, 26, 30, 0.75);
+
+// --- Borders & Dividers ---
+$border-subtle: #27272a;   // Subtle separators
+$border-color: #3f3f46;    // Input & container borders
+$border-focus: #f2a9c4;    // Bright focus ring for accessibility
+
+// --- Typography (High Contrast) ---
+$text-main: #ffffff;       // Pure white for primary body text
+$text-muted: #a1a1aa;      // High-contrast muted gray for secondary text
+$text-dim: #71717a;        // Tertiary / disabled text
+
+// --- Input-Specific Variables---
+$input-bg: #18181b;                 // Deep dark surface for inputs
+$input-border: $border-subtle;      // Standard input border
+$input-focus-border: $border-focus; // Focus state border (Warm Rose / Indigo accent)
+$input-focus-ring: rgba($border-focus, 0.25);
+
+// --- Brand & Accents (Accessible Warm Rose) ---
+$brand-accent: #e8a2b8;        // Primary Rose Accent
+$brand-hover: #ecb4c8;         // Hover state (brighter for visibility)
+$brand-active: #d687a0;        // Active/pressed state
+
+// --- Borders & Rules ---
+$brand-border-muted: #f0c3d0;  // Subtle/default border (low contrast)
+$brand-border-strong: #925265; // Prominent border or focused input rings
+
+// --- Soft Fills & Backgrounds ---
+$accent-pink-soft: #fce7f3;    // Extra light accent fill
+$brand-surface-subtle: #fdf2f6; // Ultra-soft container or badge background
+
+// --- Text & Contrast ---
+$brand-text-dark: #6e2e43;     // High-contrast text on soft pink backgrounds
+$brand-disabled: #edd6dd;      // Disabled button states & subtle icons
+
+// --- Feedback / State Colors ---
+$color-success: #34d399;   // Mint Green
+$color-warning: #fbbf24;   // Amber
+$color-danger: #f87171;    // Soft Coral
+$color-info: #38bdf8;      // Sky Blue
+$disabled-bg: #27272a;        // Soft dark gray matching $border-subtle
+$disabled-text: $text-dim;    // Tertiary text color
+
+// --- Button Specific Tokens ---
+$btn-font-family: $font-family-body;
+$btn-font-weight: 600;
+$btn-line-height: 1.25;
+
+// Heights & Sizes
+$btn-size-sm-height: 2rem;      // 32px
+$btn-size-md-height: 2.5rem;    // 40px
+$btn-size-lg-height: 3rem;      // 48px
+
+$btn-padding-sm: 0.375rem 0.75rem;
+$btn-padding-md: 0.625rem 1.25rem;
+$btn-padding-lg: 0.875rem 1.5rem;
+
+// Brand Accent Variants (Primary)
+$btn-primary-bg: $brand-accent;
+$btn-primary-text: $text-main;
+$btn-primary-border: $brand-border-strong;
+$btn-primary-hover-bg: $brand-hover;
+$btn-primary-active-bg: $brand-active;
+
+// Secondary Variants
+$btn-secondary-bg: $bg-surface;
+$btn-secondary-text: $text-main;
+$btn-secondary-border: $border-subtle;
+$btn-secondary-hover-bg: $bg-surface-hover;
+$btn-secondary-hover-border: $border-color;
+
+// Ghost / Subtle Variant
+$btn-ghost-bg: transparent;
+$btn-ghost-text: $text-muted;
+$btn-ghost-hover-bg: rgba($bg-surface-hover, 0.6);
+$btn-ghost-hover-text: $text-main;
+
+// Danger Variants
+$btn-danger-bg: rgba($color-danger, 0.12);
+$btn-danger-text: $color-danger;
+$btn-danger-border: rgba($color-danger, 0.25);
+$btn-danger-hover-bg: rgba($color-danger, 0.25);
+$btn-danger-active-bg: rgba($color-danger, 0.4);
+
+// --- Typography Specs ---
+$font-xs: 0.625rem;        // 10px
+$font-sm: 0.75rem;         // 12px
+$font-base: 0.875rem;      // 14px
+$font-lg: 1rem;            // 16px
+$font-xl: 1.125rem;        // 18px
+$font-2xl: 1.5rem;          // 24px
+$font-3xl: 1.875rem;        // 30px
+
+// --- Label-Specific Design Tokens ---
+$label-font-size: $font-xs;
+$label-font-weight: 600;
+$label-color: $text-muted;
+$label-margin-bottom: 0.375rem;
+
+// --- Radii ---
+$radius-sm: 0.375rem;      // 6px
+$radius-md: 0.5rem;        // 8px
+$radius-lg: 0.75rem;       // 12px
+$radius-xl: 1rem;          // 16px
+$radius-full: 9999px;
+
+// --- Shadows & Glows ---
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6);
+$shadow-glow-md: 0 0 8px -3px rgba(232, 162, 184, 0.3);
+$shadow-glow: 0 0 20px -3px rgba(232, 162, 184, 0.3);
+$shadow-focus-ring: 0 0 0 3px rgba(232, 162, 184, 0.25);
+$shadow-hover-glow: 0 0 8px rgba(255, 255, 255, 0.15);
+$shadow-text-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+$shadow-text: 0 2px 3px rgba(0, 0, 0, 0.5);
+
+// --- Card & Form Specific Spacing ---
+$card-padding-sm: 1rem;
+$card-padding-md: 1.5rem;
+$card-gap-md: 1.25rem;
+$card-gap-lg: 2rem;
+
+// --- Component Design Tokens (Granny Square & Layout) ---
+$swatch-size-sm: 1.5rem;   // 24px
+$swatch-size-lg: 2.5rem;   // 40px
+$cell-hover-scale: 1.05;
+$transition-speed: 0.2s;
+$animation-duration: 0.4s;
+
+// --- Layout ---
+$max-width: 1200px;
+
+
+// ==========================================================================
+// CSS Custom Properties (:root Output)
+// ==========================================================================
+
+:root {
+  --font-family-display: #{$font-family-display};
+  --font-family-body: #{$font-family-body};
+  --font-family-mono: #{$font-family-mono};
+
+  /* Backgrounds */
+  --bg-main: #{$bg-main};
+  --bg-surface: #{$bg-surface};
+  --bg-surface-hover: #{$bg-surface-hover};
+  --bg-overlay: #{$bg-overlay};
+  --bg-glass: #{$bg-glass};
+
+  /* Borders */
+  --border-subtle: #{$border-subtle};
+  --border-color: #{$border-color};
+  --border-focus: #{$border-focus};
+
+  /* Typography */
+  --text-main: #{$text-main};
+  --text-muted: #{$text-muted};
+  --text-dim: #{$text-dim};
+
+  /* Inputs */
+  --input-bg: #{$input-bg};
+  --input-border: #{$input-border};
+  --input-focus-border: #{$input-focus-border};
+  --input-focus-ring: #{$input-focus-ring};
+
+  /* Brand */
+  --brand-accent: #{$brand-accent};
+  --brand-hover: #{$brand-hover};
+  --brand-active: #{$brand-active};
+
+  --brand-border-muted: #{$brand-border-muted};
+  --brand-border-strong: #{$brand-border-strong};
+
+  --accent-pink-soft: #{$accent-pink-soft};
+  --brand-surface-subtle: #{$brand-surface-subtle};
+
+  --brand-text-dark: #{$brand-text-dark};
+  --brand-disabled: #{$brand-disabled};
+
+  /* Feedback */
+  --color-success: #{$color-success};
+  --color-warning: #{$color-warning};
+  --color-danger: #{$color-danger};
+  --color-info: #{$color-info};
+  --disabled-bg: #{$disabled-bg};
+  --disabled-text: #{$disabled-text};
+  
+  /* Buttons */
+  --btn-font-family: #{$btn-font-family};
+  --btn-font-weight: #{$btn-font-weight};
+  --btn-line-height: #{$btn-line-height};
+
+  --btn-size-sm-height: #{$btn-size-sm-height};
+  --btn-size-md-height: #{$btn-size-md-height};
+  --btn-size-lg-height: #{$btn-size-lg-height};
+
+  --btn-padding-sm: #{$btn-padding-sm};
+  --btn-padding-md: #{$btn-padding-md};
+  --btn-padding-lg: #{$btn-padding-lg};
+
+  --btn-primary-bg: #{$btn-primary-bg};
+  --btn-primary-text: #{$btn-primary-text};
+  --btn-primary-hover-bg: #{$btn-primary-hover-bg};
+  --btn-primary-active-bg: #{$btn-primary-active-bg};
+
+  --btn-secondary-bg: #{$btn-secondary-bg};
+  --btn-secondary-text: #{$btn-secondary-text};
+  --btn-secondary-border: #{$btn-secondary-border};
+  --btn-secondary-hover-bg: #{$btn-secondary-hover-bg};
+  --btn-secondary-hover-border: #{$btn-secondary-hover-border};
+
+  --btn-ghost-bg: #{$btn-ghost-bg};
+  --btn-ghost-text: #{$btn-ghost-text};
+  --btn-ghost-hover-bg: #{$btn-ghost-hover-bg};
+  --btn-ghost-hover-text: #{$btn-ghost-hover-text};
+
+  --btn-danger-bg: #{$btn-danger-bg};
+  --btn-danger-text: #{$btn-danger-text};
+  --btn-danger-border: #{$btn-danger-border};
+  --btn-danger-hover-bg: #{$btn-danger-hover-bg};
+  --btn-danger-active-bg: #{$btn-danger-active-bg};
+
+  /* Sizes */
+  --font-xs: #{$font-xs};
+  --font-sm: #{$font-sm};
+  --font-base: #{$font-base};
+  --font-lg: #{$font-lg};
+  --font-xl: #{$font-xl};
+  --font-2xl: #{$font-2xl};
+  --font-3xl: #{$font-3xl};
+
+  /* Label */
+  --label-font-size: #{$label-font-size};
+  --label-font-weight: #{$label-font-weight};
+  --label-color: #{$label-color};
+  --label-margin-bottom: #{$label-margin-bottom};
+
+  /* Radii */
+  --radius-sm: #{$radius-sm};
+  --radius-md: #{$radius-md};
+  --radius-lg: #{$radius-lg};
+  --radius-xl: #{$radius-xl};
+  --radius-full: #{$radius-full};
+
+  /* Shadows */
+  --shadow-sm: #{$shadow-sm};
+  --shadow-md: #{$shadow-md};
+  --shadow-lg: #{$shadow-lg};
+  --shadow-glow-md: #{$shadow-glow-md};
+  --shadow-glow: #{$shadow-glow};
+  --shadow-focus-ring: #{$shadow-focus-ring};
+  --shadow-hover-glow: #{$shadow-hover-glow};
+  --shadow-text: #{$shadow-text};
+
+  /* Card & Form Spacing */
+  --card-padding-sm: #{$card-padding-sm};
+  --card-padding-md: #{$card-padding-md};
+  --card-gap-md: #{$card-gap-md};
+  --card-gap-lg: #{$card-gap-lg};
+
+  /* Component Design Tokens */
+  --swatch-size-sm: #{$swatch-size-sm};
+  --swatch-size-lg: #{$swatch-size-lg};
+  --cell-hover-scale: #{$cell-hover-scale};
+  --transition-speed: #{$transition-speed};
+  --animation-duration: #{$animation-duration};
+
+  /* Layout */
+  --max-width: #{$max-width};
+}

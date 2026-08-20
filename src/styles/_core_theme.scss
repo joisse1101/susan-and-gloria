@@ -1,0 +1,181 @@
+@use 'variables' as *;
+
+/* ==========================================
+   Base Reset & Document Defaults
+   ========================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scrollbar-gutter: auto;
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.layout {
+  margin: 0;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background-color: $bg-main;
+  color: $text-main;
+  font-family: $font-family-body;
+  font-size: $font-base;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+main {
+  flex: 1; 
+  width: 100%;
+  max-width: $max-width;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: $bg-main;
+}
+::-webkit-scrollbar-thumb {
+  background: $border-color;
+  border-radius: $radius-full;
+
+  &:hover {
+    background: $text-dim;
+  }
+}
+
+/* ==========================================
+   Typography Hierarchy
+   ========================================== */
+h1, h2, h3, h4, h5, h6 {
+  font-family: $font-family-display;
+  color: $text-main;
+  line-height: 1.25;
+  margin-top: 0;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: $font-3xl;
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+h2 {
+  font-size: $font-2xl;
+  font-weight: 700;
+  margin-bottom: 0.875rem;
+}
+
+h3 {
+  font-size: $font-xl;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+h4 {
+  font-size: $font-lg;
+}
+h5 {
+  font-size: $font-base;
+}
+h6 {
+  font-size: $font-sm;
+}
+
+p {
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+  color: $text-muted;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+/* Inline Code & Block Code */
+code, kbd, pre {
+  font-family: $font-family-mono;
+}
+
+code {
+  font-size: 0.875em;
+  padding: 0.2em 0.4em;
+  background-color: $bg-surface;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-sm;
+  color: $brand-hover;
+}
+
+pre {
+  background-color: $bg-surface;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-md;
+  padding: 1rem;
+  overflow-x: auto;
+
+  code {
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    color: inherit;
+  }
+}
+
+/* Links */
+a {
+  color: $brand-accent;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s ease-in-out;
+
+  &:hover {
+    color: $brand-hover;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+}
+
+/* ==========================================
+   Layout Containers & Cards
+   ========================================== */
+main, section {
+  width: 100%;
+  max-width: $max-width;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  box-sizing: border-box;
+}
+
+/* Modern Glass Card Utility */
+.card {
+  background-color: $bg-surface;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-lg;
+  padding: 1.5rem;
+  box-shadow: $shadow-md;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: $border-color;
+    box-shadow: $shadow-glow;
+  }
+}
+
+.error-messages {
+  .error-message {
+    color: $color-danger;
+    font-size: $font-sm;
+  }
+}
