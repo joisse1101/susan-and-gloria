@@ -1,75 +1,56 @@
-# React + TypeScript + Vite
+# Susan & Gloria
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A small emotional-support chat app with two AI companions:
 
-Currently, two official plugins are available:
+- **Susan** — high-energy hype-woman. Passionate outrage on your behalf, drama and humor to make stress feel lighter.
+- **Gloria** — grounded, maternal comfort. Blunt, no-nonsense honesty and practical self-care advice.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+You type a message and an orchestrator ("The Great One") reads your emotional state and routes you to whichever persona fits best. The reply streams back token by token. There is also an experimental mini-game, **The Office**, where you walk around as a blue square next to Susan and Gloria.
 
-## React Compiler
+Both companions are entertainment and emotional-support characters, not a substitute for professional help. A guardrail prompt keeps them clean, and it tells them to point users to crisis resources if needed.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## How it works
 
-## Expanding the ESLint configuration
+Everything runs in the browser, with no backend. The chat is a [LangGraph](https://langchain-ai.github.io/langgraphjs/) graph (`orchestrator → susan | gloria`) that calls a local [Ollama](https://ollama.com) model through its OpenAI-compatible API. The UI is React 19 + Vite, and The Office is built with Phaser.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Setup
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Prerequisites
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- [Node.js](https://nodejs.org) 24 (what CI uses)
+- [Ollama](https://ollama.com/download) installed and running
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Steps
 
-```
+1. Pull the model the app expects:
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+   ```sh
+   ollama pull llama3.1:8b
+   ```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+2. Make sure Ollama is serving on `http://localhost:11434` (it does by default once installed or after `ollama serve`).
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+3. Install dependencies and start the dev server:
 
-```
+   ```sh
+   npm install
+   npm run dev
+   ```
+
+4. Open the URL Vite prints (under `/susan-and-gloria/`).
+   - Chat: `/#/`
+   - The Office: `/#/office`
+
+To use a different model or Ollama host, edit `src/agents/llm.ts`.
+
+### Other commands
+
+| Command           | What it does                              |
+| ----------------- | ----------------------------------------- |
+| `npm run build`   | Type-check and build to `dist/`           |
+| `npm run preview` | Serve the production build                |
+| `npm run lint`    | Run ESLint                                |
+
+## Deployment
+
+Pushes to `main` build and deploy to GitHub Pages via `.github/workflows/deploy.yml`. The deployed site is static, so chat only works for visitors who have Ollama running locally, and the browser must allow requests to it (Ollama may need `OLLAMA_ORIGINS` set to include the site's origin).
