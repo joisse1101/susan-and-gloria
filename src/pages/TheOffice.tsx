@@ -75,19 +75,25 @@ export default function TheOffice() {
             <h1>The Office</h1>
 
             {/* Phaser Canvas Container */}
-            <div ref={containerRef} style={{ width: '100%', maxWidth: '600px', aspectRatio: '640 / 416' }} />
+            {/* Clicking the game drops focus from the input so movement keys work again */}
+            <div
+                ref={containerRef}
+                onMouseDown={() => (document.activeElement as HTMLElement | null)?.blur()}
+                style={{ width: '100%', maxWidth: '600px', aspectRatio: '640 / 416' }}
+            />
 
             {/* React Input Controls */}
             <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '600px' }}>
                 <input
                     type="text"
                     value={chatMessage}
-                    placeholder="Type message and press Enter..."
+                    placeholder="Type message and press Enter (Esc or click the room to walk)..."
                     onChange={(e) => setChatMessage(e.target.value)}
                     onKeyDown={(e) => {
                         // Scroll a long reply back / forward without leaving the input
                         if (e.key === 'ArrowUp') { e.preventDefault(); gameRef.current?.scrollNpcSpeech(-1); }
                         else if (e.key === 'ArrowDown') { e.preventDefault(); gameRef.current?.scrollNpcSpeech(1); }
+                        else if (e.key === 'Escape') e.currentTarget.blur(); // Leave the input to walk around
                     }}
                     onFocus={() => gameRef.current?.setTyping(true)}   // Disable WASD movement
                     onBlur={() => gameRef.current?.setTyping(false)}    // Re-enable WASD movement
