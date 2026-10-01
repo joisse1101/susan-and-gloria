@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { OfficeScene } from './OfficeScene';
+import { OfficeScene, type NpcName } from './OfficeScene';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from './constants';
 
 export class OfficeGame {
@@ -35,11 +35,31 @@ export class OfficeGame {
     }
 
     public setTyping(isTyping: boolean): void {
-        if (this.scene) this.scene.isTyping = isTyping;
+        this.scene?.setTyping(isTyping);
     }
 
     public showPlayerSpeech(text: string): void {
         if (this.scene) this.scene.displaySpeechBubble(text);
+    }
+
+    public showNpcNotice(name: NpcName): void {
+        this.scene?.showNpcNotice(name);
+    }
+
+    public hideNpcBubble(name: NpcName): void {
+        this.scene?.hideNpcBubble(name);
+    }
+
+    public showNpcThinking(name: NpcName): void {
+        this.scene?.showNpcThinking(name);
+    }
+
+    public setNpcSpeech(name: NpcName, text: string): void {
+        this.scene?.setNpcSpeech(name, text);
+    }
+
+    public finishNpcSpeech(name: NpcName): void {
+        this.scene?.finishNpcSpeech(name);
     }
 
     public destroy(): void {

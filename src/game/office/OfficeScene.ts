@@ -29,6 +29,12 @@ interface PlaceOptions {
     flat?: boolean;
 }
 
+export type NpcName = 'susan' | 'gloria';
+
+// Streamed replies are tail-trimmed to this many characters so the bubble stays on screen
+const NPC_BUBBLE_MAX_CHARS = 140;
+const NPC_BUBBLE_LINGER_MS = 6000;
+
 // Which spritesheet a frame name comes from. Some names (plant, windowA) exist in both, so it is explicit.
 type AtlasChoice = 'interior' | 'office';
 
@@ -41,7 +47,18 @@ export class OfficeScene extends Phaser.Scene {
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private speechText!: Phaser.GameObjects.Text;
     private wobble?: Phaser.Tweens.Tween;
+    private npcBubbles = new Map<NpcName, Phaser.GameObjects.Text>();
+    private npcTimers = new Map<NpcName, Phaser.Time.TimerEvent>();
     public isTyping: boolean = false;
+
+    // Phaser captures space/arrows with preventDefault, which would block them in the React <input>
+    public setTyping(isTyping: boolean) {
+        this.isTyping = isTyping;
+        const keyboard = this.input.keyboard;
+        if (!keyboard) return;
+        if (isTyping) keyboard.disableGlobalCapture();
+        else keyboard.enableGlobalCapture();
+    }
 
     constructor() {
         super('OfficeScene');
@@ -88,6 +105,8 @@ export class OfficeScene extends Phaser.Scene {
 
         this.gloria = this.createCoworker(208, 150, 'gloria');
         this.susan = this.createCoworker(450, 160, 'susan');
+        this.npcBubbles.set('gloria', this.createNpcBubble());
+        this.npcBubbles.set('susan', this.createNpcBubble());
 
         // 3. WORLD COLLISION: Enable solid boundaries
         this.player.setCollideWorldBounds(true);
@@ -132,6 +151,90 @@ export class OfficeScene extends Phaser.Scene {
         this.time.delayedCall(3000, () => {
             this.speechText.setVisible(false);
         });
+    }
+
+    // "!" over a coworker: they noticed the player speaking, before anyone is chosen to answer
+    public showNpcNotice(name: NpcName) {
+        const bubble = this.npcBubbles.get(name);
+        if (!bubble) return;
+        this.npcTimers.get(name)?.remove();
+        this.npcTimers.delete(name);
+
+        bubble.setStyle({ fontStyle: 'bold', color: '#d00000' });
+        bubble.setText('!');
+        this.positionNpcBubble(name);
+        bubble.setVisible(true);
+    }
+
+    public hideNpcBubble(name: NpcName) {
+        this.npcTimers.get(name)?.remove();
+        this.npcTimers.delete(name);
+        this.npcBubbles.get(name)?.setVisible(false);
+    }
+
+    // Thought bubble: animated dots above the coworker until the first token arrives
+    public showNpcThinking(name: NpcName) {
+        const bubble = this.npcBubbles.get(name);
+        if (!bubble) return;
+        this.npcTimers.get(name)?.remove();
+
+        const frames = ['.', '..', '...'];
+        let i = 0;
+        bubble.setStyle({ fontStyle: 'italic', color: '#555555' });
+        bubble.setText(`(${frames[i]})`);
+        this.positionNpcBubble(name);
+        bubble.setVisible(true);
+        this.npcTimers.set(name, this.time.addEvent({
+            delay: 400,
+            loop: true,
+            callback: () => bubble.setText(`(${frames[++i % frames.length]})`)
+        }));
+    }
+
+    // Replaces the bubble with the (partial) reply; call repeatedly while streaming
+    public setNpcSpeech(name: NpcName, text: string) {
+        const bubble = this.npcBubbles.get(name);
+        if (!bubble) return;
+        this.npcTimers.get(name)?.remove();
+        this.npcTimers.delete(name);
+
+        const shown = text.length > NPC_BUBBLE_MAX_CHARS ? `…${text.slice(-NPC_BUBBLE_MAX_CHARS)}` : text;
+        bubble.setStyle({ fontStyle: 'normal', color: '#000000' });
+        bubble.setText(shown);
+        this.positionNpcBubble(name);
+        bubble.setVisible(true);
+    }
+
+    // Reply finished (or failed): keep the bubble up briefly, then hide it
+    public finishNpcSpeech(name: NpcName) {
+        const bubble = this.npcBubbles.get(name);
+        if (!bubble) return;
+        this.npcTimers.get(name)?.remove();
+        this.npcTimers.set(name, this.time.delayedCall(NPC_BUBBLE_LINGER_MS, () => {
+            bubble.setVisible(false);
+            this.npcTimers.delete(name);
+        }));
+    }
+
+    private createNpcBubble() {
+        return this.add.text(0, 0, '', {
+            fontSize: '12px',
+            color: '#000000',
+            backgroundColor: '#ffffff',
+            padding: { x: 6, y: 4 },
+            wordWrap: { width: 180 },
+            align: 'center'
+        }).setOrigin(0.5, 1).setDepth(SPEECH_DEPTH).setVisible(false);
+    }
+
+    private positionNpcBubble(name: NpcName) {
+        const bubble = this.npcBubbles.get(name);
+        const npc = name === 'susan' ? this.susan : this.gloria;
+        if (!bubble) return;
+        // Keep the bubble inside the canvas horizontally
+        const half = bubble.width / 2;
+        const x = Phaser.Math.Clamp(npc.x, half, this.scale.width - half);
+        bubble.setPosition(x, npc.y - npc.displayHeight / 2 - 4);
     }
 
     private registerAtlasFrames(key: string, frames: Record<string, AtlasFrame>) {
