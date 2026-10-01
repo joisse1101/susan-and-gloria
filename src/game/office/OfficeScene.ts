@@ -20,7 +20,7 @@ const MAP_BASE_URL = `${import.meta.env.BASE_URL}assets/map/office/`;
 // Name of the tileset inside map.json (as exported from Sprite Fusion)
 const MAP_TILESET_NAME = 'spritefusion';
 // Tile layers drawn over the characters (everything else is under them)
-const TOP_LAYERS: string[] = [];
+const TOP_LAYERS: string[] = ["Divider top 2", "Divider 2"];
 
 interface PlaceOptions {
     // Height (unscaled px) of the collision body measured up from the object's base; omit for no collision
@@ -96,7 +96,7 @@ export class OfficeScene extends Phaser.Scene {
 
         // Pieces: place(name, centreX, centreY, { solid, flat, atlas }). Names live in interiorAtlas.ts; for officeAtlas.ts names pass atlas: 'office'
         // To add an object: pick a frame name, a position in canvas px (640x416), and solid (collision height in px) if it should block the player.
-        this.place('bookshelfA', 400, 140, { solid: 10 });
+        // this.place('bookshelfA', 400, 140, { solid: 10 }); // leave this here for reference
 
         // 2. AVATARS: Player & Coworkers
         this.player = this.physics.add.sprite(300, 300, OFFICE_ATLAS_KEY, 'player');
