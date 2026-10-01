@@ -3,25 +3,16 @@ import {
     OFFICE_ATLAS_KEY,
     OFFICE_ATLAS_URL,
     OFFICE_FRAMES,
-    type AtlasFrame,
     type OfficeFrameName
-} from './officeAtlas';
+} from './atlases/officeAtlas';
 import {
     INTERIOR_ATLAS_KEY,
     INTERIOR_ATLAS_URL,
     INTERIOR_FRAMES,
     type InteriorFrameName
-} from './interiorAtlas';
-
-// Integer scale keeps art pixels square on the 600x400 canvas
-const SPRITE_SCALE = 2;
-// Height (unscaled px) of the collision body at a character's feet
-const FEET_HEIGHT = 8;
-// Above any y-based sprite depth (max canvas height is 400)
-const SPEECH_DEPTH = 10000;
-// Floors and rugs draw below every y-sorted sprite (whose depth is >= 0)
-const FLOOR_DEPTH = -2;
-const RUG_DEPTH = -1;
+} from './atlases/interiorAtlas';
+import type { AtlasFrame } from './atlases/types';
+import { FEET_HEIGHT, FLOOR_DEPTH, RUG_DEPTH, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
 
 interface PlaceOptions {
     // Height (unscaled px) of the collision body measured up from the object's base; omit for no collision
@@ -30,52 +21,7 @@ interface PlaceOptions {
     flat?: boolean;
 }
 
-export class OfficeGame {
-    private game: Phaser.Game;
-    private scene!: OfficeScene;
-
-    constructor(container: HTMLElement) {
-        const config: Phaser.Types.Core.GameConfig = {
-            type: Phaser.AUTO,
-            parent: container,
-            width: 600,
-            height: 400,
-            physics: {
-                default: 'arcade',
-                arcade: {
-                    gravity: { x: 0, y: 0 },
-                    debug: false // Set to true if you want to see red bounding boxes around obstacles
-                }
-            },
-            pixelArt: true,
-            scale: {
-                mode: Phaser.Scale.FIT,
-                autoCenter: Phaser.Scale.CENTER_BOTH
-            },
-            scene: OfficeScene
-        };
-
-        this.game = new Phaser.Game(config);
-
-        this.game.events.on('ready', () => {
-            this.scene = this.game.scene.getScene('OfficeScene') as OfficeScene;
-        });
-    }
-
-    public setTyping(isTyping: boolean): void {
-        if (this.scene) this.scene.isTyping = isTyping;
-    }
-
-    public showPlayerSpeech(text: string): void {
-        if (this.scene) this.scene.displaySpeechBubble(text);
-    }
-
-    public destroy(): void {
-        this.game.destroy(true);
-    }
-}
-
-class OfficeScene extends Phaser.Scene {
+export class OfficeScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private gloria!: Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
@@ -123,6 +69,7 @@ class OfficeScene extends Phaser.Scene {
         // Interior pieces: place(name, centreX, centreY, { solid, flat }). Names live in interiorAtlas.ts
         this.place('rugRed', 300, 250, { flat: true });
         this.place('bookshelfA', 40, 70, { solid: 10 });
+        this.place('bookshelfA', 105, 70, { solid: 10 });
         this.place('plant', 560, 70, { solid: 8 });
 
         // 2. AVATARS: Player & Coworkers

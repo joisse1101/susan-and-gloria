@@ -5,7 +5,7 @@
 - **Author:** Chris Perich
 - **Source:** https://christianperich.itch.io/pixel-life-office-essentials
 - **Licence:** [Creative Commons Attribution 4.0 International (CC-BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
-- **Changes:** none to the artwork; frames are cut from the sheet at runtime (see `src/utils/officeAtlas.ts`).
+- **Changes:** none to the artwork; frames are cut from the sheet at runtime (see `src/game/office/atlases/officeAtlas.ts`).
 
 ## House Interior Tileset (`InteriorTilesLITE.png`)
 - **Author:** Graduation Cat

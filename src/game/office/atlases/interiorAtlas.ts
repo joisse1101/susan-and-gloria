@@ -1,4 +1,4 @@
-import type { AtlasFrame } from './officeAtlas';
+import type { AtlasFrame } from './types';
 
 export const INTERIOR_ATLAS_KEY = 'interior';
 

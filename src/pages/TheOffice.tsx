@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { OfficeGame } from '../utils/theOffice';
+import { OfficeGame } from '../game/office/OfficeGame';
 
 export default function TheOffice() {
     const containerRef = useRef<HTMLDivElement>(null);

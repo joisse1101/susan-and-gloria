@@ -27,5 +27,12 @@ There is no backend: the LLM calls run **in the browser** against a local Ollama
 ### Tools (`src/tools/webSearch.ts`)
 LangChain `web_search` tool that fetches `/api/duckduckgo/html/?q=...` and parses results with `DOMParser`. That path only exists via the **Vite dev-server proxy** (`server.proxy` in `vite.config.ts`) — it will not work in the deployed GitHub Pages build.
 
-### The Office (`src/pages/TheOffice.tsx`, `src/utils/theOffice.ts`)
-A Phaser 4 mini-game mounted at `/office` (outside `MainLayout`). `OfficeGame` wraps `Phaser.Game`/`OfficeScene` and exposes a small imperative API (`setTyping`, `showPlayerSpeech`, `destroy`) that the React page calls via a ref; the React `<input>` toggles `setTyping` on focus/blur so movement keys are disabled while typing. Textures are generated procedurally in `preload()` (no image assets). Susan and Gloria appear as static sprites but are not yet wired to the agent graph.
+### The Office (`src/pages/TheOffice.tsx`, `src/game/office/`)
+A Phaser 4 mini-game mounted at `/office` (outside `MainLayout`). React owns the page and the chat `<input>`; Phaser owns the canvas. They talk only through `OfficeGame`'s imperative API (`setTyping`, `showPlayerSpeech`, `destroy`), called via a ref; the input's focus/blur toggles `setTyping` so movement keys are disabled while typing. Susan and Gloria appear as static sprites but are not yet wired to the agent graph.
+
+- `OfficeGame.ts` — `Phaser.Game` config (600x400, arcade physics, pixel art) and the API above.
+- `OfficeScene.ts` — the scene: `create()` lays the floor, places furniture/NPCs/player, `update()` handles movement. **Edit this to change the room layout** (`place(name, x, y, { solid, flat })`).
+- `constants.ts` — canvas size, sprite scale, depth layers, feet-collision height.
+- `atlases/officeAtlas.ts` — frame rectangles for characters/desks in `PixelOfficeAssets.png`.
+- `atlases/interiorAtlas.ts` — frame rectangles for floors/rugs/furniture in `InteriorTilesLITE.png` (labelled map: `docs/interior-atlas-preview.png`).
+- Spritesheets are in `public/assets/office/` (credits in `CREDITS.md`); frames are cut from the sheets at runtime. Rendering uses y-based depth sorting (`sortByBottom`) so characters walk behind/in front of objects.

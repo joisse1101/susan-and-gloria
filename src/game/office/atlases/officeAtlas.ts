@@ -1,14 +1,9 @@
+import type { AtlasFrame } from './types';
+
 export const OFFICE_ATLAS_KEY = 'office';
 
 // Case matters: GitHub Pages is case-sensitive.
 export const OFFICE_ATLAS_URL = `${import.meta.env.BASE_URL}assets/office/PixelOfficeAssets.png`;
-
-export interface AtlasFrame {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-}
 
 // Frame rectangles measured from PixelOfficeAssets.png (256x160, irregular layout).
 export const OFFICE_FRAMES = {
