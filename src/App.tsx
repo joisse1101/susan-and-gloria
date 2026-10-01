@@ -13,8 +13,8 @@ export default function App() {
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Home />} />
           {/* <Route path="about" element={<About />} /> */}
+          <Route path="office" element={<TheOffice />} />
         </Route>
-        <Route path="/office" element={<TheOffice />} />
       </Routes>
     </HashRouter>
   );

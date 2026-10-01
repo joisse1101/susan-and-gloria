@@ -31,10 +31,10 @@ export default function TheOffice() {
             <h1>The Office</h1>
 
             {/* Phaser Canvas Container */}
-            <div ref={containerRef} style={{ width: '600px', height: '400px' }} />
+            <div ref={containerRef} style={{ width: '100%', maxWidth: '600px', aspectRatio: '3 / 2' }} />
 
             {/* React Input Controls */}
-            <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px', width: '600px' }}>
+            <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '600px' }}>
                 <input
                     type="text"
                     value={chatMessage}

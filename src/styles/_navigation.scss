@@ -70,6 +70,13 @@
       color: $brand-hover;
       text-decoration: none;
     }
+
+    &.active,
+    &.active:link,
+    &.active:visited {
+      color: $text-main;
+      font-weight: 600;
+    }
   }
 
   /* Mobile Responsive Breakdown (< 600px) */

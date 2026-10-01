@@ -1,0 +1,8 @@
+# Asset credits
+
+## Pixel Office Assets (`PixelOfficeAssets.png`)
+
+- **Author:** Chris Perich
+- **Source:** https://christianperich.itch.io/pixel-life-office-essentials
+- **Licence:** [Creative Commons Attribution 4.0 International (CC-BY 4.0)](https://creativecommons.org/licenses/by/4.0/)
+- **Changes:** none to the artwork; frames are cut from the sheet at runtime (see `src/utils/officeAtlas.ts`).
