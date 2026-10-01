@@ -3,8 +3,15 @@ import {
     OFFICE_ATLAS_KEY,
     OFFICE_ATLAS_URL,
     OFFICE_FRAMES,
+    type AtlasFrame,
     type OfficeFrameName
 } from './officeAtlas';
+import {
+    INTERIOR_ATLAS_KEY,
+    INTERIOR_ATLAS_URL,
+    INTERIOR_FRAMES,
+    type InteriorFrameName
+} from './interiorAtlas';
 
 // Integer scale keeps art pixels square on the 600x400 canvas
 const SPRITE_SCALE = 2;
@@ -12,6 +19,16 @@ const SPRITE_SCALE = 2;
 const FEET_HEIGHT = 8;
 // Above any y-based sprite depth (max canvas height is 400)
 const SPEECH_DEPTH = 10000;
+// Floors and rugs draw below every y-sorted sprite (whose depth is >= 0)
+const FLOOR_DEPTH = -2;
+const RUG_DEPTH = -1;
+
+interface PlaceOptions {
+    // Height (unscaled px) of the collision body measured up from the object's base; omit for no collision
+    solid?: number;
+    // Lies on the floor (rugs): drawn under characters instead of depth-sorted
+    flat?: boolean;
+}
 
 export class OfficeGame {
     private game: Phaser.Game;
@@ -62,6 +79,7 @@ class OfficeScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private gloria!: Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
+    private obstacles!: Phaser.Physics.Arcade.StaticGroup;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private speechText!: Phaser.GameObjects.Text;
     private wobble?: Phaser.Tweens.Tween;
@@ -73,10 +91,14 @@ class OfficeScene extends Phaser.Scene {
 
     preload() {
         this.load.image(OFFICE_ATLAS_KEY, OFFICE_ATLAS_URL);
+        this.load.image(INTERIOR_ATLAS_KEY, INTERIOR_ATLAS_URL);
     }
 
     create() {
-        this.registerAtlasFrames();
+        this.registerAtlasFrames(OFFICE_ATLAS_KEY, OFFICE_FRAMES);
+        this.registerAtlasFrames(INTERIOR_ATLAS_KEY, INTERIOR_FRAMES);
+
+        this.layFloor('floorWood');
 
         this.speechText = this.add.text(0, 0, '', {
             fontSize: '12px',
@@ -91,12 +113,17 @@ class OfficeScene extends Phaser.Scene {
         this.speechText.setDepth(SPEECH_DEPTH);
 
         // 1. OBSTACLES: Group for static walls/desks
-        const staticGroup = this.physics.add.staticGroup();
+        this.obstacles = this.physics.add.staticGroup();
         for (const x of [200, 400]) {
-            const desk = staticGroup.create(x, 80, OFFICE_ATLAS_KEY, 'desk') as Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
+            const desk = this.obstacles.create(x, 80, OFFICE_ATLAS_KEY, 'desk') as Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
             desk.setScale(SPRITE_SCALE).refreshBody();
             this.sortByBottom(desk);
         }
+
+        // Interior pieces: place(name, centreX, centreY, { solid, flat }). Names live in interiorAtlas.ts
+        this.place('rugRed', 300, 250, { flat: true });
+        this.place('bookshelfA', 40, 70, { solid: 10 });
+        this.place('plant', 560, 70, { solid: 8 });
 
         // 2. AVATARS: Player & Coworkers
         this.player = this.physics.add.sprite(300, 300, OFFICE_ATLAS_KEY, 'player');
@@ -111,7 +138,7 @@ class OfficeScene extends Phaser.Scene {
 
         // 3. WORLD COLLISION: Enable solid boundaries
         this.player.setCollideWorldBounds(true);
-        this.physics.add.collider(this.player, staticGroup); // Stop on desks
+        this.physics.add.collider(this.player, this.obstacles); // Stop on desks
         this.physics.add.collider(this.player, this.gloria);   // Stop on Gloria
         this.physics.add.collider(this.player, this.susan);    // Stop on Susan
 
@@ -153,11 +180,37 @@ class OfficeScene extends Phaser.Scene {
         });
     }
 
-    private registerAtlasFrames() {
-        const texture = this.textures.get(OFFICE_ATLAS_KEY);
-        for (const [name, f] of Object.entries(OFFICE_FRAMES)) {
+    private registerAtlasFrames(key: string, frames: Record<string, AtlasFrame>) {
+        const texture = this.textures.get(key);
+        for (const [name, f] of Object.entries(frames)) {
             if (!texture.has(name)) texture.add(name, 0, f.x, f.y, f.w, f.h);
         }
+    }
+
+    private layFloor(name: InteriorFrameName) {
+        const { width, height } = this.scale;
+        this.add.tileSprite(0, 0, width, height, INTERIOR_ATLAS_KEY, name)
+            .setOrigin(0)
+            .setTileScale(SPRITE_SCALE)
+            .setDepth(FLOOR_DEPTH);
+    }
+
+    private place(name: InteriorFrameName, x: number, y: number, { solid, flat }: PlaceOptions = {}) {
+        if (solid === undefined) {
+            const img = this.add.image(x, y, INTERIOR_ATLAS_KEY, name).setScale(SPRITE_SCALE);
+            if (flat) img.setDepth(RUG_DEPTH);
+            else this.sortByBottom(img);
+            return img;
+        }
+
+        const sprite = this.obstacles.create(x, y, INTERIOR_ATLAS_KEY, name) as Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
+        sprite.setScale(SPRITE_SCALE).refreshBody();
+        // Base-only body, in display pixels, so the top of tall pieces can overlap the player
+        const height = solid * SPRITE_SCALE;
+        sprite.body.setSize(sprite.displayWidth, height, false);
+        sprite.body.setOffset(0, sprite.displayHeight - height);
+        this.sortByBottom(sprite);
+        return sprite;
     }
 
     private createCoworker(x: number, y: number, frame: OfficeFrameName) {
@@ -171,7 +224,7 @@ class OfficeScene extends Phaser.Scene {
         return sprite;
     }
 
-    private sortByBottom(sprite: Phaser.GameObjects.Sprite) {
+    private sortByBottom(sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image) {
         sprite.setDepth(sprite.y + sprite.displayHeight / 2);
     }
 
