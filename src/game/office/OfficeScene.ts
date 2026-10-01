@@ -12,7 +12,15 @@ import {
     type InteriorFrameName
 } from './atlases/interiorAtlas';
 import type { AtlasFrame } from './atlases/types';
-import { FEET_HEIGHT, FLOOR_DEPTH, RUG_DEPTH, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
+import { FEET_HEIGHT, MAP_DEPTH, MAP_TOP_DEPTH, RUG_DEPTH, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
+
+const MAP_KEY = 'officeMap';
+const MAP_TILESET_KEY = 'officeTiles';
+const MAP_BASE_URL = `${import.meta.env.BASE_URL}assets/map/office/`;
+// Name of the tileset inside map.json (as exported from Sprite Fusion)
+const MAP_TILESET_NAME = 'spritefusion';
+// Tile layers drawn over the characters (everything else is under them)
+const TOP_LAYERS: string[] = [];
 
 interface PlaceOptions {
     // Height (unscaled px) of the collision body measured up from the object's base; omit for no collision
@@ -21,10 +29,14 @@ interface PlaceOptions {
     flat?: boolean;
 }
 
+// Which spritesheet a frame name comes from. Some names (plant, windowA) exist in both, so it is explicit.
+type AtlasChoice = 'interior' | 'office';
+
 export class OfficeScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private gloria!: Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
+    private mapLayers: Phaser.Tilemaps.TilemapLayer[] = [];
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private speechText!: Phaser.GameObjects.Text;
@@ -38,13 +50,13 @@ export class OfficeScene extends Phaser.Scene {
     preload() {
         this.load.image(OFFICE_ATLAS_KEY, OFFICE_ATLAS_URL);
         this.load.image(INTERIOR_ATLAS_KEY, INTERIOR_ATLAS_URL);
+        this.load.tilemapTiledJSON(MAP_KEY, `${MAP_BASE_URL}map.json`);
+        this.load.image(MAP_TILESET_KEY, `${MAP_BASE_URL}spritesheet.png`);
     }
 
     create() {
         this.registerAtlasFrames(OFFICE_ATLAS_KEY, OFFICE_FRAMES);
         this.registerAtlasFrames(INTERIOR_ATLAS_KEY, INTERIOR_FRAMES);
-
-        this.layFloor('floorWood');
 
         this.speechText = this.add.text(0, 0, '', {
             fontSize: '12px',
@@ -60,17 +72,11 @@ export class OfficeScene extends Phaser.Scene {
 
         // 1. OBSTACLES: Group for static walls/desks
         this.obstacles = this.physics.add.staticGroup();
-        for (const x of [200, 400]) {
-            const desk = this.obstacles.create(x, 80, OFFICE_ATLAS_KEY, 'desk') as Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
-            desk.setScale(SPRITE_SCALE).refreshBody();
-            this.sortByBottom(desk);
-        }
+        this.loadMap();
 
-        // Interior pieces: place(name, centreX, centreY, { solid, flat }). Names live in interiorAtlas.ts
-        this.place('rugRed', 300, 250, { flat: true });
-        this.place('bookshelfA', 40, 70, { solid: 10 });
-        this.place('bookshelfA', 105, 70, { solid: 10 });
-        this.place('plant', 560, 70, { solid: 8 });
+        // Pieces: place(name, centreX, centreY, { solid, flat, atlas }). Names live in interiorAtlas.ts; for officeAtlas.ts names pass atlas: 'office'
+        // To add an object: pick a frame name, a position in canvas px (640x416), and solid (collision height in px) if it should block the player.
+        this.place('bookshelfA', 400, 140, { solid: 10 });
 
         // 2. AVATARS: Player & Coworkers
         this.player = this.physics.add.sprite(300, 300, OFFICE_ATLAS_KEY, 'player');
@@ -80,12 +86,13 @@ export class OfficeScene extends Phaser.Scene {
         this.player.body.setSize(playerFrame.w - 4, FEET_HEIGHT);
         this.player.body.setOffset(2, playerFrame.h - FEET_HEIGHT);
 
-        this.gloria = this.createCoworker(150, 120, 'gloria');
-        this.susan = this.createCoworker(450, 120, 'susan');
+        this.gloria = this.createCoworker(208, 150, 'gloria');
+        this.susan = this.createCoworker(450, 160, 'susan');
 
         // 3. WORLD COLLISION: Enable solid boundaries
         this.player.setCollideWorldBounds(true);
-        this.physics.add.collider(this.player, this.obstacles); // Stop on desks
+        this.physics.add.collider(this.player, this.obstacles); // Stop on placed furniture
+        for (const layer of this.mapLayers) this.physics.add.collider(this.player, layer); // Stop on map walls/tables
         this.physics.add.collider(this.player, this.gloria);   // Stop on Gloria
         this.physics.add.collider(this.player, this.susan);    // Stop on Susan
 
@@ -134,23 +141,37 @@ export class OfficeScene extends Phaser.Scene {
         }
     }
 
-    private layFloor(name: InteriorFrameName) {
-        const { width, height } = this.scale;
-        this.add.tileSprite(0, 0, width, height, INTERIOR_ATLAS_KEY, name)
-            .setOrigin(0)
-            .setTileScale(SPRITE_SCALE)
-            .setDepth(FLOOR_DEPTH);
+    // Builds every tile layer from map.json. Layers whose Tiled "collider" property is true block the player.
+    private loadMap() {
+        const map = this.make.tilemap({ key: MAP_KEY });
+        const tileset = map.addTilesetImage(MAP_TILESET_NAME, MAP_TILESET_KEY);
+        if (!tileset) throw new Error(`Tileset "${MAP_TILESET_NAME}" not found in map.json`);
+
+        for (const data of map.layers) {
+            const layer = map.createLayer(data.name, tileset, 0, 0);
+            if (!(layer instanceof Phaser.Tilemaps.TilemapLayer)) continue;
+            layer.setDepth(TOP_LAYERS.includes(data.name) ? MAP_TOP_DEPTH : MAP_DEPTH);
+
+            const props = data.properties as { name: string; value: unknown }[] | undefined;
+            if (props?.some((p) => p.name === 'collider' && p.value === true)) {
+                layer.setCollisionByExclusion([-1]);
+                this.mapLayers.push(layer);
+            }
+        }
     }
 
-    private place(name: InteriorFrameName, x: number, y: number, { solid, flat }: PlaceOptions = {}) {
+    private place(name: InteriorFrameName, x: number, y: number, options?: PlaceOptions & { atlas?: 'interior' }): Phaser.GameObjects.Image;
+    private place(name: OfficeFrameName, x: number, y: number, options: PlaceOptions & { atlas: 'office' }): Phaser.GameObjects.Image;
+    private place(name: string, x: number, y: number, { solid, flat, atlas = 'interior' }: PlaceOptions & { atlas?: AtlasChoice } = {}) {
+        const key = atlas === 'office' ? OFFICE_ATLAS_KEY : INTERIOR_ATLAS_KEY;
         if (solid === undefined) {
-            const img = this.add.image(x, y, INTERIOR_ATLAS_KEY, name).setScale(SPRITE_SCALE);
+            const img = this.add.image(x, y, key, name).setScale(SPRITE_SCALE);
             if (flat) img.setDepth(RUG_DEPTH);
             else this.sortByBottom(img);
             return img;
         }
 
-        const sprite = this.obstacles.create(x, y, INTERIOR_ATLAS_KEY, name) as Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
+        const sprite = this.obstacles.create(x, y, key, name) as Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
         sprite.setScale(SPRITE_SCALE).refreshBody();
         // Base-only body, in display pixels, so the top of tall pieces can overlap the player
         const height = solid * SPRITE_SCALE;
