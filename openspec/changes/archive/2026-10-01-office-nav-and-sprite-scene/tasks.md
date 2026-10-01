@@ -25,4 +25,4 @@
 ## 5. Verification
 
 - [x] 5.1 Run `npm run lint` and `npm run build`; verify both pass
-- [ ] 5.2 Run `npm run build && npm run preview` and open `/susan-and-gloria/#/office`; verify all sprites load under the base path with no 404s in the network tab
+- [x] 5.2 Run `npm run build && npm run preview` and open `/susan-and-gloria/#/office`; verify all sprites load under the base path with no 404s in the network tab
