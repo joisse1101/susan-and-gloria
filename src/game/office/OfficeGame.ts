@@ -42,6 +42,10 @@ export class OfficeGame {
         if (this.scene) this.scene.displaySpeechBubble(text);
     }
 
+    public scrollNpcSpeech(lines: number): void {
+        this.scene?.scrollNpcSpeech(lines);
+    }
+
     public showNpcNotice(name: NpcName): void {
         this.scene?.showNpcNotice(name);
     }

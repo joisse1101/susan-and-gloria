@@ -31,9 +31,11 @@ interface PlaceOptions {
 
 export type NpcName = 'susan' | 'gloria';
 
-// Streamed replies are tail-trimmed to this many characters so the bubble stays on screen
-const NPC_BUBBLE_MAX_CHARS = 140;
-const NPC_BUBBLE_LINGER_MS = 6000;
+// Replies scroll inside a window of this many wrapped lines, following the newest text
+const NPC_BUBBLE_LINES = 8;
+const NPC_BUBBLE_WIDTH = 250;
+const NPC_BUBBLE_FONT = '10px';
+const NPC_BUBBLE_LINGER_MS = 12000;
 
 // Which spritesheet a frame name comes from. Some names (plant, windowA) exist in both, so it is explicit.
 type AtlasChoice = 'interior' | 'office';
@@ -49,6 +51,7 @@ export class OfficeScene extends Phaser.Scene {
     private wobble?: Phaser.Tweens.Tween;
     private npcBubbles = new Map<NpcName, Phaser.GameObjects.Text>();
     private npcTimers = new Map<NpcName, Phaser.Time.TimerEvent>();
+    private npcSpeech = new Map<NpcName, { text: string; offset: number; follow: boolean; done: boolean }>();
     public isTyping: boolean = false;
 
     // Phaser captures space/arrows with preventDefault, which would block them in the React <input>
@@ -107,6 +110,15 @@ export class OfficeScene extends Phaser.Scene {
         this.susan = this.createCoworker(450, 160, 'susan');
         this.npcBubbles.set('gloria', this.createNpcBubble());
         this.npcBubbles.set('susan', this.createNpcBubble());
+        // Mouse wheel over a bubble scrolls it back through the reply
+        // Hit-tested by bounds: setInteractive() fixes its hit area at the (empty) size the text has when created
+        this.input.on('wheel', (pointer: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => {
+            for (const [name, bubble] of this.npcBubbles) {
+                if (bubble.visible && bubble.getBounds().contains(pointer.worldX, pointer.worldY)) {
+                    this.scrollNpcSpeech(dy > 0 ? 1 : -1, name);
+                }
+            }
+        });
 
         // 3. WORLD COLLISION: Enable solid boundaries
         this.player.setCollideWorldBounds(true);
@@ -160,7 +172,7 @@ export class OfficeScene extends Phaser.Scene {
         this.npcTimers.get(name)?.remove();
         this.npcTimers.delete(name);
 
-        bubble.setStyle({ fontStyle: 'bold', color: '#d00000' });
+        bubble.setStyle({ fontSize: '16px', fontStyle: 'bold', color: '#d00000', align: 'center' });
         bubble.setText('!');
         this.positionNpcBubble(name);
         bubble.setVisible(true);
@@ -170,6 +182,7 @@ export class OfficeScene extends Phaser.Scene {
         this.npcTimers.get(name)?.remove();
         this.npcTimers.delete(name);
         this.npcBubbles.get(name)?.setVisible(false);
+        this.npcSpeech.delete(name);
     }
 
     // Thought bubble: animated dots above the coworker until the first token arrives
@@ -180,7 +193,7 @@ export class OfficeScene extends Phaser.Scene {
 
         const frames = ['.', '..', '...'];
         let i = 0;
-        bubble.setStyle({ fontStyle: 'italic', color: '#555555' });
+        bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'italic', color: '#555555', align: 'center' });
         bubble.setText(`(${frames[i]})`);
         this.positionNpcBubble(name);
         bubble.setVisible(true);
@@ -198,32 +211,81 @@ export class OfficeScene extends Phaser.Scene {
         this.npcTimers.get(name)?.remove();
         this.npcTimers.delete(name);
 
-        const shown = text.length > NPC_BUBBLE_MAX_CHARS ? `…${text.slice(-NPC_BUBBLE_MAX_CHARS)}` : text;
-        bubble.setStyle({ fontStyle: 'normal', color: '#000000' });
-        bubble.setText(shown);
-        this.positionNpcBubble(name);
+        // Blank lines only waste space
+        const clean = text.split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
+        const prev = this.npcSpeech.get(name);
+        // A new reply starts pinned to the bottom; further tokens keep the player's scroll position
+        const speech = prev && !prev.done ? prev : { text: '', offset: 0, follow: true, done: false };
+        speech.text = clean;
+        this.npcSpeech.set(name, speech);
+        bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'normal', color: '#000000', align: 'left' });
         bubble.setVisible(true);
+        this.renderNpcSpeech(name);
     }
 
-    // Reply finished (or failed): keep the bubble up briefly, then hide it
+    // Reply finished (or failed): leave it up for a while so it can be read and scrolled, then hide
     public finishNpcSpeech(name: NpcName) {
+        const speech = this.npcSpeech.get(name);
+        if (!speech) return;
+        speech.done = true;
+        this.scheduleNpcHide(name);
+    }
+
+    // Scrolls the visible bubble by `lines` (negative = back up); reaching the bottom resumes auto-follow
+    public scrollNpcSpeech(lines: number, name?: NpcName) {
+        for (const [key, speech] of this.npcSpeech) {
+            if ((name && key !== name) || !this.npcBubbles.get(key)?.visible) continue;
+            const max = Math.max(0, this.npcLines(key).length - NPC_BUBBLE_LINES);
+            speech.offset = Phaser.Math.Clamp(speech.offset + lines, 0, max);
+            speech.follow = speech.offset >= max;
+            this.renderNpcSpeech(key);
+            this.scheduleNpcHide(key);
+        }
+    }
+
+    private npcLines(name: NpcName): string[] {
         const bubble = this.npcBubbles.get(name);
-        if (!bubble) return;
+        const speech = this.npcSpeech.get(name);
+        return bubble && speech ? bubble.getWrappedText(speech.text) : [];
+    }
+
+    private renderNpcSpeech(name: NpcName) {
+        const bubble = this.npcBubbles.get(name);
+        const speech = this.npcSpeech.get(name);
+        if (!bubble || !speech) return;
+        const lines = this.npcLines(name);
+        const max = Math.max(0, lines.length - NPC_BUBBLE_LINES);
+        if (speech.follow) speech.offset = max;
+        speech.offset = Math.min(speech.offset, max);
+
+        let body = lines.slice(speech.offset, speech.offset + NPC_BUBBLE_LINES).join('\n');
+        if (max > 0) {
+            // Arrows show which directions can still scroll; the line stays put so the bubble doesn't jump
+            const up = speech.offset > 0 ? '▲' : ' ';
+            const down = speech.offset < max ? '▼' : ' ';
+            body += `\n${up} ${down}`;
+        }
+        bubble.setText(body);
+        this.positionNpcBubble(name);
+    }
+
+    private scheduleNpcHide(name: NpcName) {
         this.npcTimers.get(name)?.remove();
+        this.npcTimers.delete(name);
+        if (!this.npcSpeech.get(name)?.done) return;
         this.npcTimers.set(name, this.time.delayedCall(NPC_BUBBLE_LINGER_MS, () => {
-            bubble.setVisible(false);
-            this.npcTimers.delete(name);
+            this.hideNpcBubble(name);
         }));
     }
 
     private createNpcBubble() {
         return this.add.text(0, 0, '', {
-            fontSize: '12px',
+            fontSize: NPC_BUBBLE_FONT,
             color: '#000000',
             backgroundColor: '#ffffff',
             padding: { x: 6, y: 4 },
-            wordWrap: { width: 180 },
-            align: 'center'
+            wordWrap: { width: NPC_BUBBLE_WIDTH },
+            align: 'left'
         }).setOrigin(0.5, 1).setDepth(SPEECH_DEPTH).setVisible(false);
     }
 

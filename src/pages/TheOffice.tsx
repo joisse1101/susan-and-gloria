@@ -84,6 +84,11 @@ export default function TheOffice() {
                     value={chatMessage}
                     placeholder="Type message and press Enter..."
                     onChange={(e) => setChatMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                        // Scroll a long reply back / forward without leaving the input
+                        if (e.key === 'ArrowUp') { e.preventDefault(); gameRef.current?.scrollNpcSpeech(-1); }
+                        else if (e.key === 'ArrowDown') { e.preventDefault(); gameRef.current?.scrollNpcSpeech(1); }
+                    }}
                     onFocus={() => gameRef.current?.setTyping(true)}   // Disable WASD movement
                     onBlur={() => gameRef.current?.setTyping(false)}    // Re-enable WASD movement
                     style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
