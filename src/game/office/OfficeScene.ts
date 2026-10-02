@@ -161,11 +161,11 @@ export class OfficeScene extends Phaser.Scene {
 
         this.player.body.pushable = false; // chairs move out of its way, not the other way round
         this.chairs = new Chairs(this);
-        this.chairs.add(375, 300, 'chairS');
-        this.chairs.add(260, 330, 'chairSE');
-        this.chairs.add(330, 350, 'chairW');
+        this.chairs.add(450, 300, 'chairS');
+        this.chairs.add(260, 380, 'chairSE');
+        this.chairs.add(330, 380, 'chairW');
 
-        this.gloria = this.createCoworker(240, 150, 'gloria');
+        this.gloria = this.createCoworker(170, 150, 'gloria');
         this.susan = this.createCoworker(475, 160, 'susan');
         this.npcBubbles.set('gloria', this.createNpcBubble());
         this.npcBubbles.set('susan', this.createNpcBubble());
@@ -591,10 +591,10 @@ export class OfficeScene extends Phaser.Scene {
         }));
     }
 
-    private place(name: InteriorFrameName, x: number, y: number, options?: PlaceOptions & { atlas?: 'interior' }): Phaser.GameObjects.Image;
-    private place(name: OfficeFrameName, x: number, y: number, options: PlaceOptions & { atlas: 'office' }): Phaser.GameObjects.Image;
-    private place(name: FurnitureFrameName, x: number, y: number, options: PlaceOptions & { atlas: 'furniture' }): Phaser.GameObjects.Image;
-    private place(name: string, x: number, y: number, { solid, flat, atlas = 'interior' }: PlaceOptions & { atlas?: AtlasChoice } = {}) {
+    protected place(name: InteriorFrameName, x: number, y: number, options?: PlaceOptions & { atlas?: 'interior' }): Phaser.GameObjects.Image;
+    protected place(name: OfficeFrameName, x: number, y: number, options: PlaceOptions & { atlas: 'office' }): Phaser.GameObjects.Image;
+    protected place(name: FurnitureFrameName, x: number, y: number, options: PlaceOptions & { atlas: 'furniture' }): Phaser.GameObjects.Image;
+    protected place(name: string, x: number, y: number, { solid, flat, atlas = 'interior' }: PlaceOptions & { atlas?: AtlasChoice } = {}) {
         const key = { interior: INTERIOR_ATLAS_KEY, office: OFFICE_ATLAS_KEY, furniture: FURNITURE_ATLAS_KEY }[atlas];
         if (solid === undefined) {
             const img = this.add.image(x, y, key, name).setScale(SPRITE_SCALE);
