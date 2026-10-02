@@ -30,7 +30,6 @@ Rule of thumb: **group by feature/domain, not by file type; one responsibility p
 | `public/favicon.svg` | Site icon referenced from `index.html` | Only files referenced by name from `index.html` or Phaser loaders belong in `public/`. |
 | `src/assets/` | Only assets imported by code/CSS (bundled & hashed) | Keep empty rather than leaving unused template files. |
 | `docs/` | Reference images/notes for humans (e.g. atlas preview) | Not shipped in the bundle. |
-| `pixel-art/` | Source scripts that generate art | Source of truth for art that ends up in `public/assets/`. |
 | `openspec/` | Specs and change proposals | Managed by the opsx skills; don't hand-edit archived changes. |
 
 ## Checklist when refactoring
