@@ -16,6 +16,8 @@ export interface CharacterSprite {
     name: string;
     idle: { url: string } & SheetLayout;
     walk: { url: string } & SheetLayout;
+    // Seated typing sheet, if the character has one (pixel-art/npc-type/build.py)
+    type?: { url: string } & SheetLayout;
 }
 
 // Case matters: GitHub Pages is case-sensitive.
@@ -30,7 +32,8 @@ export const PLAYER_SPRITE: CharacterSprite = {
 export const SUSAN_SPRITE: CharacterSprite = {
     name: 'susan',
     idle: { url: assetUrl('susan', 'Idle.png'), columns: 2, frames: 2 },
-    walk: { url: assetUrl('susan', 'Walk.png'), columns: 4, frames: 4 }
+    walk: { url: assetUrl('susan', 'Walk.png'), columns: 4, frames: 4 },
+    type: { url: assetUrl('susan', 'Type.png'), columns: 2, frames: 2 }
 };
 
 export const GLORIA_SPRITE: CharacterSprite = {
@@ -47,6 +50,7 @@ export const PLAYER_BODY = { width: 11, offsetX: 11 };
 export function preloadCharacterSprite(scene: Phaser.Scene, sprite: CharacterSprite) {
     scene.load.spritesheet(`${sprite.name}-idle`, sprite.idle.url, { frameWidth: FRAME_SIZE, frameHeight: FRAME_SIZE });
     scene.load.spritesheet(`${sprite.name}-walk`, sprite.walk.url, { frameWidth: FRAME_SIZE, frameHeight: FRAME_SIZE });
+    if (sprite.type) scene.load.spritesheet(`${sprite.name}-type`, sprite.type.url, { frameWidth: FRAME_SIZE, frameHeight: FRAME_SIZE });
 }
 
 // Seated typing sheet (2 frames per direction, hands alternate); built by pixel-art/player-type/build.py
@@ -58,8 +62,8 @@ export function preloadPlayerSprite(scene: Phaser.Scene) {
     scene.load.spritesheet(PLAYER_TYPE_KEY, PLAYER_TYPE.url, { frameWidth: FRAME_SIZE, frameHeight: FRAME_SIZE });
 }
 
-export function typeAnimKey(facing: Facing) {
-    return `${PLAYER_TYPE_KEY}-${facing}`;
+export function typeAnimKey(facing: Facing, name = PLAYER_SPRITE.name) {
+    return `${name}-type-${facing}`;
 }
 
 export function animKey(kind: 'idle' | 'walk', facing: Facing, name = PLAYER_SPRITE.name) {
@@ -82,6 +86,19 @@ export function createCharacterAnims(scene: Phaser.Scene, sprite: CharacterSprit
     };
     make('idle', sprite.idle, 2);
     make('walk', sprite.walk, 8);
+    const type = sprite.type;
+    if (!type) return; // the player's typing anims are made in createPlayerAnims
+    DIRECTIONS.forEach((facing, row) => {
+        scene.anims.create({
+            key: typeAnimKey(facing, sprite.name),
+            frames: scene.anims.generateFrameNumbers(`${sprite.name}-type`, {
+                start: row * type.columns,
+                end: row * type.columns + type.frames - 1
+            }),
+            frameRate: 6,
+            repeat: -1
+        });
+    });
 }
 
 export function createPlayerAnims(scene: Phaser.Scene) {

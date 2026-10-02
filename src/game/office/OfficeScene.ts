@@ -314,6 +314,10 @@ export class OfficeScene extends Phaser.Scene {
             npc.setData(FACING, facing);
         }
         if (!moving && this.work.isWorking(character.name as NpcName)) {
+            if (character.type) {
+                npc.anims.play(typeAnimKey(facing, character.name), true);
+                return;
+            }
             // Working: hold the idle animation's first frame instead of looping it
             if (npc.anims.isPlaying || !npc.anims.currentAnim?.key.includes('-idle-')) {
                 npc.anims.play(animKey('idle', facing, character.name));
