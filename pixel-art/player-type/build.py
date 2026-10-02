@@ -22,6 +22,7 @@ SKIN_FAR = (0xb0, 0x84, 0x78, 255)   # the far hand is shaded, as if behind the 
 SKIN_LIGHT = (0xe4, 0xb5, 0xa5, 255)
 SLEEVE = (0x3a, 0x2b, 0x28, 255)
 ARM_X = 19                    # side views: columns from here on are the redrawn arm
+TYPE_SWING = 2                # side views: px each hand travels between the two frames (1 = subtle, 2+ = exaggerated)
 FAR_X = 19                    # left column of the shaded hand; larger = further forward, towards the extended hand
 HEAD_END = 17                 # last head row; heads come from Idle (Shoot's has a muzzle-flash spark)
 GUN = {(0x92, 0x92, 0x91, 255), (0x81, 0x81, 0x7d, 255)}
@@ -55,12 +56,12 @@ def side_upper(row, flip, frame):
                 o[x, y] = color
 
     # Near arm: sleeve to the cuff at x=21; the hand is 2x2, same as the far one, then skin straight on (no line at the wrist), no outline, so the hand stays small
-    hy = 19 + frame
+    hy = 19 - TYPE_SWING // 2 + TYPE_SWING * frame
     rect(ARM_X, 21, hy, hy + 1, SLEEVE)
     rect(22, 23, hy, hy + 1, SKIN)
     rect(22, 22, hy, hy + 1, SKIN_LIGHT)
     # Shaded hand, drawn over the sleeve: skin straight on the dark jacket (no outline), on the opposite beat
-    fy = 20 - frame
+    fy = 20 - TYPE_SWING // 2 + TYPE_SWING * (1 - frame)
     rect(FAR_X, FAR_X + 1, fy, fy + 1, SKIN_FAR)
     return up
 
