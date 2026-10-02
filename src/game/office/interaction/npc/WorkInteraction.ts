@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { NpcName } from '../../OfficeScene';
+import { faceHorizontal } from './facing';
 import { WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
 
 // Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one
@@ -148,7 +149,7 @@ export class WorkInteraction {
         const npc = this.host.npc(name);
         const dir = new Phaser.Math.Vector2(visit.x - npc.body.center.x, visit.y - npc.body.center.y).normalize();
         npc.setVelocity(dir.x * WALK_SPEED, dir.y * WALK_SPEED);
-        if (npc.body.velocity.x !== 0) npc.setFlipX(npc.body.velocity.x < 0);
+        if (npc.body.velocity.x !== 0) faceHorizontal(npc, npc.body.velocity.x < 0);
         return true;
     }
 
@@ -180,7 +181,7 @@ export class WorkInteraction {
         npc.setVelocity(0);
         // dir is the side of the tile they stand on, so the tile is the opposite way. Sprites face right
         // by default, so flip when they stand to the right of the tile (tile on their left)
-        if (dx !== 0) npc.setFlipX(dx > 0);
+        if (dx !== 0) faceHorizontal(npc, dx > 0);
         return true;
     }
 

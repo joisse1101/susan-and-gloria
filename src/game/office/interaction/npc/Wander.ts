@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { NpcName } from './NpcBubbles';
+import { faceHorizontal } from './facing';
 
 type Sprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 
@@ -42,7 +43,7 @@ export class Wander {
             } else {
                 const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
                 npc.setVelocity(Math.cos(angle) * WALK_SPEED, Math.sin(angle) * WALK_SPEED);
-                if (npc.body.velocity.x !== 0) npc.setFlipX(npc.body.velocity.x < 0);
+                if (npc.body.velocity.x !== 0) faceHorizontal(npc, npc.body.velocity.x < 0);
             }
             this.until.set(name, this.scene.time.now + Phaser.Math.Between(STEP_MS.min, STEP_MS.max));
         }
