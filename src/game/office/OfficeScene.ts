@@ -25,6 +25,14 @@ import { NpcBubbles, type NpcName } from './interaction/npc/NpcBubbles';
 import { Wander } from './interaction/npc/Wander';
 import { Chat } from './interaction/player/Chat';
 import { PlayerWork } from './interaction/player/PlayerWork';
+import {
+    PLAYER_BODY,
+    PLAYER_IDLE_KEY,
+    animKey,
+    createPlayerAnims,
+    preloadPlayerSprite,
+    type Facing
+} from './interaction/player/playerSprite';
 import { loadOfficeMap, preloadOfficeMap } from './map/loadOfficeMap';
 import { CAMERA_ZOOM, FEET_HEIGHT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPRITE_SCALE } from './constants';
 
@@ -51,7 +59,7 @@ export class OfficeScene extends Phaser.Scene {
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
     private chairs!: Chairs;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    private wobble?: Phaser.Tweens.Tween;
+    private facing: Facing = 'down';
     private chat!: Chat;
     private sayHandler?: (text: string) => boolean;
     private wander!: Wander;
@@ -70,6 +78,7 @@ export class OfficeScene extends Phaser.Scene {
         this.load.image(OFFICE_ATLAS_KEY, OFFICE_ATLAS_URL);
         this.load.image(INTERIOR_ATLAS_KEY, INTERIOR_ATLAS_URL);
         this.load.image(FURNITURE_ATLAS_KEY, FURNITURE_ATLAS_URL);
+        preloadPlayerSprite(this);
         preloadOfficeMap(this);
     }
 
@@ -104,12 +113,12 @@ export class OfficeScene extends Phaser.Scene {
         // this.place('bookshelfA', 400, 140, { solid: 10 }); // leave this here for reference
 
         // 2. AVATARS: Player & Coworkers
-        this.player = this.physics.add.sprite(300, 300, OFFICE_ATLAS_KEY, 'player');
+        createPlayerAnims(this);
+        this.player = this.physics.add.sprite(300, 300, PLAYER_IDLE_KEY);
         this.player.setScale(SPRITE_SCALE);
         // Feet-only body so the head can overlap objects behind
-        const playerFrame = OFFICE_FRAMES.player;
-        this.player.body.setSize(playerFrame.w - 4, FEET_HEIGHT);
-        this.player.body.setOffset(2, playerFrame.h - FEET_HEIGHT);
+        this.player.body.setSize(PLAYER_BODY.width, FEET_HEIGHT);
+        this.player.body.setOffset(PLAYER_BODY.offsetX, this.player.height - FEET_HEIGHT);
 
         this.playerWork = new PlayerWork(this, {
             player: this.player,
@@ -183,11 +192,8 @@ export class OfficeScene extends Phaser.Scene {
         this.player.body.velocity.normalize().scale(speed);
         if (pulling) this.chairs.drag(this.player);
 
-        const vx = this.player.body.velocity.x;
-        if (vx !== 0) this.player.setFlipX(vx < 0);
-
         const moving = this.player.body.velocity.lengthSq() > 0;
-        this.updateWalkCue(moving);
+        this.updatePlayerAnim(moving);
         this.playerWork.update(moving);
 
         this.sortByBottom(this.player);
@@ -289,20 +295,11 @@ export class OfficeScene extends Phaser.Scene {
         sprite.setDepth(sprite.y + sprite.displayHeight / 2);
     }
 
-    private updateWalkCue(moving: boolean) {
-        if (moving && !this.wobble) {
-            this.wobble = this.tweens.add({
-                targets: this.player,
-                angle: { from: -4, to: 4 },
-                duration: 140,
-                yoyo: true,
-                repeat: -1
-            });
-        } else if (!moving && this.wobble) {
-            this.wobble.remove();
-            this.wobble = undefined;
-            this.player.setAngle(0);
-        }
+    private updatePlayerAnim(moving: boolean) {
+        const { x, y } = this.player.body.velocity;
+        if (x !== 0) this.facing = x < 0 ? 'left' : 'right';
+        else if (y !== 0) this.facing = y < 0 ? 'up' : 'down';
+        this.player.anims.play(animKey(moving ? 'walk' : 'idle', this.facing), true);
     }
 
 }
