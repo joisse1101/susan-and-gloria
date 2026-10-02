@@ -4,14 +4,14 @@ import type { NpcName } from '../OfficeScene';
 // Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one
 // (in the tile's "direction" property: left, right, up or down) stops and works
 // How far (in tiles) the work area extends from the work tile's edge in that direction, e.g. 0.5 = half a tile, 1 = the whole next square
-const WORK_RANGE_TILES = 0.5;
+const WORK_RANGE_TILES = 0.75;
 const DIRECTIONS: Record<string, { dx: number; dy: number }> = {
     left: { dx: -1, dy: 0 },
     right: { dx: 1, dy: 0 },
     up: { dx: 0, dy: -1 },
     down: { dx: 0, dy: 1 }
 };
-const WORK_DURATION_MS = 5000;
+const WORK_DURATION_MS = 10000;
 const WORK_PHRASE_MS = 1200;
 // They deliberately walk to a work zone about once a minute, giving up if they can't get there
 const WORK_VISIT_MS = { min: 50000, max: 70000 };
@@ -20,14 +20,58 @@ const WALK_SPEED = 40;
 // Pause after working so they walk away instead of restarting while still next to the desk
 const WORK_COOLDOWN_MS = 8000;
 const WORK_PHRASES = [
+    // Thinking & Processing
     'hmm...',
     'let me think...',
-    'how about this...',
-    'almost there...',
+    'let\'s see here...',
+    'taking a step back...',
+    'connecting the dots...',
+    'crunching the numbers...',
+    'testing an idea...',
+    'pondering this one...',
+    'if I look at it this way...',
+    'tracing the logic...',
+
+    // Course Correction & Pivoting
     'wait, no...',
+    'back to the drawing board...',
+    'hold on, that doesn\'t fit...',
+    'let me try another angle...',
+    'scratch that...',
+    'not quite what I meant...',
+    'wait, let\'s rethink this...',
+    'rewinding a bit...',
+    'changing gears...',
+
+    // Breakthroughs & Fits
+    'how about this...',
     'ooh, that works',
+    'now we\'re onto something...',
+    'there\'s the spark...',
+    'that\'s more like it!',
+    'bingo, found it...',
+    'it\'s coming together...',
+    'a subtle detail, but huge...',
+    'spot on!',
+
+    // Fine-Tuning & Polishing
+    'almost there...',
     'one more tweak...',
-    'where was I...'
+    'just a slight adjustment...',
+    'smoothing out the edges...',
+    'tidying up the details...',
+    'dotting the i\'s...',
+    'getting the balance right...',
+    'giving it a final polish...',
+    'nesting the last piece...',
+
+    // Focus & Recovery
+    'where was I...',
+    'picking up where I left off...',
+    'getting back on track...',
+    'where did that thread go...',
+    're-centering...',
+    'focusing in...'
 ];
 
 interface Zone { x0: number; y0: number; x1: number; y1: number }
@@ -37,8 +81,8 @@ type Npc = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 // What the interaction needs from the scene that owns the coworkers
 export interface WorkHost {
     npc(name: NpcName): Npc;
-    // Shows a thought above the coworker
-    say(name: NpcName, text: string): void;
+    // Types a thought above the coworker one character at a time; onDone fires when it's fully shown
+    say(name: NpcName, text: string, onDone?: () => void): void;
     // Hides whatever bubble is above the coworker
     hideBubble(name: NpcName): void;
     // True while the coworker has a bubble up (noticed, thinking or talking), so they shouldn't start working
@@ -171,16 +215,22 @@ export class WorkInteraction {
             yoyo: true,
             repeat: -1
         });
-        const say = () => this.host.say(name, Phaser.Utils.Array.GetRandom(WORK_PHRASES));
+        // Each phrase finishes typing and rests for WORK_PHRASE_MS. Then the next one starts, or, once
+        // WORK_DURATION_MS has passed, work ends, so they never walk off mid-phrase
+        const timers: Phaser.Time.TimerEvent[] = [];
+        const endAt = this.scene.time.now + WORK_DURATION_MS;
+        const finish = () => {
+            this.cancel(name);
+            this.host.hideBubble(name);
+            this.cooldownUntil.set(name, this.scene.time.now + WORK_COOLDOWN_MS);
+        };
+        const say = () => {
+            this.host.say(name, Phaser.Utils.Array.GetRandom(WORK_PHRASES), () => {
+                const last = this.scene.time.now + WORK_PHRASE_MS >= endAt;
+                timers.push(this.scene.time.delayedCall(WORK_PHRASE_MS, last ? finish : say));
+            });
+        };
         say();
-        const timers = [
-            this.scene.time.addEvent({ delay: WORK_PHRASE_MS, loop: true, callback: say }),
-            this.scene.time.delayedCall(WORK_DURATION_MS, () => {
-                this.cancel(name);
-                this.host.hideBubble(name);
-                this.cooldownUntil.set(name, this.scene.time.now + WORK_COOLDOWN_MS);
-            })
-        ];
         this.working.set(name, { tween, timers });
     }
 }

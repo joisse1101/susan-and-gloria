@@ -39,6 +39,7 @@ const NPC_BUBBLE_LINES = 8;
 const NPC_BUBBLE_WIDTH = 250;
 const NPC_BUBBLE_FONT = '10px';
 const NPC_BUBBLE_LINGER_MS = 12000;
+const NPC_MUTTER_CHAR_MS = 200;
 const NPC_WALK_SPEED = 40;
 // Each wander step is a walk or a pause lasting a random time in this range
 const NPC_STEP_MS = { min: 800, max: 2500 };
@@ -59,6 +60,7 @@ export class OfficeScene extends Phaser.Scene {
     private speechText!: Phaser.GameObjects.Text;
     private wobble?: Phaser.Tweens.Tween;
     private npcBubbles = new Map<NpcName, Phaser.GameObjects.Text>();
+    private mutterTimers = new Map<NpcName, Phaser.Time.TimerEvent>();
     private npcTimers = new Map<NpcName, Phaser.Time.TimerEvent>();
     private npcSpeech = new Map<NpcName, { text: string; offset: number; follow: boolean; done: boolean }>();
     public isTyping: boolean = false;
@@ -112,12 +114,12 @@ export class OfficeScene extends Phaser.Scene {
         this.obstacles = this.physics.add.staticGroup();
         this.work = new WorkInteraction(this, {
             npc: (name) => (name === 'susan' ? this.susan : this.gloria),
-            say: (name, text) => this.showNpcMutter(name, text),
-            hideBubble: (name) => this.npcBubbles.get(name)?.setVisible(false),
+            say: (name, text, onDone) => this.showNpcMutter(name, text, onDone),
+            hideBubble: (name) => this.hideNpcMutterBubble(name),
             isBusy: (name) => this.npcBubbles.get(name)?.visible ?? false
         });
         this.loadMap();
-        this.work.drawZones(SPEECH_DEPTH - 1);
+        // this.work.drawZones(SPEECH_DEPTH - 1); // TODO: some button or env to toggle show
 
         // Pieces: place(name, centreX, centreY, { solid, flat, atlas }). Names live in interiorAtlas.ts; for officeAtlas.ts names pass atlas: 'office'
         // To add an object: pick a frame name, a position in canvas px (640x416), and solid (collision height in px) if it should block the player.
@@ -320,14 +322,39 @@ export class OfficeScene extends Phaser.Scene {
         }));
     }
 
-    // Idle muttering (e.g. while working): a plain grey italic line, with no timers of its own
-    private showNpcMutter(name: NpcName, text: string) {
+    // Idle muttering (e.g. while working): a grey italic line typed out one character at a time
+    // `onDone` fires once the whole line is shown (never if the bubble is hidden or replaced first)
+    private showNpcMutter(name: NpcName, text: string, onDone?: () => void) {
         const bubble = this.npcBubbles.get(name);
         if (!bubble) return;
+        this.mutterTimers.get(name)?.remove();
         bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'italic', color: '#555555', align: 'center' });
-        bubble.setText(text);
+        let shown = 1;
+        bubble.setText(text.slice(0, shown));
         bubble.setVisible(true);
         this.positionNpcBubble(name);
+        if (text.length <= 1) {
+            onDone?.();
+            return;
+        }
+        this.mutterTimers.set(name, this.time.addEvent({
+            delay: NPC_MUTTER_CHAR_MS,
+            repeat: text.length - 2,
+            callback: () => {
+                bubble.setText(text.slice(0, ++shown));
+                this.positionNpcBubble(name);
+                if (shown >= text.length) {
+                    this.mutterTimers.delete(name);
+                    onDone?.();
+                }
+            }
+        }));
+    }
+
+    private hideNpcMutterBubble(name: NpcName) {
+        this.mutterTimers.get(name)?.remove();
+        this.mutterTimers.delete(name);
+        this.npcBubbles.get(name)?.setVisible(false);
     }
 
     // Replaces the bubble with the (partial) reply; call repeatedly while streaming
