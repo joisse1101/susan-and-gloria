@@ -22,7 +22,7 @@ import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
 import { ThinkingInteraction } from './interaction/npc/ThinkingInteraction';
 import { PlayerWork } from './interaction/player/PlayerWork';
-import { CAMERA_ZOOM, FEET_HEIGHT, MAP_DEPTH, MAP_TOP_DEPTH, RUG_DEPTH, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
+import { CAMERA_ZOOM, FEET_HEIGHT, MAP_DEPTH, MAP_TOP_DEPTH, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
 
 const MAP_KEY = 'officeMap';
 const MAP_TILESET_KEY = 'officeTiles';
@@ -535,7 +535,9 @@ export class OfficeScene extends Phaser.Scene {
         cam.setSize(this.scale.width, this.scale.height);
         const w = Math.max(this.mapSize.width, cam.width / cam.zoom);
         const h = Math.max(this.mapSize.height, cam.height / cam.zoom);
-        cam.setBounds((this.mapSize.width - w) / 2, (this.mapSize.height - h) / 2, w, h);
+        // Only when the map is smaller than the viewport on that axis, nudge it up from dead centre
+        const shiftY = h > this.mapSize.height ? SMALL_MAP_SHIFT_Y : 0;
+        cam.setBounds((this.mapSize.width - w) / 2, (this.mapSize.height - h) / 2 + shiftY, w, h);
     }
 
     private readTilesetPixels(): ImageData {

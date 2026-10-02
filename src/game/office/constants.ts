@@ -2,6 +2,8 @@
 export const TILE_SIZE = 32;
 // Integer camera zoom keeps art pixels square; the camera scrolls when the map is larger than the window
 export const CAMERA_ZOOM = 1;
+// Only on an axis where the map is smaller than the window: nudge it from dead centre, in px. Positive = up, negative = down
+export const SMALL_MAP_SHIFT_Y = 75;
 // Integer scale keeps art pixels square on the canvas
 export const SPRITE_SCALE = 2;
 // Height (unscaled px) of the collision body at a character's feet
