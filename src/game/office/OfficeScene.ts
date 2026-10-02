@@ -308,6 +308,14 @@ export class OfficeScene extends Phaser.Scene {
             else facing = y < 0 ? 'up' : 'down';
             npc.setData(FACING, facing);
         }
+        if (!moving && this.work.isWorking(character.name as NpcName)) {
+            // Working: hold the idle animation's first frame instead of looping it
+            if (npc.anims.isPlaying || !npc.anims.currentAnim?.key.includes('-idle-')) {
+                npc.anims.play(animKey('idle', facing, character.name));
+                npc.anims.stop();
+            }
+            return;
+        }
         npc.anims.play(animKey(moving ? 'walk' : 'idle', facing, character.name), true);
     }
 
@@ -319,6 +327,14 @@ export class OfficeScene extends Phaser.Scene {
         const { x, y } = this.player.body.velocity;
         if (x !== 0) this.facing = x < 0 ? 'left' : 'right';
         else if (y !== 0) this.facing = y < 0 ? 'up' : 'down';
+        if (!moving && this.playerWork.isWorking()) {
+            // Working: hold the idle animation's first frame instead of looping it
+            if (this.player.anims.isPlaying || !this.player.anims.currentAnim?.key.includes('-idle-')) {
+                this.player.anims.play(animKey('idle', this.facing));
+                this.player.anims.stop();
+            }
+            return;
+        }
         this.player.anims.play(animKey(moving ? 'walk' : 'idle', this.facing), true);
     }
 

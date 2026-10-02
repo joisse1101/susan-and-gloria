@@ -13,7 +13,7 @@ export interface PlayerWorkHost {
 
 // The player works like the coworkers: standing still in a work zone starts it; moving, typing or leaving stops it
 export class PlayerWork {
-    private work?: { tween: Phaser.Tweens.Tween; timer: Phaser.Time.TimerEvent };
+    private work?: { timer: Phaser.Time.TimerEvent };
     // Set after a full work period, so standing still in the zone doesn't restart it
     private done = false;
 
@@ -38,15 +38,8 @@ export class PlayerWork {
     }
 
     private start() {
-        const { player, bubble } = this.host;
+        const { bubble } = this.host;
         const endAt = this.scene.time.now + WORK_DURATION_MS;
-        const tween = this.scene.tweens.add({
-            targets: player,
-            angle: { from: -3, to: 3 },
-            duration: 180,
-            yoyo: true,
-            repeat: -1
-        });
         const timer = this.scene.time.addEvent({
             delay: WORK_PHRASE_MS * 2,
             loop: true,
@@ -62,16 +55,18 @@ export class PlayerWork {
                 bubble.setVisible(true);
             }
         });
-        this.work = { tween, timer };
+        this.work = { timer };
+    }
+
+    isWorking() {
+        return this.work !== undefined;
     }
 
     private stop() {
         if (!this.work) return;
-        const { player, bubble } = this.host;
-        this.work.tween.remove();
+        const { bubble } = this.host;
         this.work.timer.remove();
         this.work = undefined;
-        player.setAngle(0);
         bubble.setStyle({ fontStyle: 'normal', color: '#000000' });
         if (!this.host.isTyping()) bubble.setVisible(false);
     }

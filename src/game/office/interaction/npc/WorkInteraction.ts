@@ -40,7 +40,7 @@ export class WorkInteraction {
     private tiles: { tx: number; ty: number; zone: Zone; dir?: { dx: number; dy: number } }[] = [];
     private approachSince = new Map<NpcName, number>();
     private tileSize = 32;
-    private working = new Map<NpcName, { tween: Phaser.Tweens.Tween; timers: Phaser.Time.TimerEvent[] }>();
+    private working = new Map<NpcName, { timers: Phaser.Time.TimerEvent[] }>();
     private cooldownUntil = new Map<NpcName, number>();
     private nextVisitAt = new Map<NpcName, number>();
     private visit = new Map<NpcName, { x: number; y: number; giveUpAt: number }>();
@@ -104,10 +104,12 @@ export class WorkInteraction {
     cancel(name: NpcName) {
         const work = this.working.get(name);
         if (!work) return;
-        work.tween.remove();
         work.timers.forEach((t) => t.remove());
         this.working.delete(name);
-        this.host.npc(name).setAngle(0);
+    }
+
+    isWorking(name: NpcName) {
+        return this.working.has(name);
     }
 
     // True when the coworker's feet are inside a work zone (the one drawn by drawZones) and they aren't resting
@@ -185,19 +187,12 @@ export class WorkInteraction {
         return true;
     }
 
-    // Stand still, wobble, and mutter generic thinking phrases for WORK_DURATION_MS
+    // Stand still (the scene holds the idle sprite on its first frame) and mutter generic thinking phrases for WORK_DURATION_MS
     private startWork(name: NpcName) {
         const npc = this.host.npc(name);
         npc.setVelocity(0);
         this.scheduleVisit(name);
 
-        const tween = this.scene.tweens.add({
-            targets: npc,
-            angle: { from: -3, to: 3 },
-            duration: 180,
-            yoyo: true,
-            repeat: -1
-        });
         // Each phrase finishes typing and rests for WORK_PHRASE_MS. Then the next one starts, or, once
         // WORK_DURATION_MS has passed, work ends, so they never walk off mid-phrase
         const timers: Phaser.Time.TimerEvent[] = [];
@@ -214,6 +209,6 @@ export class WorkInteraction {
             });
         };
         say();
-        this.working.set(name, { tween, timers });
+        this.working.set(name, { timers });
     }
 }
