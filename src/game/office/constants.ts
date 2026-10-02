@@ -1,12 +1,11 @@
-// Canvas size in pixels (the Phaser scale mode FITs it to the page)
-// Matches the Tiled map: 20 x 13 tiles of 32px
+// Tiled map tile size; the map's pixel size is read from map.json at runtime
 export const TILE_SIZE = 32;
-export const CANVAS_WIDTH = 20 * TILE_SIZE;
-export const CANVAS_HEIGHT = 13 * TILE_SIZE;
+// Integer camera zoom keeps art pixels square; the camera scrolls when the map is larger than the window
+export const CAMERA_ZOOM = 1;
 // Integer scale keeps art pixels square on the canvas
 export const SPRITE_SCALE = 2;
 // Height (unscaled px) of the collision body at a character's feet
-export const FEET_HEIGHT = 8;
+export const FEET_HEIGHT = 4;
 // Above any y-based sprite depth (max canvas height is 416)
 export const SPEECH_DEPTH = 10000;
 // Floors and rugs draw below every y-sorted sprite (whose depth is >= 0)

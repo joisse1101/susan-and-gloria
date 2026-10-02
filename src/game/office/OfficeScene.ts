@@ -12,7 +12,7 @@ import {
     type InteriorFrameName
 } from './atlases/interiorAtlas';
 import type { AtlasFrame } from './atlases/types';
-import { FEET_HEIGHT, MAP_DEPTH, MAP_TOP_DEPTH, RUG_DEPTH, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
+import { CAMERA_ZOOM, FEET_HEIGHT, MAP_DEPTH, MAP_TOP_DEPTH, RUG_DEPTH, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
 
 const MAP_KEY = 'officeMap';
 const MAP_TILESET_KEY = 'officeTiles';
@@ -20,6 +20,8 @@ const MAP_BASE_URL = `${import.meta.env.BASE_URL}assets/map/office/`;
 // Name of the tileset inside map.json (as exported from Sprite Fusion)
 const MAP_TILESET_NAME = 'spritefusion';
 // Tile layers drawn over the characters (everything else is under them)
+// Layer whose extent limits where characters can walk
+const FLOOR_LAYER = 'Floor';
 const TOP_LAYERS: string[] = ["Divider top 2", "Divider 2"];
 
 interface PlaceOptions {
@@ -36,15 +38,20 @@ const NPC_BUBBLE_LINES = 8;
 const NPC_BUBBLE_WIDTH = 250;
 const NPC_BUBBLE_FONT = '10px';
 const NPC_BUBBLE_LINGER_MS = 12000;
+const NPC_WALK_SPEED = 40;
+// Each wander step is a walk or a pause lasting a random time in this range
+const NPC_STEP_MS = { min: 800, max: 2500 };
 
 // Which spritesheet a frame name comes from. Some names (plant, windowA) exist in both, so it is explicit.
 type AtlasChoice = 'interior' | 'office';
 
 export class OfficeScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-    private gloria!: Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
-    private susan!: Phaser.Types.Physics.Arcade.SpriteWithStaticBody;
-    private mapLayers: Phaser.Tilemaps.TilemapLayer[] = [];
+    private gloria!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+    private susan!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+    private wanderUntil = new Map<NpcName, number>();
+    private mapSize = { width: 0, height: 0 };
+    private opaqueBounds = new Map<number, { x: number; y: number; w: number; h: number } | null>();
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private speechText!: Phaser.GameObjects.Text;
@@ -53,6 +60,14 @@ export class OfficeScene extends Phaser.Scene {
     private npcTimers = new Map<NpcName, Phaser.Time.TimerEvent>();
     private npcSpeech = new Map<NpcName, { text: string; offset: number; follow: boolean; done: boolean }>();
     public isTyping: boolean = false;
+    private chatText = '';
+    private speechTimer?: Phaser.Time.TimerEvent;
+    // Called with the finished chat line; returns false if it can't be sent right now (the text is kept)
+    private sayHandler?: (text: string) => boolean;
+
+    public setSayHandler(handler: (text: string) => boolean) {
+        this.sayHandler = handler;
+    }
 
     // Phaser captures space/arrows with preventDefault, which would block them in the React <input>
     public setTyping(isTyping: boolean) {
@@ -82,7 +97,8 @@ export class OfficeScene extends Phaser.Scene {
             fontSize: '12px',
             color: '#000000',
             backgroundColor: '#ffffff',
-            padding: { x: 6, y: 4 }
+            padding: { x: 6, y: 4 },
+            wordWrap: { width: NPC_BUBBLE_WIDTH }
         });
 
         // Adjust origin & hide it initially; depth sits above any y-based sprite depth
@@ -122,13 +138,28 @@ export class OfficeScene extends Phaser.Scene {
 
         // 3. WORLD COLLISION: Enable solid boundaries
         this.player.setCollideWorldBounds(true);
-        this.physics.add.collider(this.player, this.obstacles); // Stop on placed furniture
-        for (const layer of this.mapLayers) this.physics.add.collider(this.player, layer); // Stop on map walls/tables
+        this.physics.add.collider(this.player, this.obstacles); // Stop on placed furniture and map walls/tables
         this.physics.add.collider(this.player, this.gloria);   // Stop on Gloria
         this.physics.add.collider(this.player, this.susan);    // Stop on Susan
+        // Coworkers wander but respect the same furniture and walls
+        for (const npc of [this.gloria, this.susan]) {
+            npc.setCollideWorldBounds(true);
+            this.physics.add.collider(npc, this.obstacles);
+        }
+        this.physics.add.collider(this.gloria, this.susan);
+
+        // Camera: fills the window, follows the player, stays inside the map (centred when the map is smaller)
+        const cam = this.cameras.main;
+        cam.setZoom(CAMERA_ZOOM);
+        this.updateCameraBounds();
+        this.scale.on('resize', this.updateCameraBounds, this);
+        this.events.once('shutdown', () => this.scale.off('resize', this.updateCameraBounds, this));
+        cam.startFollow(this.player, true);
+        cam.roundPixels = true;
 
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
+            this.input.keyboard.on('keydown', this.onKeyDown, this);
         }
     }
 
@@ -153,14 +184,85 @@ export class OfficeScene extends Phaser.Scene {
         this.updateWalkCue(moving);
 
         this.sortByBottom(this.player);
+        this.updateWander('gloria', this.gloria);
+        this.updateWander('susan', this.susan);
         this.speechText.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
     }
 
+    // Random walk: alternate between heading in a random direction and standing still.
+    // They stand still while their bubble is up (noticed, thinking or talking).
+    private updateWander(name: NpcName, npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
+        const busy = this.npcBubbles.get(name)?.visible ?? false;
+        const blocked = npc.body.blocked.none === false || npc.body.touching.none === false;
+        if (busy) {
+            npc.setVelocity(0);
+        } else if (blocked || this.time.now >= (this.wanderUntil.get(name) ?? 0)) {
+            const idle = npc.body.velocity.lengthSq() > 0 || Math.random() < 0.3;
+            if (idle) {
+                npc.setVelocity(0);
+            } else {
+                const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+                npc.setVelocity(Math.cos(angle) * NPC_WALK_SPEED, Math.sin(angle) * NPC_WALK_SPEED);
+                if (npc.body.velocity.x !== 0) npc.setFlipX(npc.body.velocity.x < 0);
+            }
+            this.wanderUntil.set(name, this.time.now + Phaser.Math.Between(NPC_STEP_MS.min, NPC_STEP_MS.max));
+        }
+        this.sortByBottom(npc);
+        if (this.npcBubbles.get(name)?.visible) this.positionNpcBubble(name);
+    }
+
+    // In-game chat: "/" or Enter opens it, typing shows in the player's bubble, Enter sends, Esc cancels
+    private onKeyDown(event: KeyboardEvent) {
+        if (!this.isTyping) {
+            if (event.key === '/' || event.key === 'Enter') {
+                event.preventDefault(); // keeps the "/" out of the text
+                this.chatText = '';
+                this.setTyping(true);
+                this.renderChat();
+            }
+            return;
+        }
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        if (event.key === 'Enter') {
+            const text = this.chatText.trim();
+            if (!text) return;
+            if (this.sayHandler && !this.sayHandler(text)) return; // busy: keep what was typed
+            this.closeChat();
+            this.displaySpeechBubble(text);
+        } else if (event.key === 'Escape') {
+            this.closeChat();
+            this.speechText.setVisible(false);
+        } else if (event.key === 'Backspace') {
+            this.chatText = this.chatText.slice(0, -1);
+            this.renderChat();
+        } else if (event.key === 'ArrowUp') {
+            this.scrollNpcSpeech(-1);
+        } else if (event.key === 'ArrowDown') {
+            this.scrollNpcSpeech(1);
+        } else if (event.key.length === 1) {
+            this.chatText += event.key;
+            this.renderChat();
+        }
+    }
+
+    private closeChat() {
+        this.chatText = '';
+        this.setTyping(false);
+    }
+
+    private renderChat() {
+        this.speechTimer?.remove();
+        this.speechTimer = undefined;
+        this.speechText.setText(`${this.chatText}|`);
+        this.speechText.setVisible(true);
+    }
+
     public displaySpeechBubble(message: string) {
+        this.speechTimer?.remove();
         this.speechText.setText(message);
         this.speechText.setVisible(true);
 
-        this.time.delayedCall(3000, () => {
+        this.speechTimer = this.time.delayedCall(3000, () => {
             this.speechText.setVisible(false);
         });
     }
@@ -295,7 +397,7 @@ export class OfficeScene extends Phaser.Scene {
         if (!bubble) return;
         // Keep the bubble inside the canvas horizontally
         const half = bubble.width / 2;
-        const x = Phaser.Math.Clamp(npc.x, half, this.scale.width - half);
+        const x = Phaser.Math.Clamp(npc.x, half, this.mapSize.width - half);
         bubble.setPosition(x, npc.y - npc.displayHeight / 2 - 4);
     }
 
@@ -306,23 +408,93 @@ export class OfficeScene extends Phaser.Scene {
         }
     }
 
-    // Builds every tile layer from map.json. Layers whose Tiled "collider" property is true block the player.
+    // Builds every tile layer from map.json. Layers whose Tiled "collider" property is true block movement,
+    // but only where their tiles are opaque: each tile gets a body fitted to its non-transparent pixels.
     private loadMap() {
         const map = this.make.tilemap({ key: MAP_KEY });
         const tileset = map.addTilesetImage(MAP_TILESET_NAME, MAP_TILESET_KEY);
         if (!tileset) throw new Error(`Tileset "${MAP_TILESET_NAME}" not found in map.json`);
+        this.mapSize = { width: map.widthInPixels, height: map.heightInPixels };
+        this.physics.world.setBounds(0, 0, this.mapSize.width, this.mapSize.height);
 
+        const pixels = this.readTilesetPixels();
         for (const data of map.layers) {
             const layer = map.createLayer(data.name, tileset, 0, 0);
             if (!(layer instanceof Phaser.Tilemaps.TilemapLayer)) continue;
+            // Characters can't leave the floor (doorways and empty map edges would otherwise let them walk into the void)
+            if (data.name === FLOOR_LAYER) {
+                const floor = layer.getTilesWithin(0, 0, map.width, map.height, { isNotEmpty: true });
+                if (floor.length > 0) {
+                    const x1 = Math.min(...floor.map((t) => t.pixelX));
+                    const y1 = Math.min(...floor.map((t) => t.pixelY));
+                    const x2 = Math.max(...floor.map((t) => t.pixelX + t.width));
+                    const y2 = Math.max(...floor.map((t) => t.pixelY + t.height));
+                    this.physics.world.setBounds(x1, y1, x2 - x1, y2 - y1);
+                }
+            }
             layer.setDepth(TOP_LAYERS.includes(data.name) ? MAP_TOP_DEPTH : MAP_DEPTH);
 
             const props = data.properties as { name: string; value: unknown }[] | undefined;
-            if (props?.some((p) => p.name === 'collider' && p.value === true)) {
-                layer.setCollisionByExclusion([-1]);
-                this.mapLayers.push(layer);
-            }
+            if (!props?.some((p) => p.name === 'collider' && p.value === true)) continue;
+            layer.forEachTile((tile) => {
+                if (tile.index < 0) return;
+                const box = this.tileOpaqueBounds(tile, tileset, pixels);
+                if (!box) return;
+                const zone = this.add.zone(tile.pixelX + box.x + box.w / 2, tile.pixelY + box.y + box.h / 2, box.w, box.h);
+                this.obstacles.add(zone);
+            });
         }
+    }
+
+    // Bounds are the map, padded out to the viewport when it is larger so the map sits centred
+    private updateCameraBounds() {
+        const cam = this.cameras.main;
+        // Keep the camera exactly as big as the canvas so following/centring uses the real window size
+        cam.setSize(this.scale.width, this.scale.height);
+        const w = Math.max(this.mapSize.width, cam.width / cam.zoom);
+        const h = Math.max(this.mapSize.height, cam.height / cam.zoom);
+        cam.setBounds((this.mapSize.width - w) / 2, (this.mapSize.height - h) / 2, w, h);
+    }
+
+    private readTilesetPixels(): ImageData {
+        const image = this.textures.get(MAP_TILESET_KEY).getSourceImage() as HTMLImageElement;
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) throw new Error('2D canvas unavailable');
+        ctx.drawImage(image, 0, 0);
+        return ctx.getImageData(0, 0, image.width, image.height);
+    }
+
+    // Bounding box (tile-local px) of a tile's non-transparent pixels, or null if fully transparent
+    private tileOpaqueBounds(tile: Phaser.Tilemaps.Tile, tileset: Phaser.Tilemaps.Tileset, pixels: ImageData) {
+        let box = this.opaqueBounds.get(tile.index);
+        if (box === undefined) {
+            const origin = tileset.getTileTextureCoordinates(tile.index) as { x: number; y: number } | null;
+            box = null;
+            if (origin) {
+                let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
+                for (let y = 0; y < tile.height; y++) {
+                    for (let x = 0; x < tile.width; x++) {
+                        const alpha = pixels.data[((origin.y + y) * pixels.width + origin.x + x) * 4 + 3];
+                        if (alpha <= 16) continue;
+                        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                    }
+                }
+                if (maxX >= 0) box = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+            }
+            this.opaqueBounds.set(tile.index, box);
+        }
+        if (!box) return null;
+        // Mirror for flipped tiles
+        return {
+            x: tile.flipX ? tile.width - box.x - box.w : box.x,
+            y: tile.flipY ? tile.height - box.y - box.h : box.y,
+            w: box.w,
+            h: box.h
+        };
     }
 
     private place(name: InteriorFrameName, x: number, y: number, options?: PlaceOptions & { atlas?: 'interior' }): Phaser.GameObjects.Image;
@@ -347,12 +519,13 @@ export class OfficeScene extends Phaser.Scene {
     }
 
     private createCoworker(x: number, y: number, frame: OfficeFrameName) {
-        const sprite = this.physics.add.staticSprite(x, y, OFFICE_ATLAS_KEY, frame);
-        sprite.setScale(SPRITE_SCALE).refreshBody();
-        // Feet-only body, in display pixels (refreshBody resets it to the full sprite, so set it after)
-        const feet = FEET_HEIGHT * SPRITE_SCALE;
-        sprite.body.setSize(sprite.displayWidth - 4 * SPRITE_SCALE, feet, false);
-        sprite.body.setOffset(2 * SPRITE_SCALE, sprite.displayHeight - feet);
+        const sprite = this.physics.add.sprite(x, y, OFFICE_ATLAS_KEY, frame);
+        sprite.setScale(SPRITE_SCALE);
+        sprite.setImmovable(true); // the player can't push them
+        // Feet-only body, in unscaled px like the player's (Arcade scales body size with the sprite)
+        const f = OFFICE_FRAMES[frame];
+        sprite.body.setSize(f.w - 4, FEET_HEIGHT);
+        sprite.body.setOffset(2, f.h - FEET_HEIGHT);
         this.sortByBottom(sprite);
         return sprite;
     }

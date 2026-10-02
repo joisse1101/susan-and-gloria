@@ -1,17 +1,15 @@
 import Phaser from 'phaser';
 import { OfficeScene, type NpcName } from './OfficeScene';
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from './constants';
 
 export class OfficeGame {
     private game: Phaser.Game;
     private scene!: OfficeScene;
 
-    constructor(container: HTMLElement) {
+    // onSay receives each chat line typed in the game; return false if it can't be handled yet
+    constructor(container: HTMLElement, onSay: (text: string) => boolean) {
         const config: Phaser.Types.Core.GameConfig = {
             type: Phaser.AUTO,
             parent: container,
-            width: CANVAS_WIDTH,
-            height: CANVAS_HEIGHT,
             physics: {
                 default: 'arcade',
                 arcade: {
@@ -21,8 +19,10 @@ export class OfficeGame {
             },
             pixelArt: true,
             scale: {
-                mode: Phaser.Scale.FIT,
-                autoCenter: Phaser.Scale.CENTER_BOTH
+                // Canvas follows the container (the window); the scene's camera scrolls the map
+                mode: Phaser.Scale.RESIZE,
+                width: '100%',
+                height: '100%'
             },
             scene: OfficeScene
         };
@@ -31,15 +31,8 @@ export class OfficeGame {
 
         this.game.events.on('ready', () => {
             this.scene = this.game.scene.getScene('OfficeScene') as OfficeScene;
+            this.scene.setSayHandler(onSay);
         });
-    }
-
-    public setTyping(isTyping: boolean): void {
-        this.scene?.setTyping(isTyping);
-    }
-
-    public showPlayerSpeech(text: string): void {
-        if (this.scene) this.scene.displaySpeechBubble(text);
     }
 
     public scrollNpcSpeech(lines: number): void {
