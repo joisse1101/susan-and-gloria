@@ -35,6 +35,7 @@ import {
     createPlayerAnims,
     preloadCharacterSprite,
     preloadPlayerSprite,
+    typeAnimKey,
     type CharacterSprite,
     type Facing
 } from './interaction/player/playerSprite';
@@ -70,6 +71,8 @@ export class OfficeScene extends Phaser.Scene {
     private sayHandler?: (text: string) => boolean;
     private wander!: Wander;
     private playerWork!: PlayerWork;
+    // Chair drawn behind the player while they sit and type
+    private workChair!: Phaser.GameObjects.Image;
 
     // Set by OfficeGame before create() runs, so it lives here rather than on Chat
     public setSayHandler(handler: (text: string) => boolean) {
@@ -137,6 +140,7 @@ export class OfficeScene extends Phaser.Scene {
             isTyping: () => this.chat.isTyping
         });
 
+        this.workChair = this.add.image(0, 0, FURNITURE_ATLAS_KEY, 'chairS').setScale(SPRITE_SCALE).setVisible(false);
         this.player.body.pushable = false; // chairs move out of its way, not the other way round
         this.chairs = new Chairs(this);
         this.chairs.add(450, 300, 'chairS');
@@ -207,6 +211,7 @@ export class OfficeScene extends Phaser.Scene {
         this.playerWork.update(moving);
 
         this.sortByBottom(this.player);
+        this.workChair.setDepth(this.player.depth - 1); // behind the player
         this.updateNpc('gloria', this.gloria);
         this.updateNpc('susan', this.susan);
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
@@ -327,12 +332,10 @@ export class OfficeScene extends Phaser.Scene {
         const { x, y } = this.player.body.velocity;
         if (x !== 0) this.facing = x < 0 ? 'left' : 'right';
         else if (y !== 0) this.facing = y < 0 ? 'up' : 'down';
-        if (!moving && this.playerWork.isWorking()) {
-            // Working: hold the idle animation's first frame instead of looping it
-            if (this.player.anims.isPlaying || !this.player.anims.currentAnim?.key.includes('-idle-')) {
-                this.player.anims.play(animKey('idle', this.facing));
-                this.player.anims.stop();
-            }
+        const sitting = !moving && this.playerWork.isWorking();
+        if (sitting) {
+            // Seated typing
+            this.player.anims.play(typeAnimKey(this.facing), true);
             return;
         }
         this.player.anims.play(animKey(moving ? 'walk' : 'idle', this.facing), true);

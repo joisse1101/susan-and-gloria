@@ -32,6 +32,7 @@ A Phaser 4 mini-game mounted at `/office` (outside `MainLayout`). React owns the
 
 - `OfficeGame.ts` — `Phaser.Game` config (600x400, arcade physics, pixel art) and the API above.
 - `OfficeScene.ts` — the scene: `create()` lays the floor, places furniture/NPCs/player, `update()` handles movement. **Edit this to change the room layout** (`place(name, x, y, { solid, flat })`).
+- `interaction/player/PlayerWork.ts` + `playerSprite.ts` — standing still in a work zone makes the player sit and type: `OfficeScene.updatePlayerAnim` plays `player-type-<facing>` and shows a chair image (`workChair`, from `ChairSheet.png`) one depth step behind the player. The seated sheet `public/assets/sprites/player/Type.png` is **generated, not hand-edited**: run `python pixel-art/player-type/build.py` (Pillow; also writes `preview.png`). It builds from `Idle.png` (head, legs) and `Shoot.png` (arms). Tunables are constants at the top (`SIT_DROP`, `ARM_X`, `FAR_X`). Side views draw both hands in `side_upper`; the left view is built mirrored, so check both after changing hand positions.
 - `interaction/npc/NpcBubbles.ts` — NPC speech bubbles (notice, mutter, scrollable streamed reply); `OfficeScene` delegates its public NPC API to it.
 - `interaction/npc/Wander.ts` — NPC random walk; `interaction/player/Chat.ts` — in-game chat input and the player's speech bubble.
 - `map/loadOfficeMap.ts` — loads the Tiled map, floor bounds, and per-tile opaque collision rects.

@@ -49,8 +49,17 @@ export function preloadCharacterSprite(scene: Phaser.Scene, sprite: CharacterSpr
     scene.load.spritesheet(`${sprite.name}-walk`, sprite.walk.url, { frameWidth: FRAME_SIZE, frameHeight: FRAME_SIZE });
 }
 
+// Seated typing sheet (2 frames per direction, hands alternate); built by pixel-art/player-type/build.py
+export const PLAYER_TYPE_KEY = `${PLAYER_SPRITE.name}-type`;
+const PLAYER_TYPE = { url: assetUrl('player', 'Type.png'), columns: 2, frames: 2 };
+
 export function preloadPlayerSprite(scene: Phaser.Scene) {
     preloadCharacterSprite(scene, PLAYER_SPRITE);
+    scene.load.spritesheet(PLAYER_TYPE_KEY, PLAYER_TYPE.url, { frameWidth: FRAME_SIZE, frameHeight: FRAME_SIZE });
+}
+
+export function typeAnimKey(facing: Facing) {
+    return `${PLAYER_TYPE_KEY}-${facing}`;
 }
 
 export function animKey(kind: 'idle' | 'walk', facing: Facing, name = PLAYER_SPRITE.name) {
@@ -77,4 +86,15 @@ export function createCharacterAnims(scene: Phaser.Scene, sprite: CharacterSprit
 
 export function createPlayerAnims(scene: Phaser.Scene) {
     createCharacterAnims(scene, PLAYER_SPRITE);
+    DIRECTIONS.forEach((facing, row) => {
+        scene.anims.create({
+            key: typeAnimKey(facing),
+            frames: scene.anims.generateFrameNumbers(PLAYER_TYPE_KEY, {
+                start: row * PLAYER_TYPE.columns,
+                end: row * PLAYER_TYPE.columns + PLAYER_TYPE.frames - 1
+            }),
+            frameRate: 6,
+            repeat: -1
+        });
+    });
 }
