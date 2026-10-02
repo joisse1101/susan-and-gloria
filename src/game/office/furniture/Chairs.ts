@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
-import { FURNITURE_ATLAS_KEY, type FurnitureFrameName } from '../atlases/furnitureAtlas';
+import { CHAIR_DIRECTIONS, FURNITURE_ATLAS_KEY, type FurnitureFrameName } from '../atlases/furnitureAtlas';
 import { SPRITE_SCALE } from '../constants';
 
 type DynamicSprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 
 const DRAG = 600;
 const MAX_SPEED = 120;
+const MIN_TURN_SPEED = 20;
 // Feet-only body around the wheels (unscaled px, offset from the frame's top-left)
 const BODY = { w: 14, h: 8, offsetX: 9, offsetY: 20 };
 
@@ -53,7 +54,20 @@ export class Chairs {
     }
 
     update() {
-        this.group.getChildren().forEach((chair) => this.sortByBottom(chair as DynamicSprite));
+        this.group.getChildren().forEach((chair) => {
+            this.faceVelocity(chair as DynamicSprite);
+            this.sortByBottom(chair as DynamicSprite);
+        });
+    }
+
+    // Turn toward the push direction; while it coasts to a stop it keeps its last facing
+    private faceVelocity(chair: DynamicSprite) {
+        const { x, y } = chair.body.velocity;
+        if (Math.hypot(x, y) < MIN_TURN_SPEED) return;
+        // Screen angle: 0° = east, 90° = south (y points down); frames run S, SE, E, ... counter-clockwise
+        const degrees = Phaser.Math.RadToDeg(Math.atan2(y, x));
+        const index = (((Math.round((90 - degrees) / 45) % 8) + 8) % 8);
+        chair.setFrame(`chair${CHAIR_DIRECTIONS[index]}`);
     }
 
     private isJammed(chair: DynamicSprite) {

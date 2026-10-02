@@ -32,7 +32,7 @@ const MAP_TILESET_NAME = 'spritefusion';
 // Tile layers drawn over the characters (everything else is under them)
 // Layer whose extent limits where characters can walk
 const FLOOR_LAYER = 'Floor';
-const TOP_LAYERS: string[] = ["Divider top 2", "Divider 2"];
+const TOP_LAYERS: string[] = ["Room Boundary"];
 
 interface PlaceOptions {
     // Height (unscaled px) of the collision body measured up from the object's base; omit for no collision
