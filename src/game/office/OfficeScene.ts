@@ -11,6 +11,13 @@ import {
     INTERIOR_FRAMES,
     type InteriorFrameName
 } from './atlases/interiorAtlas';
+import {
+    FURNITURE_ATLAS_KEY,
+    FURNITURE_ATLAS_URL,
+    FURNITURE_FRAMES,
+    type FurnitureFrameName
+} from './atlases/furnitureAtlas';
+import { Chairs } from './furniture/Chairs';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
 import { ThinkingInteraction } from './interaction/npc/ThinkingInteraction';
@@ -47,7 +54,7 @@ const NPC_WALK_SPEED = 40;
 const NPC_STEP_MS = { min: 800, max: 2500 };
 
 // Which spritesheet a frame name comes from. Some names (plant, windowA) exist in both, so it is explicit.
-type AtlasChoice = 'interior' | 'office';
+type AtlasChoice = 'interior' | 'office' | 'furniture';
 
 export class OfficeScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -59,6 +66,7 @@ export class OfficeScene extends Phaser.Scene {
     private mapSize = { width: 0, height: 0 };
     private opaqueBounds = new Map<number, { x: number; y: number; w: number; h: number } | null>();
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
+    private chairs!: Chairs;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private speechText!: Phaser.GameObjects.Text;
     private wobble?: Phaser.Tweens.Tween;
@@ -93,6 +101,7 @@ export class OfficeScene extends Phaser.Scene {
     preload() {
         this.load.image(OFFICE_ATLAS_KEY, OFFICE_ATLAS_URL);
         this.load.image(INTERIOR_ATLAS_KEY, INTERIOR_ATLAS_URL);
+        this.load.image(FURNITURE_ATLAS_KEY, FURNITURE_ATLAS_URL);
         this.load.tilemapTiledJSON(MAP_KEY, `${MAP_BASE_URL}map.json`);
         this.load.image(MAP_TILESET_KEY, `${MAP_BASE_URL}spritesheet.png`);
     }
@@ -100,6 +109,7 @@ export class OfficeScene extends Phaser.Scene {
     create() {
         this.registerAtlasFrames(OFFICE_ATLAS_KEY, OFFICE_FRAMES);
         this.registerAtlasFrames(INTERIOR_ATLAS_KEY, INTERIOR_FRAMES);
+        this.registerAtlasFrames(FURNITURE_ATLAS_KEY, FURNITURE_FRAMES);
 
         this.speechText = this.add.text(0, 0, '', {
             fontSize: '12px',
@@ -149,6 +159,12 @@ export class OfficeScene extends Phaser.Scene {
             isTyping: () => this.isTyping
         });
 
+        this.player.body.pushable = false; // chairs move out of its way, not the other way round
+        this.chairs = new Chairs(this);
+        this.chairs.add(375, 300, 'chairS');
+        this.chairs.add(260, 330, 'chairSE');
+        this.chairs.add(330, 350, 'chairW');
+
         this.gloria = this.createCoworker(240, 150, 'gloria');
         this.susan = this.createCoworker(475, 160, 'susan');
         this.npcBubbles.set('gloria', this.createNpcBubble());
@@ -174,6 +190,7 @@ export class OfficeScene extends Phaser.Scene {
             this.physics.add.collider(npc, this.obstacles);
         }
         this.physics.add.collider(this.gloria, this.susan);
+        this.chairs.collide([this.player, this.gloria, this.susan], this.obstacles);
 
         // Camera: fills the window, follows the player, stays inside the map (centred when the map is smaller)
         const cam = this.cameras.main;
@@ -212,6 +229,7 @@ export class OfficeScene extends Phaser.Scene {
         this.playerWork.update(moving);
 
         this.sortByBottom(this.player);
+        this.chairs.update();
         this.updateWander('gloria', this.gloria);
         this.updateWander('susan', this.susan);
         this.speechText.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
@@ -560,8 +578,9 @@ export class OfficeScene extends Phaser.Scene {
 
     private place(name: InteriorFrameName, x: number, y: number, options?: PlaceOptions & { atlas?: 'interior' }): Phaser.GameObjects.Image;
     private place(name: OfficeFrameName, x: number, y: number, options: PlaceOptions & { atlas: 'office' }): Phaser.GameObjects.Image;
+    private place(name: FurnitureFrameName, x: number, y: number, options: PlaceOptions & { atlas: 'furniture' }): Phaser.GameObjects.Image;
     private place(name: string, x: number, y: number, { solid, flat, atlas = 'interior' }: PlaceOptions & { atlas?: AtlasChoice } = {}) {
-        const key = atlas === 'office' ? OFFICE_ATLAS_KEY : INTERIOR_ATLAS_KEY;
+        const key = { interior: INTERIOR_ATLAS_KEY, office: OFFICE_ATLAS_KEY, furniture: FURNITURE_ATLAS_KEY }[atlas];
         if (solid === undefined) {
             const img = this.add.image(x, y, key, name).setScale(SPRITE_SCALE);
             if (flat) img.setDepth(RUG_DEPTH);
