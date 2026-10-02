@@ -9,7 +9,7 @@ const MAP_TILESET_NAME = 'spritefusion';
 // Layer whose extent limits where characters can walk
 const FLOOR_LAYER = 'Floor';
 // Tile layers drawn over the characters (everything else is under them)
-const TOP_LAYERS: string[] = ['Room Boundary'];
+const TOP_LAYERS: string[] = ['Room Boundary Bottom'];
 
 type Rect = { x: number; y: number; w: number; h: number };
 
