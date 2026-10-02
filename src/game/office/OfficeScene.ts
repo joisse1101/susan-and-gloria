@@ -12,6 +12,7 @@ import {
     type InteriorFrameName
 } from './atlases/interiorAtlas';
 import type { AtlasFrame } from './atlases/types';
+import { WorkInteraction } from './interaction/WorkInteraction';
 import { CAMERA_ZOOM, FEET_HEIGHT, MAP_DEPTH, MAP_TOP_DEPTH, RUG_DEPTH, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
 
 const MAP_KEY = 'officeMap';
@@ -50,6 +51,7 @@ export class OfficeScene extends Phaser.Scene {
     private gloria!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private wanderUntil = new Map<NpcName, number>();
+    private work!: WorkInteraction;
     private mapSize = { width: 0, height: 0 };
     private opaqueBounds = new Map<number, { x: number; y: number; w: number; h: number } | null>();
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
@@ -108,7 +110,14 @@ export class OfficeScene extends Phaser.Scene {
 
         // 1. OBSTACLES: Group for static walls/desks
         this.obstacles = this.physics.add.staticGroup();
+        this.work = new WorkInteraction(this, {
+            npc: (name) => (name === 'susan' ? this.susan : this.gloria),
+            say: (name, text) => this.showNpcMutter(name, text),
+            hideBubble: (name) => this.npcBubbles.get(name)?.setVisible(false),
+            isBusy: (name) => this.npcBubbles.get(name)?.visible ?? false
+        });
         this.loadMap();
+        this.work.drawZones(SPEECH_DEPTH - 1);
 
         // Pieces: place(name, centreX, centreY, { solid, flat, atlas }). Names live in interiorAtlas.ts; for officeAtlas.ts names pass atlas: 'office'
         // To add an object: pick a frame name, a position in canvas px (640x416), and solid (collision height in px) if it should block the player.
@@ -122,8 +131,8 @@ export class OfficeScene extends Phaser.Scene {
         this.player.body.setSize(playerFrame.w - 4, FEET_HEIGHT);
         this.player.body.setOffset(2, playerFrame.h - FEET_HEIGHT);
 
-        this.gloria = this.createCoworker(208, 150, 'gloria');
-        this.susan = this.createCoworker(450, 160, 'susan');
+        this.gloria = this.createCoworker(240, 150, 'gloria');
+        this.susan = this.createCoworker(475, 160, 'susan');
         this.npcBubbles.set('gloria', this.createNpcBubble());
         this.npcBubbles.set('susan', this.createNpcBubble());
         // Mouse wheel over a bubble scrolls it back through the reply
@@ -192,10 +201,13 @@ export class OfficeScene extends Phaser.Scene {
     // Random walk: alternate between heading in a random direction and standing still.
     // They stand still while their bubble is up (noticed, thinking or talking).
     private updateWander(name: NpcName, npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
-        const busy = this.npcBubbles.get(name)?.visible ?? false;
+        const heading = this.work.update(name);
+        const busy = this.npcBubbles.get(name)?.visible ?? false; // after update: starting work puts a bubble up
         const blocked = npc.body.blocked.none === false || npc.body.touching.none === false;
         if (busy) {
             npc.setVelocity(0);
+        } else if (heading) {
+            // walking to a work zone: the work interaction set the velocity
         } else if (blocked || this.time.now >= (this.wanderUntil.get(name) ?? 0)) {
             const idle = npc.body.velocity.lengthSq() > 0 || Math.random() < 0.3;
             if (idle) {
@@ -271,6 +283,7 @@ export class OfficeScene extends Phaser.Scene {
     public showNpcNotice(name: NpcName) {
         const bubble = this.npcBubbles.get(name);
         if (!bubble) return;
+        this.work.cancel(name);
         this.npcTimers.get(name)?.remove();
         this.npcTimers.delete(name);
 
@@ -291,12 +304,13 @@ export class OfficeScene extends Phaser.Scene {
     public showNpcThinking(name: NpcName) {
         const bubble = this.npcBubbles.get(name);
         if (!bubble) return;
+        this.work.cancel(name);
         this.npcTimers.get(name)?.remove();
 
         const frames = ['.', '..', '...'];
         let i = 0;
         bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'italic', color: '#555555', align: 'center' });
-        bubble.setText(`(${frames[i]})`);
+        bubble.setText(`${frames[i]}`);
         this.positionNpcBubble(name);
         bubble.setVisible(true);
         this.npcTimers.set(name, this.time.addEvent({
@@ -306,10 +320,21 @@ export class OfficeScene extends Phaser.Scene {
         }));
     }
 
+    // Idle muttering (e.g. while working): a plain grey italic line, with no timers of its own
+    private showNpcMutter(name: NpcName, text: string) {
+        const bubble = this.npcBubbles.get(name);
+        if (!bubble) return;
+        bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'italic', color: '#555555', align: 'center' });
+        bubble.setText(text);
+        bubble.setVisible(true);
+        this.positionNpcBubble(name);
+    }
+
     // Replaces the bubble with the (partial) reply; call repeatedly while streaming
     public setNpcSpeech(name: NpcName, text: string) {
         const bubble = this.npcBubbles.get(name);
         if (!bubble) return;
+        this.work.cancel(name);
         this.npcTimers.get(name)?.remove();
         this.npcTimers.delete(name);
 
@@ -434,6 +459,8 @@ export class OfficeScene extends Phaser.Scene {
             }
             layer.setDepth(TOP_LAYERS.includes(data.name) ? MAP_TOP_DEPTH : MAP_DEPTH);
 
+            this.work.collectTiles(layer, tileset);
+
             const props = data.properties as { name: string; value: unknown }[] | undefined;
             if (!props?.some((p) => p.name === 'collider' && p.value === true)) continue;
             layer.forEachTile((tile) => {
@@ -521,7 +548,9 @@ export class OfficeScene extends Phaser.Scene {
     private createCoworker(x: number, y: number, frame: OfficeFrameName) {
         const sprite = this.physics.add.sprite(x, y, OFFICE_ATLAS_KEY, frame);
         sprite.setScale(SPRITE_SCALE);
-        sprite.setImmovable(true); // the player can't push them
+        // The player can't push them. Not setImmovable(): Arcade skips separation between two immovable
+        // bodies, and the static obstacles are immovable, so the coworkers would walk straight through them.
+        sprite.body.pushable = false;
         // Feet-only body, in unscaled px like the player's (Arcade scales body size with the sprite)
         const f = OFFICE_FRAMES[frame];
         sprite.body.setSize(f.w - 4, FEET_HEIGHT);
