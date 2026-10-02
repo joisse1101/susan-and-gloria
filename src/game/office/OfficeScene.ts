@@ -17,7 +17,7 @@ import {
     FURNITURE_FRAMES,
     type FurnitureFrameName
 } from './atlases/furnitureAtlas';
-import { Chairs } from './furniture/Chairs';
+import { Chairs, PULL_SPEED } from './furniture/Chairs';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
 import { ThinkingInteraction } from './interaction/npc/ThinkingInteraction';
@@ -64,7 +64,7 @@ export class OfficeScene extends Phaser.Scene {
     private work!: WorkInteraction;
     private thinking!: ThinkingInteraction;
     private mapSize = { width: 0, height: 0 };
-    private opaqueBounds = new Map<number, { x: number; y: number; w: number; h: number } | null>();
+    private opaqueRects = new Map<number, { x: number; y: number; w: number; h: number }[]>();
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
     private chairs!: Chairs;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -208,7 +208,9 @@ export class OfficeScene extends Phaser.Scene {
     }
 
     override update() {
-        const speed = 160;
+        const pulling = !this.isTyping && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true);
+        if (!pulling) this.chairs.grab(this.player, false);
+        const speed = pulling ? PULL_SPEED : 160;
         this.player.setVelocity(0);
 
         if (!this.isTyping) {
@@ -220,6 +222,7 @@ export class OfficeScene extends Phaser.Scene {
         }
 
         this.player.body.velocity.normalize().scale(speed);
+        if (pulling) this.chairs.drag(this.player);
 
         const vx = this.player.body.velocity.x;
         if (vx !== 0) this.player.setFlipX(vx < 0);
@@ -229,9 +232,9 @@ export class OfficeScene extends Phaser.Scene {
         this.playerWork.update(moving);
 
         this.sortByBottom(this.player);
-        this.chairs.update();
         this.updateWander('gloria', this.gloria);
         this.updateWander('susan', this.susan);
+        this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
         this.speechText.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
     }
 
@@ -240,7 +243,7 @@ export class OfficeScene extends Phaser.Scene {
     private updateWander(name: NpcName, npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
         const heading = this.work.update(name);
         const busy = this.npcBubbles.get(name)?.visible ?? false; // after update: starting work puts a bubble up
-        const blocked = npc.body.blocked.none === false || npc.body.touching.none === false;
+        const blocked = npc.body.blocked.none === false || (npc.body.touching.none === false && !this.chairs.isPushing(npc));
         if (busy) {
             npc.setVelocity(0);
         } else if (heading) {
@@ -517,10 +520,10 @@ export class OfficeScene extends Phaser.Scene {
             if (!props?.some((p) => p.name === 'collider' && p.value === true)) continue;
             layer.forEachTile((tile) => {
                 if (tile.index < 0) return;
-                const box = this.tileOpaqueBounds(tile, tileset, pixels);
-                if (!box) return;
-                const zone = this.add.zone(tile.pixelX + box.x + box.w / 2, tile.pixelY + box.y + box.h / 2, box.w, box.h);
-                this.obstacles.add(zone);
+                for (const box of this.tileOpaqueRects(tile, tileset, pixels)) {
+                    const zone = this.add.zone(tile.pixelX + box.x + box.w / 2, tile.pixelY + box.y + box.h / 2, box.w, box.h);
+                    this.obstacles.add(zone);
+                }
             });
         }
     }
@@ -546,34 +549,44 @@ export class OfficeScene extends Phaser.Scene {
         return ctx.getImageData(0, 0, image.width, image.height);
     }
 
-    // Bounding box (tile-local px) of a tile's non-transparent pixels, or null if fully transparent
-    private tileOpaqueBounds(tile: Phaser.Tilemaps.Tile, tileset: Phaser.Tilemaps.Tileset, pixels: ImageData) {
-        let box = this.opaqueBounds.get(tile.index);
-        if (box === undefined) {
+    // Rectangles (tile-local px) covering a tile's non-transparent pixels. Several rects rather than one bounding box,
+    // so L-shaped pieces (wall corners) don't block the empty area inside the bend.
+    private tileOpaqueRects(tile: Phaser.Tilemaps.Tile, tileset: Phaser.Tilemaps.Tileset, pixels: ImageData) {
+        let rects = this.opaqueRects.get(tile.index);
+        if (rects === undefined) {
+            rects = [];
             const origin = tileset.getTileTextureCoordinates(tile.index) as { x: number; y: number } | null;
-            box = null;
             if (origin) {
-                let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
-                for (let y = 0; y < tile.height; y++) {
-                    for (let x = 0; x < tile.width; x++) {
-                        const alpha = pixels.data[((origin.y + y) * pixels.width + origin.x + x) * 4 + 3];
-                        if (alpha <= 16) continue;
-                        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-                        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                const opaque = (x: number, y: number) => pixels.data[((origin.y + y) * pixels.width + origin.x + x) * 4 + 3] > 16;
+                // Horizontal runs per row, merged downwards while the run is identical
+                let open: { x: number; y: number; w: number; h: number }[] = [];
+                for (let y = 0; y <= tile.height; y++) {
+                    const runs: { x: number; w: number }[] = [];
+                    for (let x = 0; y < tile.height && x < tile.width; x++) {
+                        if (!opaque(x, y)) continue;
+                        const start = x;
+                        while (x + 1 < tile.width && opaque(x + 1, y)) x++;
+                        runs.push({ x: start, w: x - start + 1 });
                     }
+                    const next: typeof open = [];
+                    for (const r of open) {
+                        const i = runs.findIndex((run) => run.x === r.x && run.w === r.w);
+                        if (i >= 0) { r.h++; next.push(r); runs.splice(i, 1); }
+                        else rects.push(r);
+                    }
+                    for (const run of runs) next.push({ x: run.x, y, w: run.w, h: 1 });
+                    open = next;
                 }
-                if (maxX >= 0) box = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
             }
-            this.opaqueBounds.set(tile.index, box);
+            this.opaqueRects.set(tile.index, rects);
         }
-        if (!box) return null;
         // Mirror for flipped tiles
-        return {
+        return rects.map((box) => ({
             x: tile.flipX ? tile.width - box.x - box.w : box.x,
             y: tile.flipY ? tile.height - box.y - box.h : box.y,
             w: box.w,
             h: box.h
-        };
+        }));
     }
 
     private place(name: InteriorFrameName, x: number, y: number, options?: PlaceOptions & { atlas?: 'interior' }): Phaser.GameObjects.Image;

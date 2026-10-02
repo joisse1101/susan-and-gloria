@@ -7,6 +7,11 @@ type DynamicSprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 const DRAG = 600;
 const MAX_SPEED = 120;
 const MIN_TURN_SPEED = 20;
+// Pull mode: how close (px between bodies) a chair must be to grab it, and how far it can lag before it lets go
+const GRAB_GAP = 8;
+const RELEASE_GAP = 16;
+// The mover slows to this while pulling so the chair (capped at MAX_SPEED) keeps up
+export const PULL_SPEED = MAX_SPEED;
 // Feet-only body around the wheels (unscaled px, offset from the frame's top-left)
 const BODY = { w: 14, h: 8, offsetX: 9, offsetY: 20 };
 
@@ -14,6 +19,9 @@ const BODY = { w: 14, h: 8, offsetX: 9, offsetY: 20 };
 export class Chairs {
     private scene: Phaser.Scene;
     private group: Phaser.Physics.Arcade.Group;
+    private movers: DynamicSprite[] = [];
+    private pushing = new Set<DynamicSprite>();
+    private held?: DynamicSprite;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
@@ -37,6 +45,7 @@ export class Chairs {
     // otherwise walking into it would shove it through the wall.
     collide(movers: DynamicSprite[], solids: Phaser.Physics.Arcade.StaticGroup) {
         const physics = this.scene.physics;
+        this.movers = movers;
         // Solids first so a jammed chair is flagged (body.blocked) before the movers are resolved
         physics.add.collider(this.group, solids);
         for (const mover of movers) {
@@ -54,6 +63,10 @@ export class Chairs {
     }
 
     update() {
+        // yieldIfJammed only makes a mover pushable for one physics step; otherwise it would stay shoveable
+        // (into a table) by the player or by other chairs
+        for (const mover of this.movers) mover.body.pushable = false;
+        this.pushing.clear();
         this.group.getChildren().forEach((chair) => {
             this.faceVelocity(chair as DynamicSprite);
             this.sortByBottom(chair as DynamicSprite);
@@ -74,8 +87,49 @@ export class Chairs {
         return !chair.body.blocked.none;
     }
 
+    // Pull mode (hold shift): grab the nearest chair within reach and drag it along with the mover, so a chair
+    // wedged in a corner can always be dragged back out. Returns the chair held this step, if any.
+    // Call before setting the mover's velocity for the frame; the held chair is handled again in `drag`.
+    grab(mover: DynamicSprite, wantsPull: boolean) {
+        if (!wantsPull) {
+            this.held = undefined;
+            return undefined;
+        }
+        if (this.held && this.gap(mover, this.held) > RELEASE_GAP) this.held = undefined;
+        if (!this.held) {
+            let best = GRAB_GAP;
+            for (const child of this.group.getChildren()) {
+                const chair = child as DynamicSprite;
+                const gap = this.gap(mover, chair);
+                if (gap <= best) {
+                    best = gap;
+                    this.held = chair;
+                }
+            }
+        }
+        return this.held;
+    }
+
+    // Make the held chair follow the mover's (already set) velocity
+    drag(mover: DynamicSprite) {
+        if (!this.held) return;
+        this.held.body.setVelocity(mover.body.velocity.x, mover.body.velocity.y);
+    }
+
+    private gap(a: DynamicSprite, b: DynamicSprite) {
+        const dx = Math.max(0, a.body.left - b.body.right, b.body.left - a.body.right);
+        const dy = Math.max(0, a.body.top - b.body.bottom, b.body.top - a.body.bottom);
+        return Math.hypot(dx, dy);
+    }
+
+    // True if the mover is sliding a free chair this step (so contact with it isn't a dead end)
+    isPushing(mover: DynamicSprite) {
+        return this.pushing.has(mover);
+    }
+
     private yieldIfJammed(mover: DynamicSprite, chair: DynamicSprite) {
         const jammed = this.isJammed(chair);
+        if (!jammed) this.pushing.add(mover);
         chair.body.immovable = jammed;
         mover.body.pushable = jammed;
         return true;
