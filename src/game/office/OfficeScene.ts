@@ -21,10 +21,12 @@ import { Chairs, PULL_SPEED } from './furniture/Chairs';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
 import { ThinkingInteraction } from './interaction/npc/ThinkingInteraction';
-import { NpcBubbles, NPC_BUBBLE_WIDTH, type NpcName } from './interaction/npc/NpcBubbles';
+import { NpcBubbles, type NpcName } from './interaction/npc/NpcBubbles';
+import { Wander } from './interaction/npc/Wander';
+import { Chat } from './interaction/player/Chat';
 import { PlayerWork } from './interaction/player/PlayerWork';
 import { loadOfficeMap, preloadOfficeMap } from './map/loadOfficeMap';
-import { CAMERA_ZOOM, FEET_HEIGHT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
+import { CAMERA_ZOOM, FEET_HEIGHT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPRITE_SCALE } from './constants';
 
 interface PlaceOptions {
     // Height (unscaled px) of the collision body measured up from the object's base; omit for no collision
@@ -35,10 +37,6 @@ interface PlaceOptions {
 
 export type { NpcName };
 
-const NPC_WALK_SPEED = 40;
-// Each wander step is a walk or a pause lasting a random time in this range
-const NPC_STEP_MS = { min: 800, max: 2500 };
-
 // Which spritesheet a frame name comes from. Some names (plant, windowA) exist in both, so it is explicit.
 type AtlasChoice = 'interior' | 'office' | 'furniture';
 
@@ -46,7 +44,6 @@ export class OfficeScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private gloria!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-    private wanderUntil = new Map<NpcName, number>();
     private work!: WorkInteraction;
     private thinking!: ThinkingInteraction;
     private bubbles!: NpcBubbles;
@@ -54,26 +51,15 @@ export class OfficeScene extends Phaser.Scene {
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
     private chairs!: Chairs;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    private speechText!: Phaser.GameObjects.Text;
     private wobble?: Phaser.Tweens.Tween;
-    private playerWork!: PlayerWork;
-    public isTyping: boolean = false;
-    private chatText = '';
-    private speechTimer?: Phaser.Time.TimerEvent;
-    // Called with the finished chat line; returns false if it can't be sent right now (the text is kept)
+    private chat!: Chat;
     private sayHandler?: (text: string) => boolean;
+    private wander!: Wander;
+    private playerWork!: PlayerWork;
 
+    // Set by OfficeGame before create() runs, so it lives here rather than on Chat
     public setSayHandler(handler: (text: string) => boolean) {
         this.sayHandler = handler;
-    }
-
-    // Phaser captures space/arrows with preventDefault, which would block them in the React <input>
-    public setTyping(isTyping: boolean) {
-        this.isTyping = isTyping;
-        const keyboard = this.input.keyboard;
-        if (!keyboard) return;
-        if (isTyping) keyboard.disableGlobalCapture();
-        else keyboard.enableGlobalCapture();
     }
 
     constructor() {
@@ -92,18 +78,10 @@ export class OfficeScene extends Phaser.Scene {
         this.registerAtlasFrames(INTERIOR_ATLAS_KEY, INTERIOR_FRAMES);
         this.registerAtlasFrames(FURNITURE_ATLAS_KEY, FURNITURE_FRAMES);
 
-        this.speechText = this.add.text(0, 0, '', {
-            fontSize: '12px',
-            color: '#000000',
-            backgroundColor: '#ffffff',
-            padding: { x: 6, y: 4 },
-            wordWrap: { width: NPC_BUBBLE_WIDTH }
+        this.chat = new Chat(this, {
+            scrollNpcSpeech: (lines) => this.bubbles.scroll(lines),
+            say: (text) => this.sayHandler?.(text) ?? true
         });
-
-        // Adjust origin & hide it initially; depth sits above any y-based sprite depth
-        this.speechText.setOrigin(0.5, 1);
-        this.speechText.setVisible(false);
-        this.speechText.setDepth(SPEECH_DEPTH);
 
         // 1. OBSTACLES: Group for static walls/desks
         this.obstacles = this.physics.add.staticGroup();
@@ -135,9 +113,9 @@ export class OfficeScene extends Phaser.Scene {
 
         this.playerWork = new PlayerWork(this, {
             player: this.player,
-            bubble: this.speechText,
+            bubble: this.chat.bubble,
             isInWorkZone: (sprite) => this.work.isInZone(sprite),
-            isTyping: () => this.isTyping
+            isTyping: () => this.chat.isTyping
         });
 
         this.player.body.pushable = false; // chairs move out of its way, not the other way round
@@ -153,6 +131,12 @@ export class OfficeScene extends Phaser.Scene {
             mapWidth: () => this.mapSize.width,
             cancelWork: (name) => this.work.cancel(name),
             stopThinking: (name) => this.thinking.stop(name)
+        });
+
+        this.wander = new Wander(this, {
+            updateWork: (name) => this.work.update(name),
+            isBusy: (name) => this.bubbles.isVisible(name),
+            isPushingChair: (npc) => this.chairs.isPushing(npc)
         });
 
         // 3. WORLD COLLISION: Enable solid boundaries
@@ -179,17 +163,16 @@ export class OfficeScene extends Phaser.Scene {
 
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
-            this.input.keyboard.on('keydown', this.onKeyDown, this);
         }
     }
 
     override update() {
-        const pulling = !this.isTyping && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true);
+        const pulling = !this.chat.isTyping && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true);
         if (!pulling) this.chairs.grab(this.player, false);
         const speed = pulling ? PULL_SPEED : 160;
         this.player.setVelocity(0);
 
-        if (!this.isTyping) {
+        if (!this.chat.isTyping) {
             if (this.cursors.left.isDown) this.player.setVelocityX(-speed);
             else if (this.cursors.right.isDown) this.player.setVelocityX(speed);
 
@@ -208,91 +191,16 @@ export class OfficeScene extends Phaser.Scene {
         this.playerWork.update(moving);
 
         this.sortByBottom(this.player);
-        this.updateWander('gloria', this.gloria);
-        this.updateWander('susan', this.susan);
+        this.updateNpc('gloria', this.gloria);
+        this.updateNpc('susan', this.susan);
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
-        this.speechText.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
+        this.chat.bubble.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
     }
 
-    // Random walk: alternate between heading in a random direction and standing still.
-    // They stand still while their bubble is up (noticed, thinking or talking).
-    private updateWander(name: NpcName, npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
-        const heading = this.work.update(name);
-        const busy = this.bubbles.isVisible(name) ?? false; // after update: starting work puts a bubble up
-        const blocked = npc.body.blocked.none === false || (npc.body.touching.none === false && !this.chairs.isPushing(npc));
-        if (busy) {
-            npc.setVelocity(0);
-        } else if (heading) {
-            // walking to a work zone: the work interaction set the velocity
-        } else if (blocked || this.time.now >= (this.wanderUntil.get(name) ?? 0)) {
-            const idle = npc.body.velocity.lengthSq() > 0 || Math.random() < 0.3;
-            if (idle) {
-                npc.setVelocity(0);
-            } else {
-                const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-                npc.setVelocity(Math.cos(angle) * NPC_WALK_SPEED, Math.sin(angle) * NPC_WALK_SPEED);
-                if (npc.body.velocity.x !== 0) npc.setFlipX(npc.body.velocity.x < 0);
-            }
-            this.wanderUntil.set(name, this.time.now + Phaser.Math.Between(NPC_STEP_MS.min, NPC_STEP_MS.max));
-        }
+    private updateNpc(name: NpcName, npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
+        this.wander.update(name, npc);
         this.sortByBottom(npc);
-        if (this.bubbles.isVisible(name)) this.bubbles.position(name);
-    }
-
-    // In-game chat: "/" or Enter opens it, typing shows in the player's bubble, Enter sends, Esc cancels
-    private onKeyDown(event: KeyboardEvent) {
-        if (!this.isTyping) {
-            if (event.key === '/' || event.key === 'Enter') {
-                event.preventDefault(); // keeps the "/" out of the text
-                this.chatText = '';
-                this.setTyping(true);
-                this.renderChat();
-            }
-            return;
-        }
-        if (event.metaKey || event.ctrlKey || event.altKey) return;
-        if (event.key === 'Enter') {
-            const text = this.chatText.trim();
-            if (!text) return;
-            if (this.sayHandler && !this.sayHandler(text)) return; // busy: keep what was typed
-            this.closeChat();
-            this.displaySpeechBubble(text);
-        } else if (event.key === 'Escape') {
-            this.closeChat();
-            this.speechText.setVisible(false);
-        } else if (event.key === 'Backspace') {
-            this.chatText = this.chatText.slice(0, -1);
-            this.renderChat();
-        } else if (event.key === 'ArrowUp') {
-            this.scrollNpcSpeech(-1);
-        } else if (event.key === 'ArrowDown') {
-            this.scrollNpcSpeech(1);
-        } else if (event.key.length === 1) {
-            this.chatText += event.key;
-            this.renderChat();
-        }
-    }
-
-    private closeChat() {
-        this.chatText = '';
-        this.setTyping(false);
-    }
-
-    private renderChat() {
-        this.speechTimer?.remove();
-        this.speechTimer = undefined;
-        this.speechText.setText(`${this.chatText}|`);
-        this.speechText.setVisible(true);
-    }
-
-    public displaySpeechBubble(message: string) {
-        this.speechTimer?.remove();
-        this.speechText.setText(message);
-        this.speechText.setVisible(true);
-
-        this.speechTimer = this.time.delayedCall(3000, () => {
-            this.speechText.setVisible(false);
-        });
+        this.bubbles.position(name);
     }
 
     // "!" over a coworker: they noticed the player speaking, before anyone is chosen to answer

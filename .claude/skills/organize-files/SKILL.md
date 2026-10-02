@@ -43,7 +43,7 @@ Rule of thumb: **group by feature/domain, not by file type; one responsibility p
 
 ## Known candidates for future splits
 
-- `OfficeScene.ts` (~400 lines): in-game chat input (`onKeyDown`, `renderChat`, `displaySpeechBubble`) could move to `interaction/player/Chat.ts`; NPC wandering (`updateWander`) could move to `interaction/npc/Wander.ts`.
+- `OfficeScene.ts` (~300 lines): now only wiring, camera, `place()` and the walk cue. Split further only if it grows; the walk wobble could become `interaction/player/WalkCue.ts`.
 
 ## Interactions (`src/game/office/interaction/`)
 
