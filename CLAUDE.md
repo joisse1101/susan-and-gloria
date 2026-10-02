@@ -32,6 +32,8 @@ A Phaser 4 mini-game mounted at `/office` (outside `MainLayout`). React owns the
 
 - `OfficeGame.ts` — `Phaser.Game` config (600x400, arcade physics, pixel art) and the API above.
 - `OfficeScene.ts` — the scene: `create()` lays the floor, places furniture/NPCs/player, `update()` handles movement. **Edit this to change the room layout** (`place(name, x, y, { solid, flat })`).
+- `interaction/npc/NpcBubbles.ts` — NPC speech bubbles (notice, mutter, scrollable streamed reply); `OfficeScene` delegates its public NPC API to it.
+- `map/loadOfficeMap.ts` — loads the Tiled map, floor bounds, and per-tile opaque collision rects.
 - `constants.ts` — canvas size, sprite scale, depth layers, feet-collision height.
 - `atlases/officeAtlas.ts` — frame rectangles for characters/desks in `PixelOfficeAssets.png`.
 - `atlases/interiorAtlas.ts` — frame rectangles for floors/rugs/furniture in `InteriorTilesLITE.png` (labelled map: `docs/interior-atlas-preview.png`).

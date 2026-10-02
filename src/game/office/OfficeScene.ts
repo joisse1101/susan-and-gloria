@@ -21,18 +21,10 @@ import { Chairs, PULL_SPEED } from './furniture/Chairs';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
 import { ThinkingInteraction } from './interaction/npc/ThinkingInteraction';
+import { NpcBubbles, NPC_BUBBLE_WIDTH, type NpcName } from './interaction/npc/NpcBubbles';
 import { PlayerWork } from './interaction/player/PlayerWork';
-import { CAMERA_ZOOM, FEET_HEIGHT, MAP_DEPTH, MAP_TOP_DEPTH, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
-
-const MAP_KEY = 'officeMap';
-const MAP_TILESET_KEY = 'officeTiles';
-const MAP_BASE_URL = `${import.meta.env.BASE_URL}assets/map/office/`;
-// Name of the tileset inside map.json (as exported from Sprite Fusion)
-const MAP_TILESET_NAME = 'spritefusion';
-// Tile layers drawn over the characters (everything else is under them)
-// Layer whose extent limits where characters can walk
-const FLOOR_LAYER = 'Floor';
-const TOP_LAYERS: string[] = ["Room Boundary"];
+import { loadOfficeMap, preloadOfficeMap } from './map/loadOfficeMap';
+import { CAMERA_ZOOM, FEET_HEIGHT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
 
 interface PlaceOptions {
     // Height (unscaled px) of the collision body measured up from the object's base; omit for no collision
@@ -41,14 +33,8 @@ interface PlaceOptions {
     flat?: boolean;
 }
 
-export type NpcName = 'susan' | 'gloria';
+export type { NpcName };
 
-// Replies scroll inside a window of this many wrapped lines, following the newest text
-const NPC_BUBBLE_LINES = 8;
-const NPC_BUBBLE_WIDTH = 250;
-const NPC_BUBBLE_FONT = '10px';
-const NPC_BUBBLE_LINGER_MS = 12000;
-const NPC_MUTTER_CHAR_MS = 200;
 const NPC_WALK_SPEED = 40;
 // Each wander step is a walk or a pause lasting a random time in this range
 const NPC_STEP_MS = { min: 800, max: 2500 };
@@ -63,18 +49,14 @@ export class OfficeScene extends Phaser.Scene {
     private wanderUntil = new Map<NpcName, number>();
     private work!: WorkInteraction;
     private thinking!: ThinkingInteraction;
+    private bubbles!: NpcBubbles;
     private mapSize = { width: 0, height: 0 };
-    private opaqueRects = new Map<number, { x: number; y: number; w: number; h: number }[]>();
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
     private chairs!: Chairs;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private speechText!: Phaser.GameObjects.Text;
     private wobble?: Phaser.Tweens.Tween;
     private playerWork!: PlayerWork;
-    private npcBubbles = new Map<NpcName, Phaser.GameObjects.Text>();
-    private mutterTimers = new Map<NpcName, Phaser.Time.TimerEvent>();
-    private npcTimers = new Map<NpcName, Phaser.Time.TimerEvent>();
-    private npcSpeech = new Map<NpcName, { text: string; offset: number; follow: boolean; done: boolean }>();
     public isTyping: boolean = false;
     private chatText = '';
     private speechTimer?: Phaser.Time.TimerEvent;
@@ -102,8 +84,7 @@ export class OfficeScene extends Phaser.Scene {
         this.load.image(OFFICE_ATLAS_KEY, OFFICE_ATLAS_URL);
         this.load.image(INTERIOR_ATLAS_KEY, INTERIOR_ATLAS_URL);
         this.load.image(FURNITURE_ATLAS_KEY, FURNITURE_ATLAS_URL);
-        this.load.tilemapTiledJSON(MAP_KEY, `${MAP_BASE_URL}map.json`);
-        this.load.image(MAP_TILESET_KEY, `${MAP_BASE_URL}spritesheet.png`);
+        preloadOfficeMap(this);
     }
 
     create() {
@@ -128,16 +109,16 @@ export class OfficeScene extends Phaser.Scene {
         this.obstacles = this.physics.add.staticGroup();
         this.work = new WorkInteraction(this, {
             npc: (name) => (name === 'susan' ? this.susan : this.gloria),
-            say: (name, text, onDone) => this.showNpcMutter(name, text, onDone),
-            hideBubble: (name) => this.hideNpcMutterBubble(name),
-            isBusy: (name) => this.npcBubbles.get(name)?.visible ?? false
+            say: (name, text, onDone) => this.bubbles.mutter(name, text, onDone),
+            hideBubble: (name) => this.bubbles.hideMutter(name),
+            isBusy: (name) => this.bubbles.isVisible(name)
         });
         this.thinking = new ThinkingInteraction(this, {
-            bubble: (name) => this.npcBubbles.get(name),
-            positionBubble: (name) => this.positionNpcBubble(name),
-            styleThought: (bubble) => bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'italic', color: '#555555', align: 'center' })
+            bubble: (name) => this.bubbles.get(name),
+            positionBubble: (name) => this.bubbles.position(name),
+            styleThought: (bubble) => this.bubbles.styleThought(bubble)
         });
-        this.loadMap();
+        this.mapSize = loadOfficeMap(this, this.obstacles, (layer, tileset) => this.work.collectTiles(layer, tileset));
         // this.work.drawZones(SPEECH_DEPTH - 1); // TODO: some button or env to toggle show
 
         // Pieces: place(name, centreX, centreY, { solid, flat, atlas }). Names live in interiorAtlas.ts; for officeAtlas.ts names pass atlas: 'office'
@@ -167,16 +148,11 @@ export class OfficeScene extends Phaser.Scene {
 
         this.gloria = this.createCoworker(170, 150, 'gloria');
         this.susan = this.createCoworker(475, 160, 'susan');
-        this.npcBubbles.set('gloria', this.createNpcBubble());
-        this.npcBubbles.set('susan', this.createNpcBubble());
-        // Mouse wheel over a bubble scrolls it back through the reply
-        // Hit-tested by bounds: setInteractive() fixes its hit area at the (empty) size the text has when created
-        this.input.on('wheel', (pointer: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => {
-            for (const [name, bubble] of this.npcBubbles) {
-                if (bubble.visible && bubble.getBounds().contains(pointer.worldX, pointer.worldY)) {
-                    this.scrollNpcSpeech(dy > 0 ? 1 : -1, name);
-                }
-            }
+        this.bubbles = new NpcBubbles(this, {
+            npc: (name) => (name === 'susan' ? this.susan : this.gloria),
+            mapWidth: () => this.mapSize.width,
+            cancelWork: (name) => this.work.cancel(name),
+            stopThinking: (name) => this.thinking.stop(name)
         });
 
         // 3. WORLD COLLISION: Enable solid boundaries
@@ -242,7 +218,7 @@ export class OfficeScene extends Phaser.Scene {
     // They stand still while their bubble is up (noticed, thinking or talking).
     private updateWander(name: NpcName, npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
         const heading = this.work.update(name);
-        const busy = this.npcBubbles.get(name)?.visible ?? false; // after update: starting work puts a bubble up
+        const busy = this.bubbles.isVisible(name) ?? false; // after update: starting work puts a bubble up
         const blocked = npc.body.blocked.none === false || (npc.body.touching.none === false && !this.chairs.isPushing(npc));
         if (busy) {
             npc.setVelocity(0);
@@ -260,7 +236,7 @@ export class OfficeScene extends Phaser.Scene {
             this.wanderUntil.set(name, this.time.now + Phaser.Math.Between(NPC_STEP_MS.min, NPC_STEP_MS.max));
         }
         this.sortByBottom(npc);
-        if (this.npcBubbles.get(name)?.visible) this.positionNpcBubble(name);
+        if (this.bubbles.isVisible(name)) this.bubbles.position(name);
     }
 
     // In-game chat: "/" or Enter opens it, typing shows in the player's bubble, Enter sends, Esc cancels
@@ -321,25 +297,11 @@ export class OfficeScene extends Phaser.Scene {
 
     // "!" over a coworker: they noticed the player speaking, before anyone is chosen to answer
     public showNpcNotice(name: NpcName) {
-        const bubble = this.npcBubbles.get(name);
-        if (!bubble) return;
-        this.work.cancel(name);
-        this.thinking.stop(name);
-        this.npcTimers.get(name)?.remove();
-        this.npcTimers.delete(name);
-
-        bubble.setStyle({ fontSize: '16px', fontStyle: 'bold', color: '#d00000', align: 'center' });
-        bubble.setText('!');
-        this.positionNpcBubble(name);
-        bubble.setVisible(true);
+        this.bubbles.notice(name);
     }
 
     public hideNpcBubble(name: NpcName) {
-        this.thinking.stop(name);
-        this.npcTimers.get(name)?.remove();
-        this.npcTimers.delete(name);
-        this.npcBubbles.get(name)?.setVisible(false);
-        this.npcSpeech.delete(name);
+        this.bubbles.hide(name);
     }
 
     // Thought bubble: animated dots above the coworker until the first token arrives
@@ -348,183 +310,22 @@ export class OfficeScene extends Phaser.Scene {
         this.thinking.start(name);
     }
 
-    // Idle muttering (e.g. while working): a grey italic line typed out one character at a time
-    // `onDone` fires once the whole line is shown (never if the bubble is hidden or replaced first)
-    private showNpcMutter(name: NpcName, text: string, onDone?: () => void) {
-        const bubble = this.npcBubbles.get(name);
-        if (!bubble) return;
-        this.mutterTimers.get(name)?.remove();
-        bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'italic', color: '#555555', align: 'center' });
-        let shown = 1;
-        bubble.setText(text.slice(0, shown));
-        bubble.setVisible(true);
-        this.positionNpcBubble(name);
-        if (text.length <= 1) {
-            onDone?.();
-            return;
-        }
-        this.mutterTimers.set(name, this.time.addEvent({
-            delay: NPC_MUTTER_CHAR_MS,
-            repeat: text.length - 2,
-            callback: () => {
-                bubble.setText(text.slice(0, ++shown));
-                this.positionNpcBubble(name);
-                if (shown >= text.length) {
-                    this.mutterTimers.delete(name);
-                    onDone?.();
-                }
-            }
-        }));
-    }
-
-    private hideNpcMutterBubble(name: NpcName) {
-        this.mutterTimers.get(name)?.remove();
-        this.mutterTimers.delete(name);
-        this.npcBubbles.get(name)?.setVisible(false);
-    }
-
-    // Replaces the bubble with the (partial) reply; call repeatedly while streaming
     public setNpcSpeech(name: NpcName, text: string) {
-        const bubble = this.npcBubbles.get(name);
-        if (!bubble) return;
-        this.work.cancel(name);
-        this.thinking.stop(name);
-        this.npcTimers.get(name)?.remove();
-        this.npcTimers.delete(name);
-
-        // Blank lines only waste space
-        const clean = text.split('\n').map((l) => l.trim()).filter(Boolean).join('\n');
-        const prev = this.npcSpeech.get(name);
-        // A new reply starts pinned to the bottom; further tokens keep the player's scroll position
-        const speech = prev && !prev.done ? prev : { text: '', offset: 0, follow: true, done: false };
-        speech.text = clean;
-        this.npcSpeech.set(name, speech);
-        bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'normal', color: '#000000', align: 'left' });
-        bubble.setVisible(true);
-        this.renderNpcSpeech(name);
+        this.bubbles.setSpeech(name, text);
     }
 
-    // Reply finished (or failed): leave it up for a while so it can be read and scrolled, then hide
     public finishNpcSpeech(name: NpcName) {
-        const speech = this.npcSpeech.get(name);
-        if (!speech) return;
-        speech.done = true;
-        this.scheduleNpcHide(name);
+        this.bubbles.finishSpeech(name);
     }
 
-    // Scrolls the visible bubble by `lines` (negative = back up); reaching the bottom resumes auto-follow
     public scrollNpcSpeech(lines: number, name?: NpcName) {
-        for (const [key, speech] of this.npcSpeech) {
-            if ((name && key !== name) || !this.npcBubbles.get(key)?.visible) continue;
-            const max = Math.max(0, this.npcLines(key).length - NPC_BUBBLE_LINES);
-            speech.offset = Phaser.Math.Clamp(speech.offset + lines, 0, max);
-            speech.follow = speech.offset >= max;
-            this.renderNpcSpeech(key);
-            this.scheduleNpcHide(key);
-        }
-    }
-
-    private npcLines(name: NpcName): string[] {
-        const bubble = this.npcBubbles.get(name);
-        const speech = this.npcSpeech.get(name);
-        return bubble && speech ? bubble.getWrappedText(speech.text) : [];
-    }
-
-    private renderNpcSpeech(name: NpcName) {
-        const bubble = this.npcBubbles.get(name);
-        const speech = this.npcSpeech.get(name);
-        if (!bubble || !speech) return;
-        const lines = this.npcLines(name);
-        const max = Math.max(0, lines.length - NPC_BUBBLE_LINES);
-        if (speech.follow) speech.offset = max;
-        speech.offset = Math.min(speech.offset, max);
-
-        let body = lines.slice(speech.offset, speech.offset + NPC_BUBBLE_LINES).join('\n');
-        if (max > 0) {
-            // Arrows show which directions can still scroll; the line stays put so the bubble doesn't jump
-            const up = speech.offset > 0 ? '▲' : ' ';
-            const down = speech.offset < max ? '▼' : ' ';
-            body += `\n${up} ${down}`;
-        }
-        bubble.setText(body);
-        this.positionNpcBubble(name);
-    }
-
-    private scheduleNpcHide(name: NpcName) {
-        this.thinking.stop(name);
-        this.npcTimers.get(name)?.remove();
-        this.npcTimers.delete(name);
-        if (!this.npcSpeech.get(name)?.done) return;
-        this.npcTimers.set(name, this.time.delayedCall(NPC_BUBBLE_LINGER_MS, () => {
-            this.hideNpcBubble(name);
-        }));
-    }
-
-    private createNpcBubble() {
-        return this.add.text(0, 0, '', {
-            fontSize: NPC_BUBBLE_FONT,
-            color: '#000000',
-            backgroundColor: '#ffffff',
-            padding: { x: 6, y: 4 },
-            wordWrap: { width: NPC_BUBBLE_WIDTH },
-            align: 'left'
-        }).setOrigin(0.5, 1).setDepth(SPEECH_DEPTH).setVisible(false);
-    }
-
-    private positionNpcBubble(name: NpcName) {
-        const bubble = this.npcBubbles.get(name);
-        const npc = name === 'susan' ? this.susan : this.gloria;
-        if (!bubble) return;
-        // Keep the bubble inside the canvas horizontally
-        const half = bubble.width / 2;
-        const x = Phaser.Math.Clamp(npc.x, half, this.mapSize.width - half);
-        bubble.setPosition(x, npc.y - npc.displayHeight / 2 - 4);
+        this.bubbles.scroll(lines, name);
     }
 
     private registerAtlasFrames(key: string, frames: Record<string, AtlasFrame>) {
         const texture = this.textures.get(key);
         for (const [name, f] of Object.entries(frames)) {
             if (!texture.has(name)) texture.add(name, 0, f.x, f.y, f.w, f.h);
-        }
-    }
-
-    // Builds every tile layer from map.json. Layers whose Tiled "collider" property is true block movement,
-    // but only where their tiles are opaque: each tile gets a body fitted to its non-transparent pixels.
-    private loadMap() {
-        const map = this.make.tilemap({ key: MAP_KEY });
-        const tileset = map.addTilesetImage(MAP_TILESET_NAME, MAP_TILESET_KEY);
-        if (!tileset) throw new Error(`Tileset "${MAP_TILESET_NAME}" not found in map.json`);
-        this.mapSize = { width: map.widthInPixels, height: map.heightInPixels };
-        this.physics.world.setBounds(0, 0, this.mapSize.width, this.mapSize.height);
-
-        const pixels = this.readTilesetPixels();
-        for (const data of map.layers) {
-            const layer = map.createLayer(data.name, tileset, 0, 0);
-            if (!(layer instanceof Phaser.Tilemaps.TilemapLayer)) continue;
-            // Characters can't leave the floor (doorways and empty map edges would otherwise let them walk into the void)
-            if (data.name === FLOOR_LAYER) {
-                const floor = layer.getTilesWithin(0, 0, map.width, map.height, { isNotEmpty: true });
-                if (floor.length > 0) {
-                    const x1 = Math.min(...floor.map((t) => t.pixelX));
-                    const y1 = Math.min(...floor.map((t) => t.pixelY));
-                    const x2 = Math.max(...floor.map((t) => t.pixelX + t.width));
-                    const y2 = Math.max(...floor.map((t) => t.pixelY + t.height));
-                    this.physics.world.setBounds(x1, y1, x2 - x1, y2 - y1);
-                }
-            }
-            layer.setDepth(TOP_LAYERS.includes(data.name) ? MAP_TOP_DEPTH : MAP_DEPTH);
-
-            this.work.collectTiles(layer, tileset);
-
-            const props = data.properties as { name: string; value: unknown }[] | undefined;
-            if (!props?.some((p) => p.name === 'collider' && p.value === true)) continue;
-            layer.forEachTile((tile) => {
-                if (tile.index < 0) return;
-                for (const box of this.tileOpaqueRects(tile, tileset, pixels)) {
-                    const zone = this.add.zone(tile.pixelX + box.x + box.w / 2, tile.pixelY + box.y + box.h / 2, box.w, box.h);
-                    this.obstacles.add(zone);
-                }
-            });
         }
     }
 
@@ -538,57 +339,6 @@ export class OfficeScene extends Phaser.Scene {
         // Only when the map is smaller than the viewport on that axis, nudge it up from dead centre
         const shiftY = h > this.mapSize.height ? SMALL_MAP_SHIFT_Y : 0;
         cam.setBounds((this.mapSize.width - w) / 2, (this.mapSize.height - h) / 2 + shiftY, w, h);
-    }
-
-    private readTilesetPixels(): ImageData {
-        const image = this.textures.get(MAP_TILESET_KEY).getSourceImage() as HTMLImageElement;
-        const canvas = document.createElement('canvas');
-        canvas.width = image.width;
-        canvas.height = image.height;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) throw new Error('2D canvas unavailable');
-        ctx.drawImage(image, 0, 0);
-        return ctx.getImageData(0, 0, image.width, image.height);
-    }
-
-    // Rectangles (tile-local px) covering a tile's non-transparent pixels. Several rects rather than one bounding box,
-    // so L-shaped pieces (wall corners) don't block the empty area inside the bend.
-    private tileOpaqueRects(tile: Phaser.Tilemaps.Tile, tileset: Phaser.Tilemaps.Tileset, pixels: ImageData) {
-        let rects = this.opaqueRects.get(tile.index);
-        if (rects === undefined) {
-            rects = [];
-            const origin = tileset.getTileTextureCoordinates(tile.index) as { x: number; y: number } | null;
-            if (origin) {
-                const opaque = (x: number, y: number) => pixels.data[((origin.y + y) * pixels.width + origin.x + x) * 4 + 3] > 16;
-                // Horizontal runs per row, merged downwards while the run is identical
-                let open: { x: number; y: number; w: number; h: number }[] = [];
-                for (let y = 0; y <= tile.height; y++) {
-                    const runs: { x: number; w: number }[] = [];
-                    for (let x = 0; y < tile.height && x < tile.width; x++) {
-                        if (!opaque(x, y)) continue;
-                        const start = x;
-                        while (x + 1 < tile.width && opaque(x + 1, y)) x++;
-                        runs.push({ x: start, w: x - start + 1 });
-                    }
-                    const next: typeof open = [];
-                    for (const r of open) {
-                        const i = runs.findIndex((run) => run.x === r.x && run.w === r.w);
-                        if (i >= 0) { r.h++; next.push(r); runs.splice(i, 1); }
-                        else rects.push(r);
-                    }
-                    for (const run of runs) next.push({ x: run.x, y, w: run.w, h: 1 });
-                    open = next;
-                }
-            }
-            this.opaqueRects.set(tile.index, rects);
-        }
-        // Mirror for flipped tiles
-        return rects.map((box) => ({
-            x: tile.flipX ? tile.width - box.x - box.w : box.x,
-            y: tile.flipY ? tile.height - box.y - box.h : box.y,
-            w: box.w,
-            h: box.h
-        }));
     }
 
     protected place(name: InteriorFrameName, x: number, y: number, options?: PlaceOptions & { atlas?: 'interior' }): Phaser.GameObjects.Image;
