@@ -27,9 +27,10 @@ NEAR_HAND_LIGHT = (0xe4, 0xb5, 0xa5, 255)
 FAR_HAND = (0xb0, 0x84, 0x78, 255)
 
 CHARACTERS = {
-    # sleeve: jacket colour that replaces the hands at the sides; leg_row: first row kept planted from Idle
-    "susan": {"sleeve": (0x8e, 0x24, 0x34, 255), "leg_row": 26},
-    # "gloria": {"sleeve": (0x24, 0x47, 0x3a, 255), "leg_row": 27},  # not wired up yet
+    # sleeve: jacket colour filling the tucked arms; leg_row: first row kept planted from Idle;
+    # arm_rows: the two rows where the hanging arm sticks out beside the torso; hand_y: top row of the belly hands
+    "susan": {"sleeve": (0x8e, 0x24, 0x34, 255), "leg_row": 26, "arm_rows": (22, 23), "hand_y": 21},
+    "gloria": {"sleeve": (0x24, 0x47, 0x3a, 255), "leg_row": 27, "arm_rows": (21, 22), "hand_y": 20},
 }
 
 
@@ -47,11 +48,11 @@ def lift_columns(img, columns, rows):
             px[x, y] = col[i + 1]
 
 
-def tuck_arms(body, sleeve):
+def tuck_arms(body, sleeve, rows):
     """Front and back: as in the player's sheet the arms are pulled in against the torso, so the hanging arms
     (and their hands) are replaced by straight sides: outline at x=10 and 21, sleeve colour between."""
     px = body.load()
-    for y in (22, 23):
+    for y in rows:
         for x in range(0, CELL):
             if px[x, y][3] and (x <= 12 or x >= 19):
                 px[x, y] = (0, 0, 0, 0)
@@ -61,13 +62,13 @@ def tuck_arms(body, sleeve):
         px[10, y] = px[21, y] = OUTLINE
 
 
-def front_hands(body, frame):
+def front_hands(body, frame, y0):
     """Hands meet low on the belly like the player's: a wide row, then a narrow one that swaps sides each frame."""
     px = body.load()
     for x, c in zip(range(14, 18), (HAND, HAND_SHADE, HAND_SHADE, HAND)):
-        px[x, 21] = c
+        px[x, y0] = c
     for x, c in zip((16, 17) if frame == 0 else (14, 15), (HAND_SHADE, HAND) if frame == 0 else (HAND, HAND_SHADE)):
-        px[x, 22] = c
+        px[x, y0 + 1] = c
 
 
 def side_hands(body, sleeve, frame):
@@ -100,13 +101,13 @@ def build(name, cfg):
             body = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
             body.paste(src.crop((0, 0, CELL, leg_row)), (0, 0))
             if row == 1:
-                tuck_arms(body, cfg["sleeve"])
-                lift_columns(body, (11, 12) if frame == 0 else (19, 20), rows=range(20, 24))
+                tuck_arms(body, cfg["sleeve"], cfg["arm_rows"])
+                lift_columns(body, (11, 12) if frame == 0 else (19, 20), rows=range(cfg["arm_rows"][0] - 2, cfg["arm_rows"][1] + 1))
             elif row == 0:
-                tuck_arms(body, cfg["sleeve"])
-                front_hands(body, frame)
+                tuck_arms(body, cfg["sleeve"], cfg["arm_rows"])
+                front_hands(body, frame, cfg["hand_y"])
             else:
-                tuck_arms(body, cfg["sleeve"])
+                tuck_arms(body, cfg["sleeve"], cfg["arm_rows"])
                 side_hands(body, cfg["sleeve"], frame)
             out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
             out.alpha_composite(body, (0, SIT_DROP))

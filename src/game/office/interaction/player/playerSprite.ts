@@ -39,7 +39,8 @@ export const SUSAN_SPRITE: CharacterSprite = {
 export const GLORIA_SPRITE: CharacterSprite = {
     name: 'gloria',
     idle: { url: assetUrl('gloria', 'Idle.png'), columns: 2, frames: 2 },
-    walk: { url: assetUrl('gloria', 'Walk.png'), columns: 4, frames: 4 }
+    walk: { url: assetUrl('gloria', 'Walk.png'), columns: 4, frames: 4 },
+    type: { url: assetUrl('gloria', 'Type.png'), columns: 2, frames: 2 }
 };
 
 export const PLAYER_IDLE_KEY = `${PLAYER_SPRITE.name}-idle`;
