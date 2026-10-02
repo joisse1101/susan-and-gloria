@@ -12,7 +12,7 @@ interface SheetLayout {
     frames: number;
 }
 
-interface CharacterSprite {
+export interface CharacterSprite {
     name: string;
     idle: { url: string } & SheetLayout;
     walk: { url: string } & SheetLayout;
@@ -31,6 +31,12 @@ export const SUSAN_SPRITE: CharacterSprite = {
     name: 'susan',
     idle: { url: assetUrl('susan', 'Idle.png'), columns: 2, frames: 2 },
     walk: { url: assetUrl('susan', 'Walk.png'), columns: 4, frames: 4 }
+};
+
+export const GLORIA_SPRITE: CharacterSprite = {
+    name: 'gloria',
+    idle: { url: assetUrl('gloria', 'Idle.png'), columns: 2, frames: 2 },
+    walk: { url: assetUrl('gloria', 'Walk.png'), columns: 4, frames: 4 }
 };
 
 export const PLAYER_IDLE_KEY = `${PLAYER_SPRITE.name}-idle`;

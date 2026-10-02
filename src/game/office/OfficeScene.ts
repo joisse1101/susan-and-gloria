@@ -28,12 +28,14 @@ import { PlayerWork } from './interaction/player/PlayerWork';
 import {
     PLAYER_BODY,
     PLAYER_IDLE_KEY,
+    GLORIA_SPRITE,
     SUSAN_SPRITE,
     animKey,
     createCharacterAnims,
     createPlayerAnims,
     preloadCharacterSprite,
     preloadPlayerSprite,
+    type CharacterSprite,
     type Facing
 } from './interaction/player/playerSprite';
 import { FACING } from './interaction/npc/facing';
@@ -84,6 +86,7 @@ export class OfficeScene extends Phaser.Scene {
         this.load.image(FURNITURE_ATLAS_KEY, FURNITURE_ATLAS_URL);
         preloadPlayerSprite(this);
         preloadCharacterSprite(this, SUSAN_SPRITE);
+        preloadCharacterSprite(this, GLORIA_SPRITE);
         preloadOfficeMap(this);
     }
 
@@ -120,6 +123,7 @@ export class OfficeScene extends Phaser.Scene {
         // 2. AVATARS: Player & Coworkers
         createPlayerAnims(this);
         createCharacterAnims(this, SUSAN_SPRITE);
+        createCharacterAnims(this, GLORIA_SPRITE);
         this.player = this.physics.add.sprite(300, 300, PLAYER_IDLE_KEY);
         this.player.setScale(SPRITE_SCALE);
         // Feet-only body so the head can overlap objects behind
@@ -139,8 +143,8 @@ export class OfficeScene extends Phaser.Scene {
         this.chairs.add(260, 380, 'chairSE');
         this.chairs.add(330, 380, 'chairW');
 
-        this.gloria = this.createCoworker(170, 150, 'gloria');
-        this.susan = this.createSusan(475, 151);
+        this.gloria = this.createSheetCoworker(GLORIA_SPRITE, 170, 150);
+        this.susan = this.createSheetCoworker(SUSAN_SPRITE, 475, 151);
         this.bubbles = new NpcBubbles(this, {
             npc: (name) => (name === 'susan' ? this.susan : this.gloria),
             mapWidth: () => this.mapSize.width,
@@ -211,7 +215,7 @@ export class OfficeScene extends Phaser.Scene {
 
     private updateNpc(name: NpcName, npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
         this.wander.update(name, npc);
-        if (name === 'susan') this.updateSusanAnim(npc);
+        this.updateSheetAnim(npc, name === 'susan' ? SUSAN_SPRITE : GLORIA_SPRITE);
         this.sortByBottom(npc);
         this.bubbles.position(name);
     }
@@ -284,25 +288,10 @@ export class OfficeScene extends Phaser.Scene {
         return sprite;
     }
 
-    private createCoworker(x: number, y: number, frame: OfficeFrameName) {
-        const sprite = this.physics.add.sprite(x, y, OFFICE_ATLAS_KEY, frame);
+    // Same feet-only body as the player: the coworkers' sheets share the player's cell layout
+    private createSheetCoworker(character: CharacterSprite, x: number, y: number) {
+        const sprite = this.physics.add.sprite(x, y, `${character.name}-idle`);
         sprite.setScale(SPRITE_SCALE);
-        // The player can't push them. Not setImmovable(): Arcade skips separation between two immovable
-        // bodies, and the static obstacles are immovable, so the coworkers would walk straight through them.
-        sprite.body.pushable = false;
-        // Feet-only body, in unscaled px like the player's (Arcade scales body size with the sprite)
-        const f = OFFICE_FRAMES[frame];
-        sprite.body.setSize(f.w - 4, FEET_HEIGHT);
-        sprite.body.setOffset(2, f.h - FEET_HEIGHT);
-        this.sortByBottom(sprite);
-        return sprite;
-    }
-
-    // Same feet-only body as the player: Susan's sheets share the player's cell layout
-    private createSusan(x: number, y: number) {
-        const sprite = this.physics.add.sprite(x, y, `${SUSAN_SPRITE.name}-idle`);
-        sprite.setScale(SPRITE_SCALE);
-        sprite.setData('flips', false); // facing picks a sheet row instead of mirroring
         sprite.body.pushable = false;
         sprite.body.setSize(PLAYER_BODY.width, FEET_HEIGHT);
         sprite.body.setOffset(PLAYER_BODY.offsetX, sprite.height - FEET_HEIGHT);
@@ -310,7 +299,7 @@ export class OfficeScene extends Phaser.Scene {
         return sprite;
     }
 
-    private updateSusanAnim(npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
+    private updateSheetAnim(npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody, character: CharacterSprite) {
         const { x, y } = npc.body.velocity;
         const moving = x !== 0 || y !== 0;
         let facing: Facing = npc.getData(FACING) ?? 'down';
@@ -319,7 +308,7 @@ export class OfficeScene extends Phaser.Scene {
             else facing = y < 0 ? 'up' : 'down';
             npc.setData(FACING, facing);
         }
-        npc.anims.play(animKey(moving ? 'walk' : 'idle', facing, SUSAN_SPRITE.name), true);
+        npc.anims.play(animKey(moving ? 'walk' : 'idle', facing, character.name), true);
     }
 
     private sortByBottom(sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image) {

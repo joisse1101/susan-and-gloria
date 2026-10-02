@@ -184,3 +184,33 @@ for row, kind in enumerate(('front', 'back', 'right', 'left')):
                 if c and (len(c) < 4 or c[3] > 0): walk.px(i*32+x, row*32+y, c)
 walk.preview(os.path.join(here, "walk_preview.png"), scale=5)
 walk.save_png(os.path.join(out, "Walk.png"))
+
+
+# ---------------------------------------------------------------- idle sheet, all four directions
+def idle_cell(kind, frame):
+    dy = (0, -1)[frame]
+    f = Sprite(32, 32)
+    if kind == 'front':
+        draw(f, dy)
+        return f
+    (draw_back if kind == 'back' else draw_right)(f, dy)
+    idle_legs(f, frame, dy, 1 if kind == 'back' else 2)
+    if kind == 'left':
+        g = Sprite(32, 32)
+        for y in range(32):
+            for x in range(32):
+                c = f.get(x, y)
+                if c and (len(c) < 4 or c[3] > 0): g.px(31-x, y, c)
+        f = g
+    return f
+
+idle = Sprite(64, 128)
+for row, kind in enumerate(('front', 'back', 'right', 'left')):
+    for i in range(2):
+        f = idle_cell(kind, i)
+        for y in range(32):
+            for x in range(32):
+                c = f.get(x, y)
+                if c and (len(c) < 4 or c[3] > 0): idle.px(i*32+x, row*32+y, c)
+idle.preview(os.path.join(here, "idle_preview.png"), scale=6)
+idle.save_png(os.path.join(out, "Idle.png"))
