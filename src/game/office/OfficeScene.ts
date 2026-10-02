@@ -12,7 +12,9 @@ import {
     type InteriorFrameName
 } from './atlases/interiorAtlas';
 import type { AtlasFrame } from './atlases/types';
-import { WorkInteraction } from './interaction/WorkInteraction';
+import { WorkInteraction } from './interaction/npc/WorkInteraction';
+import { ThinkingInteraction } from './interaction/npc/ThinkingInteraction';
+import { PlayerWork } from './interaction/player/PlayerWork';
 import { CAMERA_ZOOM, FEET_HEIGHT, MAP_DEPTH, MAP_TOP_DEPTH, RUG_DEPTH, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
 
 const MAP_KEY = 'officeMap';
@@ -53,12 +55,14 @@ export class OfficeScene extends Phaser.Scene {
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private wanderUntil = new Map<NpcName, number>();
     private work!: WorkInteraction;
+    private thinking!: ThinkingInteraction;
     private mapSize = { width: 0, height: 0 };
     private opaqueBounds = new Map<number, { x: number; y: number; w: number; h: number } | null>();
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private speechText!: Phaser.GameObjects.Text;
     private wobble?: Phaser.Tweens.Tween;
+    private playerWork!: PlayerWork;
     private npcBubbles = new Map<NpcName, Phaser.GameObjects.Text>();
     private mutterTimers = new Map<NpcName, Phaser.Time.TimerEvent>();
     private npcTimers = new Map<NpcName, Phaser.Time.TimerEvent>();
@@ -118,6 +122,11 @@ export class OfficeScene extends Phaser.Scene {
             hideBubble: (name) => this.hideNpcMutterBubble(name),
             isBusy: (name) => this.npcBubbles.get(name)?.visible ?? false
         });
+        this.thinking = new ThinkingInteraction(this, {
+            bubble: (name) => this.npcBubbles.get(name),
+            positionBubble: (name) => this.positionNpcBubble(name),
+            styleThought: (bubble) => bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'italic', color: '#555555', align: 'center' })
+        });
         this.loadMap();
         // this.work.drawZones(SPEECH_DEPTH - 1); // TODO: some button or env to toggle show
 
@@ -132,6 +141,13 @@ export class OfficeScene extends Phaser.Scene {
         const playerFrame = OFFICE_FRAMES.player;
         this.player.body.setSize(playerFrame.w - 4, FEET_HEIGHT);
         this.player.body.setOffset(2, playerFrame.h - FEET_HEIGHT);
+
+        this.playerWork = new PlayerWork(this, {
+            player: this.player,
+            bubble: this.speechText,
+            isInWorkZone: (sprite) => this.work.isInZone(sprite),
+            isTyping: () => this.isTyping
+        });
 
         this.gloria = this.createCoworker(240, 150, 'gloria');
         this.susan = this.createCoworker(475, 160, 'susan');
@@ -193,6 +209,7 @@ export class OfficeScene extends Phaser.Scene {
 
         const moving = this.player.body.velocity.lengthSq() > 0;
         this.updateWalkCue(moving);
+        this.playerWork.update(moving);
 
         this.sortByBottom(this.player);
         this.updateWander('gloria', this.gloria);
@@ -286,6 +303,7 @@ export class OfficeScene extends Phaser.Scene {
         const bubble = this.npcBubbles.get(name);
         if (!bubble) return;
         this.work.cancel(name);
+        this.thinking.stop(name);
         this.npcTimers.get(name)?.remove();
         this.npcTimers.delete(name);
 
@@ -296,6 +314,7 @@ export class OfficeScene extends Phaser.Scene {
     }
 
     public hideNpcBubble(name: NpcName) {
+        this.thinking.stop(name);
         this.npcTimers.get(name)?.remove();
         this.npcTimers.delete(name);
         this.npcBubbles.get(name)?.setVisible(false);
@@ -304,22 +323,8 @@ export class OfficeScene extends Phaser.Scene {
 
     // Thought bubble: animated dots above the coworker until the first token arrives
     public showNpcThinking(name: NpcName) {
-        const bubble = this.npcBubbles.get(name);
-        if (!bubble) return;
         this.work.cancel(name);
-        this.npcTimers.get(name)?.remove();
-
-        const frames = ['.', '..', '...'];
-        let i = 0;
-        bubble.setStyle({ fontSize: NPC_BUBBLE_FONT, fontStyle: 'italic', color: '#555555', align: 'center' });
-        bubble.setText(`${frames[i]}`);
-        this.positionNpcBubble(name);
-        bubble.setVisible(true);
-        this.npcTimers.set(name, this.time.addEvent({
-            delay: 400,
-            loop: true,
-            callback: () => bubble.setText(`(${frames[++i % frames.length]})`)
-        }));
+        this.thinking.start(name);
     }
 
     // Idle muttering (e.g. while working): a grey italic line typed out one character at a time
@@ -362,6 +367,7 @@ export class OfficeScene extends Phaser.Scene {
         const bubble = this.npcBubbles.get(name);
         if (!bubble) return;
         this.work.cancel(name);
+        this.thinking.stop(name);
         this.npcTimers.get(name)?.remove();
         this.npcTimers.delete(name);
 
@@ -424,6 +430,7 @@ export class OfficeScene extends Phaser.Scene {
     }
 
     private scheduleNpcHide(name: NpcName) {
+        this.thinking.stop(name);
         this.npcTimers.get(name)?.remove();
         this.npcTimers.delete(name);
         if (!this.npcSpeech.get(name)?.done) return;

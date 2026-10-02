@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import type { NpcName } from '../OfficeScene';
+import type { NpcName } from '../../OfficeScene';
+import { WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
 
 // Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one
 // (in the tile's "direction" property: left, right, up or down) stops and works
@@ -11,68 +12,12 @@ const DIRECTIONS: Record<string, { dx: number; dy: number }> = {
     up: { dx: 0, dy: -1 },
     down: { dx: 0, dy: 1 }
 };
-const WORK_DURATION_MS = 10000;
-const WORK_PHRASE_MS = 1200;
 // They deliberately walk to a work zone about once a minute, giving up if they can't get there
 const WORK_VISIT_MS = { min: 50000, max: 70000 };
 const WORK_VISIT_GIVE_UP_MS = 20000;
 const WALK_SPEED = 40;
 // Pause after working so they walk away instead of restarting while still next to the desk
 const WORK_COOLDOWN_MS = 8000;
-const WORK_PHRASES = [
-    // Thinking & Processing
-    'hmm...',
-    'let me think...',
-    'let\'s see here...',
-    'taking a step back...',
-    'connecting the dots...',
-    'crunching the numbers...',
-    'testing an idea...',
-    'pondering this one...',
-    'if I look at it this way...',
-    'tracing the logic...',
-
-    // Course Correction & Pivoting
-    'wait, no...',
-    'back to the drawing board...',
-    'hold on, that doesn\'t fit...',
-    'let me try another angle...',
-    'scratch that...',
-    'not quite what I meant...',
-    'wait, let\'s rethink this...',
-    'rewinding a bit...',
-    'changing gears...',
-
-    // Breakthroughs & Fits
-    'how about this...',
-    'ooh, that works',
-    'now we\'re onto something...',
-    'there\'s the spark...',
-    'that\'s more like it!',
-    'bingo, found it...',
-    'it\'s coming together...',
-    'a subtle detail, but huge...',
-    'spot on!',
-
-    // Fine-Tuning & Polishing
-    'almost there...',
-    'one more tweak...',
-    'just a slight adjustment...',
-    'smoothing out the edges...',
-    'tidying up the details...',
-    'dotting the i\'s...',
-    'getting the balance right...',
-    'giving it a final polish...',
-    'nesting the last piece...',
-
-    // Focus & Recovery
-    'where was I...',
-    'picking up where I left off...',
-    'getting back on track...',
-    'where did that thread go...',
-    're-centering...',
-    'focusing in...'
-];
 
 interface Zone { x0: number; y0: number; x1: number; y1: number }
 
@@ -91,7 +36,8 @@ export interface WorkHost {
 
 export class WorkInteraction {
     // tx/ty is the work tile, zone the area (in tile units) a coworker stands in to use it
-    private tiles: { tx: number; ty: number; zone: Zone }[] = [];
+    private tiles: { tx: number; ty: number; zone: Zone; dir?: { dx: number; dy: number } }[] = [];
+    private approachSince = new Map<NpcName, number>();
     private tileSize = 32;
     private working = new Map<NpcName, { tween: Phaser.Tweens.Tween; timers: Phaser.Time.TimerEvent[] }>();
     private cooldownUntil = new Map<NpcName, number>();
@@ -113,7 +59,7 @@ export class WorkInteraction {
             this.tileSize = tile.width;
             const dir = DIRECTIONS[String(this.tileProperty(tileset, tile.index, 'direction'))];
             if (!dir) console.warn(`[office] work tile at ${tile.x},${tile.y} has no valid direction; using the tile itself`);
-            this.tiles.push({ tx: tile.x, ty: tile.y, zone: this.zoneFor(tile.x, tile.y, dir) });
+            this.tiles.push({ tx: tile.x, ty: tile.y, zone: this.zoneFor(tile.x, tile.y, dir), dir });
         });
     }
 
@@ -149,8 +95,8 @@ export class WorkInteraction {
     // in which case this has set their velocity and they shouldn't wander.
     update(name: NpcName): boolean {
         const busy = this.host.isBusy(name);
-        if (!busy && this.shouldWork(name)) this.startWork(name);
-        return !busy && !this.working.has(name) && this.updateVisit(name);
+        if (!busy && this.shouldWork(name) && this.approachWorkTile(name)) this.startWork(name);
+        return !busy && !this.working.has(name) && (this.approachSince.has(name) || this.updateVisit(name));
     }
 
     // Stops working without touching the bubble (chat takes the bubble over when it interrupts)
@@ -166,9 +112,13 @@ export class WorkInteraction {
     // True when the coworker's feet are inside a work zone (the one drawn by drawZones) and they aren't resting
     private shouldWork(name: NpcName) {
         if (this.working.has(name) || this.scene.time.now < (this.cooldownUntil.get(name) ?? 0)) return false;
-        const body = this.host.npc(name).body;
-        const x = body.center.x / this.tileSize;
-        const y = body.center.y / this.tileSize;
+        return this.isInZone(this.host.npc(name));
+    }
+
+    // True when the sprite's feet (its physics body centre) are inside any work zone
+    isInZone(sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
+        const x = sprite.body.center.x / this.tileSize;
+        const y = sprite.body.center.y / this.tileSize;
         return this.tiles.some(({ zone: z }) => x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1);
     }
 
@@ -199,6 +149,38 @@ export class WorkInteraction {
         const dir = new Phaser.Math.Vector2(visit.x - npc.body.center.x, visit.y - npc.body.center.y).normalize();
         npc.setVelocity(dir.x * WALK_SPEED, dir.y * WALK_SPEED);
         if (npc.body.velocity.x !== 0) npc.setFlipX(npc.body.velocity.x < 0);
+        return true;
+    }
+
+    // Walks a coworker standing in a work zone to the spot flush against the work tile. Returns true once
+    // they're there (or the walk is taking too long), after turning them to face the tile.
+    // The sprites are side-on, so up/down tiles get no flip.
+    private approachWorkTile(name: NpcName) {
+        const npc = this.host.npc(name);
+        const size = this.tileSize;
+        const cx = npc.body.center.x / size;
+        const cy = npc.body.center.y / size;
+        const t = this.tiles.find(({ zone: z }) => cx >= z.x0 && cx <= z.x1 && cy >= z.y0 && cy <= z.y1);
+        if (!t?.dir) return true;
+        const { dx, dy } = t.dir;
+        // Target body centre (px): flush with the tile edge, level with it along the edge
+        const x = dx < 0 ? t.tx * size - npc.body.halfWidth : dx > 0 ? (t.tx + 1) * size + npc.body.halfWidth
+            : Phaser.Math.Clamp(npc.body.center.x, t.tx * size, (t.tx + 1) * size);
+        const y = dy < 0 ? t.ty * size - npc.body.halfHeight : dy > 0 ? (t.ty + 1) * size + npc.body.halfHeight
+            : (t.ty + 1) * size - npc.body.halfHeight; // side tiles: body's bottom edge level with the tile's bottom edge
+        const now = this.scene.time.now;
+        if (!this.approachSince.has(name)) this.approachSince.set(name, now);
+        const dist = Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, x, y);
+        if (dist > 2 && now - (this.approachSince.get(name) ?? now) < 2000) {
+            const v = new Phaser.Math.Vector2(x - npc.body.center.x, y - npc.body.center.y).normalize();
+            npc.setVelocity(v.x * WALK_SPEED, v.y * WALK_SPEED);
+            return false;
+        }
+        this.approachSince.delete(name);
+        npc.setVelocity(0);
+        // dir is the side of the tile they stand on, so the tile is the opposite way. Sprites face right
+        // by default, so flip when they stand to the right of the tile (tile on their left)
+        if (dx !== 0) npc.setFlipX(dx > 0);
         return true;
     }
 
