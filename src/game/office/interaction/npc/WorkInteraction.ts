@@ -33,12 +33,18 @@ export interface WorkHost {
     hideBubble(name: NpcName): void;
     // True while the coworker has a bubble up (noticed, thinking or talking), so they shouldn't start working
     isBusy(name: NpcName): boolean;
+    // Called every frame at the work spot: fetches and pulls up a nearby chair. True once they can start working
+    // (seated, or there was no chair), false while they're still on it (it has set their velocity).
+    fetchChair(name: NpcName): boolean;
+    // They're done or interrupted: the chair, if any, is left where it is
+    releaseChair(name: NpcName): void;
 }
 
 export class WorkInteraction {
     // tx/ty is the work tile, zone the area (in tile units) a coworker stands in to use it
     private tiles: { tx: number; ty: number; zone: Zone; dir?: { dx: number; dy: number } }[] = [];
     private approachSince = new Map<NpcName, number>();
+    private fetching = new Set<NpcName>();
     private tileSize = 32;
     private working = new Map<NpcName, { timers: Phaser.Time.TimerEvent[] }>();
     private cooldownUntil = new Map<NpcName, number>();
@@ -96,12 +102,22 @@ export class WorkInteraction {
     // in which case this has set their velocity and they shouldn't wander.
     update(name: NpcName): boolean {
         const busy = this.host.isBusy(name);
-        if (!busy && this.shouldWork(name) && this.approachWorkTile(name)) this.startWork(name);
-        return !busy && !this.working.has(name) && (this.approachSince.has(name) || this.updateVisit(name));
+        if (busy) {
+            if (this.fetching.has(name)) this.cancel(name); // interrupted on the way to a chair: let go of it
+        } else if (this.fetching.has(name) || (this.shouldWork(name) && this.approachWorkTile(name))) {
+            // At the work spot: first get a chair if one is near, then work
+            this.fetching.add(name);
+            if (this.host.fetchChair(name)) {
+                this.fetching.delete(name);
+                this.startWork(name);
+            }
+        }
+        return !busy && !this.working.has(name) && (this.fetching.has(name) || this.approachSince.has(name) || this.updateVisit(name));
     }
 
     // Stops working without touching the bubble (chat takes the bubble over when it interrupts)
     cancel(name: NpcName) {
+        if (this.fetching.delete(name) || this.working.has(name)) this.host.releaseChair(name);
         const work = this.working.get(name);
         if (!work) return;
         work.timers.forEach((t) => t.remove());

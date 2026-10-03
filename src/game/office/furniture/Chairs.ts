@@ -7,6 +7,8 @@ type DynamicSprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 const DRAG = 600;
 const MAX_SPEED = 120;
 const MIN_TURN_SPEED = 20;
+// Time for a rolled chair to stop (it needs MAX_SPEED / drag, about 0.27s for the usual distances), then normal drag returns
+const ROLL_MS = 500;
 // Pull mode: how close (px between bodies) a chair must be to grab it, and how far it can lag before it lets go
 const GRAB_GAP = 8;
 const RELEASE_GAP = 16;
@@ -22,6 +24,9 @@ export class Chairs {
     private movers: DynamicSprite[] = [];
     private pushing = new Set<DynamicSprite>();
     private held?: DynamicSprite;
+    private claimed = new Set<DynamicSprite>();
+    // Chairs being pushed away by whoever got up: they roll backwards without turning to face the way they move
+    private rolling = new Set<DynamicSprite>();
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
@@ -75,6 +80,7 @@ export class Chairs {
 
     // Turn toward the push direction; while it coasts to a stop it keeps its last facing
     private faceVelocity(chair: DynamicSprite) {
+        if (this.rolling.has(chair)) return;
         const { x, y } = chair.body.velocity;
         if (Math.hypot(x, y) < MIN_TURN_SPEED) return;
         // Screen angle: 0° = east, 90° = south (y points down); frames run S, SE, E, ... counter-clockwise
@@ -116,7 +122,44 @@ export class Chairs {
         this.held.body.setVelocity(mover.body.velocity.x, mover.body.velocity.y);
     }
 
-    private gap(a: DynamicSprite, b: DynamicSprite) {
+    // Closest chair nobody has claimed whose body centre is within `range` px of (x, y)
+    nearest(x: number, y: number, range: number) {
+        let best: DynamicSprite | undefined;
+        let bestDist = range;
+        for (const child of this.group.getChildren()) {
+            const chair = child as DynamicSprite;
+            if (this.claimed.has(chair)) continue;
+            const dist = Phaser.Math.Distance.Between(x, y, chair.body.center.x, chair.body.center.y);
+            if (dist <= bestDist) {
+                bestDist = dist;
+                best = chair;
+            }
+        }
+        return best;
+    }
+
+    // A claimed chair is being taken to a seat, so nobody else goes for it
+    claim(chair: DynamicSprite) {
+        this.claimed.add(chair);
+    }
+
+    unclaim(chair: DynamicSprite) {
+        this.claimed.delete(chair);
+    }
+
+    // Shove the chair `distance` px along (dirX, dirY), keeping its facing. It coasts to a stop under a temporary
+    // drag sized for that distance (v² / 2d), and walls and furniture still stop it short.
+    roll(chair: DynamicSprite, dirX: number, dirY: number, distance: number) {
+        this.rolling.add(chair);
+        chair.body.setDrag((MAX_SPEED * MAX_SPEED) / (2 * distance));
+        chair.body.setVelocity(dirX * MAX_SPEED, dirY * MAX_SPEED);
+        this.scene.time.delayedCall(ROLL_MS, () => {
+            chair.body.setDrag(DRAG);
+            this.rolling.delete(chair);
+        });
+    }
+
+    gap(a: DynamicSprite, b: DynamicSprite) {
         const dx = Math.max(0, a.body.left - b.body.right, b.body.left - a.body.right);
         const dy = Math.max(0, a.body.top - b.body.bottom, b.body.top - a.body.bottom);
         return Math.hypot(dx, dy);
