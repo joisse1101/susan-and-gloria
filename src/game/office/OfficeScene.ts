@@ -14,6 +14,8 @@ import {
 import {
     FURNITURE_ATLAS_KEY,
     FURNITURE_ATLAS_URL,
+    HANDLE_ATLAS_KEY,
+    HANDLE_ATLAS_URL,
     FURNITURE_FRAMES,
     type FurnitureFrameName
 } from './atlases/furnitureAtlas';
@@ -55,6 +57,16 @@ export type { NpcName };
 // Which spritesheet a frame name comes from. Some names (plant, windowA) exist in both, so it is explicit.
 type AtlasChoice = 'interior' | 'office' | 'furniture';
 
+// Which chair frame sits under a player facing each way
+const CHAIR_FACING = { down: 'S', up: 'N', right: 'E', left: 'W' } as const;
+// Nudge from the player's centre per facing (px, tune by eye)
+const CHAIR_OFFSET = {
+    down: { x: 0, y: 14 },
+    up: { x: 0, y: 10 },
+    right: { x: -5, y: 10 },
+    left: { x: 5, y: 10 }
+} as const;
+
 export class OfficeScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private gloria!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -73,6 +85,8 @@ export class OfficeScene extends Phaser.Scene {
     private playerWork!: PlayerWork;
     // Chair drawn behind the player while they sit and type
     private workChair!: Phaser.GameObjects.Image;
+    // Armrests drawn over the seated player, so the player sits between chair and handle
+    private workChairHandle!: Phaser.GameObjects.Image;
 
     // Set by OfficeGame before create() runs, so it lives here rather than on Chat
     public setSayHandler(handler: (text: string) => boolean) {
@@ -87,6 +101,7 @@ export class OfficeScene extends Phaser.Scene {
         this.load.image(OFFICE_ATLAS_KEY, OFFICE_ATLAS_URL);
         this.load.image(INTERIOR_ATLAS_KEY, INTERIOR_ATLAS_URL);
         this.load.image(FURNITURE_ATLAS_KEY, FURNITURE_ATLAS_URL);
+        this.load.image(HANDLE_ATLAS_KEY, HANDLE_ATLAS_URL);
         preloadPlayerSprite(this);
         preloadCharacterSprite(this, SUSAN_SPRITE);
         preloadCharacterSprite(this, GLORIA_SPRITE);
@@ -97,6 +112,7 @@ export class OfficeScene extends Phaser.Scene {
         this.registerAtlasFrames(OFFICE_ATLAS_KEY, OFFICE_FRAMES);
         this.registerAtlasFrames(INTERIOR_ATLAS_KEY, INTERIOR_FRAMES);
         this.registerAtlasFrames(FURNITURE_ATLAS_KEY, FURNITURE_FRAMES);
+        this.registerAtlasFrames(HANDLE_ATLAS_KEY, FURNITURE_FRAMES);
 
         this.chat = new Chat(this, {
             scrollNpcSpeech: (lines) => this.bubbles.scroll(lines),
@@ -141,6 +157,7 @@ export class OfficeScene extends Phaser.Scene {
         });
 
         this.workChair = this.add.image(0, 0, FURNITURE_ATLAS_KEY, 'chairS').setScale(SPRITE_SCALE).setVisible(false);
+        this.workChairHandle = this.add.image(0, 0, HANDLE_ATLAS_KEY, 'chairS').setScale(SPRITE_SCALE).setVisible(false);
         this.player.body.pushable = false; // chairs move out of its way, not the other way round
         this.chairs = new Chairs(this);
         this.chairs.add(450, 300, 'chairS');
@@ -211,7 +228,7 @@ export class OfficeScene extends Phaser.Scene {
         this.playerWork.update(moving);
 
         this.sortByBottom(this.player);
-        this.workChair.setDepth(this.player.depth - 1); // behind the player
+        this.updateWorkChair();
         this.updateNpc('gloria', this.gloria);
         this.updateNpc('susan', this.susan);
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
@@ -330,6 +347,21 @@ export class OfficeScene extends Phaser.Scene {
 
     private sortByBottom(sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image) {
         sprite.setDepth(sprite.y + sprite.displayHeight / 2);
+    }
+
+    // Chair under the seated player, handle over them (same cell as the player, so they share a centre)
+    private updateWorkChair() {
+        const sitting = this.playerWork.isWorking() && this.player.body.velocity.lengthSq() === 0;
+        this.workChair.setVisible(sitting);
+        this.workChairHandle.setVisible(sitting);
+        if (!sitting) return;
+        const frame = `chair${CHAIR_FACING[this.facing]}` as FurnitureFrameName;
+        const offset = CHAIR_OFFSET[this.facing];
+        for (const layer of [this.workChair, this.workChairHandle]) {
+            layer.setFrame(frame).setPosition(this.player.x + offset.x, this.player.y + offset.y);
+        }
+        this.workChair.setDepth(this.player.depth - 1);
+        this.workChairHandle.setDepth(this.player.depth + 1);
     }
 
     private updatePlayerAnim(moving: boolean) {
