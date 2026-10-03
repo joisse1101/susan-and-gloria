@@ -20,7 +20,6 @@ import {
     type FurnitureFrameName
 } from './atlases/furnitureAtlas';
 import { Chairs, PULL_SPEED } from './furniture/Chairs';
-import { SeatLayers } from './furniture/SeatLayers';
 import { NpcSeats } from './interaction/npc/NpcSeats';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
@@ -75,8 +74,6 @@ export class OfficeScene extends Phaser.Scene {
     private sayHandler?: (text: string) => boolean;
     private wander!: Wander;
     private playerWork!: PlayerWork;
-    // Chair behind and armrests over the player while they sit and type
-    private playerSeat!: SeatLayers;
     private npcSeats!: NpcSeats;
 
     // Set by OfficeGame before create() runs, so it lives here rather than on Chat
@@ -149,13 +146,12 @@ export class OfficeScene extends Phaser.Scene {
             isTyping: () => this.chat.isTyping
         });
 
-        this.playerSeat = new SeatLayers(this);
         this.player.body.pushable = false; // chairs move out of its way, not the other way round
         this.chairs = new Chairs(this);
         this.chairs.add(450, 300, 'chairS');
         this.chairs.add(260, 380, 'chairSE');
         this.chairs.add(330, 380, 'chairW');
-        this.npcSeats = new NpcSeats(this, this.chairs, (name) => (name === 'susan' ? this.susan : this.gloria));
+        this.npcSeats = new NpcSeats(this, this.chairs, (name) => (name === 'player' ? this.player : name === 'susan' ? this.susan : this.gloria));
 
         this.gloria = this.createSheetCoworker(GLORIA_SPRITE, 170, 150);
         this.susan = this.createSheetCoworker(SUSAN_SPRITE, 475, 151);
@@ -343,21 +339,29 @@ export class OfficeScene extends Phaser.Scene {
         sprite.setDepth(sprite.y + sprite.displayHeight / 2);
     }
 
-    // Chair under the seated player, handle over them (same cell as the player, so they share a centre)
+    // Working with a chair in reach: it slides under the player and they sit; otherwise they work standing
     private updateWorkChair() {
-        const sitting = this.playerWork.isWorking() && this.player.body.velocity.lengthSq() === 0;
-        if (sitting) this.playerSeat.show(this.player, this.facing);
-        else this.playerSeat.hide();
+        const working = this.playerWork.isWorking() && this.player.body.velocity.lengthSq() === 0;
+        if (working) this.npcSeats.ready('player', this.facing);
+        else this.npcSeats.release('player');
+        this.npcSeats.update('player');
     }
 
     private updatePlayerAnim(moving: boolean) {
         const { x, y } = this.player.body.velocity;
         if (x !== 0) this.facing = x < 0 ? 'left' : 'right';
         else if (y !== 0) this.facing = y < 0 ? 'up' : 'down';
-        const sitting = !moving && this.playerWork.isWorking();
-        if (sitting) {
-            // Seated typing
-            this.player.anims.play(typeAnimKey(this.facing), true);
+        if (!moving && this.playerWork.isWorking()) {
+            if (this.npcSeats.isSeated('player')) {
+                this.player.anims.play(typeAnimKey(this.facing), true);
+                return;
+            }
+            // Standing work (no chair, or it is still sliding in): hold the idle animation's first frame
+            const key = animKey('idle', this.facing);
+            if (this.player.anims.currentAnim?.key !== key || this.player.anims.isPlaying) {
+                this.player.anims.play(key);
+                this.player.anims.stop();
+            }
             return;
         }
         this.player.anims.play(animKey(moving ? 'walk' : 'idle', this.facing), true);

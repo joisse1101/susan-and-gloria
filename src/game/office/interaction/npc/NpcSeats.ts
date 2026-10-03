@@ -7,6 +7,8 @@ import type { NpcName } from './NpcBubbles';
 
 type Npc = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 type Chair = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+// The player gets a chair too, but they don't walk for it: it slides to them where they stand
+export type SeatUser = NpcName | 'player';
 
 // A coworker about to work looks for a loose chair this close (px, body centre to body centre): 5 tiles
 const FETCH_RANGE = 5 * 32;
@@ -35,11 +37,11 @@ interface Seating {
 export class NpcSeats {
     private scene: Phaser.Scene;
     private chairs: Chairs;
-    private npc: (name: NpcName) => Npc;
-    private states = new Map<NpcName, Seating>();
-    private layers = new Map<NpcName, SeatLayers>();
+    private npc: (name: SeatUser) => Npc;
+    private states = new Map<SeatUser, Seating>();
+    private layers = new Map<SeatUser, SeatLayers>();
 
-    constructor(scene: Phaser.Scene, chairs: Chairs, npc: (name: NpcName) => Npc) {
+    constructor(scene: Phaser.Scene, chairs: Chairs, npc: (name: SeatUser) => Npc) {
         this.scene = scene;
         this.chairs = chairs;
         this.npc = npc;
@@ -47,14 +49,15 @@ export class NpcSeats {
 
     // Call every frame once the coworker is at their work spot, until it returns true (ready to work).
     // While it returns false it has set their velocity.
-    ready(name: NpcName): boolean {
+    // `facing` overrides which way they sit (the player's facing isn't stored on the sprite).
+    ready(name: SeatUser, facing?: Facing): boolean {
         const npc = this.npc(name);
         let s = this.states.get(name);
         if (!s) {
             s = {
                 phase: 'none',
                 spot: new Phaser.Math.Vector2(npc.body.center.x, npc.body.center.y),
-                facing: (npc.getData(FACING) as Facing | undefined) ?? 'down',
+                facing: facing ?? (npc.getData(FACING) as Facing | undefined) ?? 'down',
                 since: this.scene.time.now
             };
             const chair = this.chairs.nearest(s.spot.x, s.spot.y, FETCH_RANGE);
@@ -62,6 +65,7 @@ export class NpcSeats {
                 this.chairs.claim(chair);
                 s.chair = chair;
                 s.phase = 'go';
+                if (name === 'player') this.beginSlide(npc, s);
             }
             this.states.set(name, s);
         }
@@ -79,12 +83,7 @@ export class NpcSeats {
             case 'pull':
                 if (this.arrived(npc, s.spot)) {
                     npc.setVelocity(0);
-                    chair!.body.setVelocity(0, 0);
-                    npc.setData(FACING, s.facing);
-                    s.seat = seatPosition(npc.x, npc.y, s.facing);
-                    chair!.setFrame(seatFrame(s.facing));
-                    chair!.body.enable = false; // slid by hand from here, so it can pass through the coworker
-                    s.phase = 'slide';
+                    this.beginSlide(npc, s);
                 } else {
                     this.walk(npc, s.spot.x, s.spot.y);
                     chair!.body.setVelocity(npc.body.velocity.x, npc.body.velocity.y);
@@ -116,7 +115,7 @@ export class NpcSeats {
     }
 
     // They stop working (or were interrupted): the chair stays where they sat
-    release(name: NpcName) {
+    release(name: SeatUser) {
         const s = this.states.get(name);
         if (!s) return;
         this.states.delete(name);
@@ -137,11 +136,26 @@ export class NpcSeats {
     }
 
     // Call every frame after the coworker is depth-sorted
-    update(name: NpcName) {
+    update(name: SeatUser) {
         const s = this.states.get(name);
         const layers = this.layers.get(name) ?? this.layers.set(name, new SeatLayers(this.scene)).get(name)!;
         if (s?.phase === 'seated') layers.show(this.npc(name), s.facing);
         else layers.hide();
+    }
+
+    isSeated(name: SeatUser) {
+        return this.states.get(name)?.phase === 'seated';
+    }
+
+    // Chair at the sitter's feet: from here it is slid by hand, so it can pass through them
+    private beginSlide(npc: Npc, s: Seating) {
+        const chair = s.chair!;
+        chair.body.setVelocity(0, 0);
+        npc.setData(FACING, s.facing);
+        s.seat = seatPosition(npc.x, npc.y, s.facing);
+        chair.setFrame(seatFrame(s.facing));
+        chair.body.enable = false;
+        s.phase = 'slide';
     }
 
     private abandon(s: Seating) {
