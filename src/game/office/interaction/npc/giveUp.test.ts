@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { giveUpOutcome, ReadOnce, signalOf, type GiveUpReason } from './giveUp';
 
-const lost: GiveUpReason[] = ['blocked', 'slow', 'taken'];
-const all: GiveUpReason[] = ['jam', ...lost];
+const lost: GiveUpReason[] = ['blocked', 'slow'];
+const all: GiveUpReason[] = ['jam', 'taken', ...lost];
 
 describe('giveUpOutcome', () => {
     it('a jam with a route back walks back', () => {
@@ -18,6 +18,18 @@ describe('giveUpOutcome', () => {
         expect(giveUpOutcome('jam', false, false, false)).toBe('forget');
     });
 
+    it('a stolen chair is handled like a jam: walk back, make do on the spot, forget with no way back', () => {
+        expect(giveUpOutcome('taken', false, true, false)).toBe('walk-back');
+        expect(giveUpOutcome('taken', true, false, false)).toBe('make-do');
+        expect(giveUpOutcome('taken', false, false, false)).toBe('forget');
+    });
+
+    it('a stolen chair is handled like a jam: walk back, make do on the spot, forget with no way back', () => {
+        expect(giveUpOutcome('taken', false, true, false)).toBe('walk-back');
+        expect(giveUpOutcome('taken', true, false, false)).toBe('make-do');
+        expect(giveUpOutcome('taken', false, false, false)).toBe('forget');
+    });
+
     it.each(lost)('%s is forgetful whatever the position and route', (reason) => {
         for (const atSpot of [true, false]) {
             for (const routeBack of [true, false]) expect(giveUpOutcome(reason, atSpot, routeBack, false)).toBe('forget');
@@ -30,10 +42,13 @@ describe('giveUpOutcome', () => {
         }
     });
 
-    it('tells the host jam for the make-do outcomes and lost for forgetting', () => {
-        expect(signalOf('walk-back')).toBe('jam');
-        expect(signalOf('make-do')).toBe('jam');
-        expect(signalOf('forget')).toBe('lost');
+    it('tells the host jam or stolen for the make-do outcomes and lost for forgetting', () => {
+        expect(signalOf('walk-back', 'jam')).toBe('jam');
+        expect(signalOf('make-do', 'jam')).toBe('jam');
+        expect(signalOf('walk-back', 'taken')).toBe('stolen');
+        expect(signalOf('make-do', 'taken')).toBe('stolen');
+        expect(signalOf('forget', 'taken')).toBe('lost');
+        expect(signalOf('forget', 'jam')).toBe('lost');
     });
 });
 

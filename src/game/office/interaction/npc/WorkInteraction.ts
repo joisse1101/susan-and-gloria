@@ -8,7 +8,7 @@ import { PathFollower, walkSpeedOf } from './PathFollower';
 import { WorkSlots } from './WorkSlots';
 import { facingFor, spotFor } from './deskSpot';
 import type { GiveUpSignal } from './giveUp';
-import { DESK_TAKEN_PHRASES, FORGETFUL_PHRASES, JAM_PHRASES, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
+import { DESK_TAKEN_PHRASES, FORGETFUL_PHRASES, JAM_PHRASES, STOLEN_PHRASES_NICE, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
 
 // Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one
 // (in the tile's "direction" property: left, right, up or down) stops and works
@@ -68,6 +68,7 @@ export interface WorkHost {
     // They're done or interrupted: the chair, if any, is left where it is
     releaseChair(name: NpcName): void;
     // Once per give-up of the chair trip: 'jam' = they let a jammed chair go and are walking back to work standing;
+    // 'stolen' = the same, after the player took the chair;
     // 'lost' = they cannot get back to work and have stopped
     gaveUp(name: NpcName): GiveUpSignal | undefined;
     // The grid the work trips are routed over (it is built after the interaction, so it is looked up on use)
@@ -191,12 +192,13 @@ export class WorkInteraction {
             const desk = this.fetchDesk.get(name)!;
             // An occupied desk comes first: the usual turned-away line
             if (gaveUp === 'lost' || this.occupied(name, desk)) {
+                this.makingDo.delete(name);
                 this.endFetch(name);
                 this.host.releaseChair(name);
                 this.turnAway(name, this.occupied(name, desk) ? DESK_TAKEN_PHRASES : FORGETFUL_PHRASES);
                 return false;
             }
-            this.makeDo(name);
+            this.makeDo(name, gaveUp === 'stolen');
             return true;
         }
         if (!ready || this.makingDo.has(name)) return true;
@@ -205,10 +207,13 @@ export class WorkInteraction {
         return false;
     }
 
-    // The chair jammed: say so, and carry on back to the spot to work standing
-    private makeDo(name: NpcName) {
+    // The chair jammed or was stolen: say so in one bubble (a stolen chair gets a complaint first, then the make-do
+    // line), and carry on back to the spot to work standing
+    private makeDo(name: NpcName, stolen: boolean) {
         this.makingDo.add(name);
-        this.host.say(name, Phaser.Utils.Array.GetRandom(JAM_PHRASES), () => {
+        const make = Phaser.Utils.Array.GetRandom(JAM_PHRASES);
+        const text = stolen ? `${Phaser.Utils.Array.GetRandom(STOLEN_PHRASES_NICE)} ${make}` : make;
+        this.host.say(name, text, () => {
             this.scene.time.delayedCall(WORK_PHRASE_MS, () => {
                 // Work may have started meanwhile and replaced the line
                 if (this.makingDo.delete(name) && !this.working.has(name)) this.host.hideBubble(name);

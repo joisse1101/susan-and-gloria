@@ -10,8 +10,8 @@ export const DESK_TAKEN_PHRASES = [
     'ah, taken. another time...',
     'guess I\'ll wait...'
 ];
-// The player or a coworker says one of these when a chair trip ends and they can't get back to work (chair taken,
-// blocked, too slow), as if they forgot what they were doing
+// The player or a coworker says one of these when a chair trip ends and they can't get back to work (blocked,
+// too slow), as if they forgot what they were doing
 export const FORGETFUL_PHRASES = [
     'what was I doing?',
     'hmm?',
@@ -19,14 +19,37 @@ export const FORGETFUL_PHRASES = [
     'huh, what was I after...',
     'now where was I going?'
 ];
+// A coworker says one of these when the player takes the chair it was fetching; a make-do line follows in the same bubble
+export const STOLEN_PHRASES_NICE = [
+    'oh, all yours!',
+    'no worries, go ahead!',
+    'guess I\'m done with that then!',
+    'be my guest!',
+    'it\'s all yours, friend!',
+    'by all means, take it!',
+    'no biggie, you take it!',
+    'oh, go right ahead!',
+    'knock yourself out!',
+    'yours now!',
+    'feel free to take it!',
+    'no problem at all!'
+];
 // Said when a dragged chair jams: they let go of it and work standing instead
 export const JAM_PHRASES = [
     'oh, never mind...',
     'I\'ll make do...',
-    'good enough...',
     'forget the chair...',
     'I\'ll stand, then...',
-    'this will do...'
+    'this will do...',
+    'it\'s no big deal...',
+    'don\'t worry about it...',
+    'I\'ll manage somehow...',
+    'any spot is fine...',
+    'it\'s good enough...',
+    'no need to bother...',
+    'I\'ll figure it out...',
+    'leave it as is...',
+    'don\'t go out of your way...'
 ];
 export const WORK_PHRASES = [
     // Thinking & Processing

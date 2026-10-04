@@ -62,6 +62,7 @@ export class PlayerWork {
         if (next === 'fetching' || next === 'walkingBack') {
             const arrived = host.fetchChair();
             gaveUp = host.gaveUp();
+            if (gaveUp === 'stolen') gaveUp = 'jam'; // nobody takes the player's chair, but if it happens they just make do
             next = nextSession(next, { ...input, fetched: arrived, lost: gaveUp === 'lost', jammed: gaveUp === 'jam' });
         }
         this.state = next;

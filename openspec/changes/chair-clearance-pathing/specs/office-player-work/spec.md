@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: The trip gives up when it cannot finish
-The automatic trip SHALL be abandoned and the chair let go when the player is blocked repeatedly, the trip takes too long, the chair is taken from them or the way back to the work position is lost. The player SHALL then be left standing where they are and SHALL have control straight away. No work session SHALL start and the desk SHALL be released.
+The automatic trip SHALL be abandoned and the chair let go when the player is blocked repeatedly, the trip takes too long or the way back to the work position is lost. The player SHALL then be left standing where they are and SHALL have control straight away. No work session SHALL start and the desk SHALL be released.
 
 When the player gives up like this, they SHALL say a short forgetful line in their speech bubble (such as "what was I doing?" or "hmm?") so the sudden stop reads as natural. The line SHALL be shown once per give-up.
 
@@ -12,10 +12,6 @@ When the player gives up like this, they SHALL say a short forgetful line in the
 #### Scenario: Trip takes too long
 - **WHEN** the trip has not finished within the time limit
 - **THEN** the player lets go of the chair, says a forgetful line, gets control back and does not start working
-
-#### Scenario: Chair taken by someone else
-- **WHEN** the chair the player is fetching is taken hold of by someone else
-- **THEN** the player lets go, says a forgetful line, gets control back and does not start working
 
 #### Scenario: Desk released
 - **WHEN** the player gives up with a forgetful line
@@ -35,7 +31,7 @@ When the chair the player is dragging jams (it stays further behind the player t
 - **THEN** the player lets go of the chair, says a "make do" line, walks to the work position and works standing
 
 #### Scenario: Chair jams on the last step
-- **WHEN** the chair jams while the player is already on or beside the work position
+- **WHEN** the chair jams while the player is already on the work position
 - **THEN** the player says a "make do" line and works standing without walking anywhere
 
 #### Scenario: Cancelled while walking back

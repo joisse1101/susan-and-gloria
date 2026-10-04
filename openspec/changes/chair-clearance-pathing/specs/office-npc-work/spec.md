@@ -60,7 +60,7 @@ While a walker (coworker or player) is dragging a chair, the chair SHALL count a
 - **THEN** the coworker lets go of the chair, says a "make do" line, walks to the work position and works standing
 
 #### Scenario: Chair wedges on the last step
-- **WHEN** the chair jams while the coworker is already on or beside the work position
+- **WHEN** the chair jams while the coworker is already on the work position
 - **THEN** the coworker lets go of it, says a "make do" line and works standing without walking anywhere
 
 #### Scenario: A passing hold-up is not a jam
@@ -79,16 +79,16 @@ While a walker (coworker or player) is dragging a chair, the chair SHALL count a
 - **WHEN** a chair has just been given up as jammed and someone then pushes or drags it elsewhere
 - **THEN** it stays unavailable to chair trips until the cooldown that began at the jam has passed
 
+#### Scenario: Never works off the work position
+- **WHEN** a coworker walks back to the work position after a jam or a stolen chair
+- **THEN** it routes to the work position and starts working only once it is on it; if it cannot get onto it, it says a forgetful line, releases the desk and wanders instead
+
 #### Scenario: Cannot walk back after a jam
 - **WHEN** a walker has given up a jammed chair and there is no route back to the work position
 - **THEN** the forgetful give-up applies instead of the "make do" line
 
 ### Requirement: A coworker that loses its chair trip forgets and wanders
-When a coworker's chair trip ends in a way that stops it getting back to the work position (the chair is taken by the player, it is blocked again and again, the trip takes too long, or there is no route back), it SHALL let go of the chair, say a randomly chosen line from the list of forgetful phrases, release the desk and go back to wandering. It SHALL NOT start working, standing or otherwise. The next visit SHALL be scheduled as after a turned-away visit.
-
-#### Scenario: Player takes the claimed chair
-- **WHEN** a coworker is walking to or dragging a chair and the player takes hold of that chair
-- **THEN** the coworker says a forgetful line, releases the desk and wanders
+When a coworker's chair trip ends in a way that stops it getting back to the work position (it is blocked again and again, the trip takes too long, or there is no route back), it SHALL let go of the chair, say a randomly chosen line from the list of forgetful phrases, release the desk and go back to wandering. It SHALL NOT start working, standing or otherwise. The next visit SHALL be scheduled as after a turned-away visit.
 
 #### Scenario: Blocked repeatedly
 - **WHEN** something the route did not allow for keeps blocking the coworker on its trip
@@ -101,6 +101,25 @@ When a coworker's chair trip ends in a way that stops it getting back to the wor
 #### Scenario: No work after forgetting
 - **WHEN** a coworker has just said a forgetful line
 - **THEN** no work period starts and the desk is free for anyone else
+
+### Requirement: A coworker whose chair is taken complains and makes do
+When the player takes hold of a chair a coworker has claimed (walking to it or dragging it), the coworker SHALL let go of it, say a randomly chosen line from a list of "stolen" phrases (such as "oh, all yours!") followed by a randomly chosen "make do" line, joined in a single speech bubble, walk to the work position and work standing. The two lines SHALL be one bubble, shown once per give-up. If the desk is occupied, the desk-taken behavior applies instead. If there is no route back to the work position, the forgetful give-up applies instead. The chair SHALL stay with the player and SHALL NOT be on a jam cooldown.
+
+#### Scenario: Player takes the claimed chair
+- **WHEN** a coworker is walking to or dragging a chair and the player takes hold of that chair
+- **THEN** the coworker says a stolen line followed by a make-do line in one bubble, walks to the work position and works standing
+
+#### Scenario: Taken on the last step
+- **WHEN** the player takes the chair while the coworker is already on the work position
+- **THEN** it says the combined line and works standing without walking anywhere
+
+#### Scenario: Desk occupied when the chair is taken
+- **WHEN** the player takes the chair and the desk is occupied by someone else
+- **THEN** the desk-taken behavior applies instead, with its own line
+
+#### Scenario: No way back
+- **WHEN** the chair is taken and there is no route back to the work position
+- **THEN** the coworker says a forgetful line, releases the desk and wanders
 
 ### Requirement: Chair trip limits are adjustable in one place
 The footprint a chair needs on the drag route, the jam margin and time, and the cooldown before a jammed chair can be taken again SHALL be set in a single tuning file, each with a comment saying what it changes. They SHALL be changeable without editing behavior code.

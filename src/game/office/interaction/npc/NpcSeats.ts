@@ -32,8 +32,10 @@ const DRAG_CHASE_MAX = 120;
 // Bumps into something unplanned (the player, the other coworker) before a leg is given up
 const MAX_BUMPS = 2;
 const RETURN_FALLBACK_CELLS = 4;
-// A jam this close to the spot (px) needs no walk back, only the last step
-const NEAR_SPOT_PX = 32;
+// A jam this close to the spot (px) means they are on it: no walk back. Any further away they are routed back to it.
+const NEAR_SPOT_PX = 4;
+// Walking back ends this close to the spot (px) or the trip counts as lost: they never work off the spot
+const OFF_SPOT_PX = 8;
 // The B key debug command makes the trip fail this long after it began, so the walk can be seen first
 const FORCED_BLOCK_AFTER_MS = 1000;
 
@@ -141,6 +143,8 @@ export class NpcSeats {
                 if (!this.returnToSpot(npc, s)) return false;
                 npc.setVelocity(0);
                 s.phase = 'none';
+                // The route and the last step did not get them onto the spot: no work from wherever they ended up
+                if (Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, s.spot.x, s.spot.y) > OFF_SPOT_PX) this.giveUps.set(s.name, 'lost');
                 return true;
             default:
                 return true;
@@ -186,6 +190,7 @@ export class NpcSeats {
     }
 
     // Once per give-up: 'jam' = the chair jammed and they let it go (they walk back to the spot and work standing);
+    // 'stolen' = the player took the chair: the same, but they complain first;
     // 'lost' = they cannot get back to work (chair taken, blocked, too slow, no way back) and have stopped
     hasGivenUp(name: SeatUser) {
         return this.giveUps.take(name);
@@ -337,7 +342,7 @@ export class NpcSeats {
         s.phase = 'slide';
     }
 
-    // The trip ends early. A jam lets go of the chair and walks back to the spot to work standing; every other reason
+    // The trip ends early. A jam or a stolen chair lets go of the chair and walks back to the spot to work standing; every other reason
     // (and a jam with no way back) leaves them where they are, for the host to deal with (see hasGivenUp).
     // Whether the desk is still free is the host's to say: it checks before acting on the signal.
     private abandon(npc: Npc, s: Seating, reason: GiveUpReason) {
@@ -350,12 +355,12 @@ export class NpcSeats {
         npc.setVelocity(0);
         const atSpot = Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, s.spot.x, s.spot.y) <= NEAR_SPOT_PX;
         let leg = null;
-        if (reason === 'jam' && !atSpot) {
+        if ((reason === 'jam' || reason === 'taken') && !atSpot) {
             const goal = nearestReachableCell(this.grid(), this.cellFor(npc), cellOf(s.spot), RETURN_FALLBACK_CELLS);
             leg = goal ? planLeg(this.grid(), this.centre(npc), goal) : null;
         }
         const outcome = giveUpOutcome(reason, atSpot, leg !== null, false);
-        this.giveUps.set(s.name, signalOf(outcome));
+        this.giveUps.set(s.name, signalOf(outcome, reason));
         s.jam = {};
         if (outcome === 'forget') {
             s.follower = null;

@@ -7,7 +7,7 @@ When a walker (Susan, Gloria or the player) drags a chair to a desk, the route i
 - Plan the pull part of a chair trip (take hold, drag, staging cell) on a second, "fat" walkable grid that only admits cells whose surroundings fit the chair, and keep the thin grid for every other walk. The footprint and the fat grid are tunable.
 - A chair with no fat route from where it sits to the staging cell is skipped like any other unusable chair: the walker picks the next chair or works standing.
 - Detect a jammed chair (it lags too far behind the walker for too long). The walker lets go of the chair, says a "make do" line, walks to the work spot and works standing. The jammed chair is left unclaimed and is not fetched again for a cooldown.
-- Coworkers that lose a chair trip in a way that stops them reaching the spot (chair taken by the player, blocked repeatedly, trip too slow) now say a forgetful line, release the desk and go back to wandering. Today they silently walk straight at the spot and work wherever they end up.
+- Coworkers that lose a chair trip in a way that stops them reaching the spot (blocked repeatedly, trip too slow, no way back) now say a forgetful line, release the desk and go back to wandering. Today they silently walk straight at the spot and work wherever they end up.
 - **BREAKING**: when the player loses a chair trip in those same ways, they say the forgetful line and get control back, with no work session started. Today they work standing where they are.
 - Jam thresholds and cooldowns live in one tuning file, like the push and pull feel does.
 - Debug aids: a key toggles a view of the fat grid; the chair-reach view gains a "no drag route" reason.
