@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { FURNITURE_ATLAS_KEY, HANDLE_ATLAS_KEY, type FurnitureFrameName } from '../atlases/furnitureAtlas';
 import { SPRITE_SCALE } from '../constants';
+import { CHAIR_SHADOW_OFFSET_Y, OBJECT_SHADOW_KEY } from '../interaction/Shadows';
 import type { Facing } from '../interaction/player/playerSprite';
 
 // Which chair frame sits under a character facing each way
@@ -35,10 +36,13 @@ export function seatPosition(x: number, y: number, facing: Facing) {
 export class SeatLayers {
     private chair: Phaser.GameObjects.Image;
     private handle: Phaser.GameObjects.Image;
+    // The sitter's own shadow is hidden, so the chair casts the only one
+    private shadow: Phaser.GameObjects.Image;
 
     constructor(scene: Phaser.Scene) {
         this.chair = scene.add.image(0, 0, FURNITURE_ATLAS_KEY, 'chairS').setScale(SPRITE_SCALE).setVisible(false);
         this.handle = scene.add.image(0, 0, HANDLE_ATLAS_KEY, 'chairS').setScale(SPRITE_SCALE).setVisible(false);
+        this.shadow = scene.add.image(0, 0, OBJECT_SHADOW_KEY).setScale(SPRITE_SCALE).setVisible(false);
     }
 
     // `sitter` must already be depth-sorted this frame
@@ -48,10 +52,12 @@ export class SeatLayers {
         for (const layer of [this.chair, this.handle]) layer.setFrame(frame).setPosition(x, y).setVisible(true);
         this.chair.setDepth(sitter.depth - 1);
         this.handle.setDepth(sitter.depth + 1);
+        this.shadow.setPosition(x, y + CHAIR_SHADOW_OFFSET_Y * SPRITE_SCALE).setDepth(sitter.depth - 1.5).setVisible(true);
     }
 
     hide() {
         this.chair.setVisible(false);
         this.handle.setVisible(false);
+        this.shadow.setVisible(false);
     }
 }

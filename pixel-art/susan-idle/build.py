@@ -48,8 +48,6 @@ def draw(s, dy_head):
     def put(y, x0, row):
         for i, ch in enumerate(row):
             if ch != '.': s.px(x0+i, y, C[ch])
-    # shadow
-    put(30, 9, "x"*14); put(31, 10, "y"*13)
     draw_body(s, dy_head)
     # head/hair/ponytail move together
     for y, h in HEAD.items():
@@ -89,7 +87,6 @@ def put_to(s, y, x0, row):
         if ch != '.': s.px(x0+i, y, C[ch])
 
 def draw_back(s, dy):
-    put_to(s, 30, 9, "x"*14); put_to(s, 31, 10, "y"*13)
     body = dict(BODY)
     for y in (19, 20, 21, 22): pass
     draw_body(s, dy)
@@ -112,7 +109,6 @@ HEAD34 = {
  15:(9,"AHHhHbeSSSeSbA"), 16:(13,"AsSSSSsA"), 17:(13,"AAsSSA"),
 }
 def draw_right(s, dy):                      # 3/4 view, facing down-right
-    put_to(s, 30, 9, "x"*14); put_to(s, 31, 10, "y"*13)
     draw_body(s, dy)
     for y in (19, 21, 23):
         y += dy

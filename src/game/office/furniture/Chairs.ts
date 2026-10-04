@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CHAIR_DIRECTIONS, FURNITURE_ATLAS_KEY, type FurnitureFrameName } from '../atlases/furnitureAtlas';
 import { SPRITE_SCALE } from '../constants';
+import { CHAIR_SHADOW_OFFSET_Y, OBJECT_SHADOW_KEY, type Shadows } from '../interaction/Shadows';
 
 type DynamicSprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 
@@ -20,6 +21,7 @@ const BODY = { w: 14, h: 8, offsetX: 9, offsetY: 20 };
 // Loose chairs: slid around by whoever walks into them, stopped by walls, furniture and each other.
 export class Chairs {
     private scene: Phaser.Scene;
+    private shadows: Shadows;
     private group: Phaser.Physics.Arcade.Group;
     private movers: DynamicSprite[] = [];
     private pushing = new Set<DynamicSprite>();
@@ -28,8 +30,9 @@ export class Chairs {
     // Chairs being pushed away by whoever got up: they roll backwards without turning to face the way they move
     private rolling = new Set<DynamicSprite>();
 
-    constructor(scene: Phaser.Scene) {
+    constructor(scene: Phaser.Scene, shadows: Shadows) {
         this.scene = scene;
+        this.shadows = shadows;
         this.group = scene.physics.add.group();
     }
 
@@ -42,6 +45,7 @@ export class Chairs {
         chair.body.setSize(BODY.w, BODY.h);
         chair.body.setOffset(BODY.offsetX, BODY.offsetY);
         this.sortByBottom(chair);
+        this.shadows.add(chair, { key: OBJECT_SHADOW_KEY, offsetY: CHAIR_SHADOW_OFFSET_Y });
         return chair;
     }
 

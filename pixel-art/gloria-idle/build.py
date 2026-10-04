@@ -46,7 +46,6 @@ SWAY_FROM = 25
 def base(s, dy, body, leg_row):
     """Shadow, cardigan + skirt (bobbing), planted shoes copied from the player's sheet."""
     sheet, col, _ = LEGS
-    put(s, 30, 9, "x"*14); put(s, 31, 10, "y"*13)
     for y, h in body.items(): put(s, y+dy, 8 + (SWAY if y >= SWAY_FROM else 0), mirror(h))
     if dy < 0: put(s, 28, 8 + SWAY, mirror(body[28]))   # hem row repeats to fill the gap
     for x in range(32):

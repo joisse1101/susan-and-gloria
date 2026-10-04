@@ -8,6 +8,8 @@ export const SMALL_MAP_SHIFT_Y = 75;
 export const SPRITE_SCALE = 2;
 // Height (unscaled px) of the collision body at a character's feet
 export const FEET_HEIGHT = 4;
+// How far (unscaled px) that body sits above the bottom of the sprite cell: the shoes end 2px up, the rows below are only the shadow
+export const FEET_LIFT = 2;
 // Above any y-based sprite depth (max canvas height is 416)
 export const SPEECH_DEPTH = 10000;
 // Floors and rugs draw below every y-sorted sprite (whose depth is >= 0)
