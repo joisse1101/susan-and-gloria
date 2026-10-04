@@ -12,7 +12,10 @@ front view's belly hands span x 14-17, y 22-24 across them (Gloria's sit one row
 offset her front view by -1 y in code). No hand pixels are baked in; a "hand box" is cleared from the can in
 each view so it never paints over a character's hands.
 
-Writes public/assets/sprites/items/WateringCan.png and preview.png (can on the player, zoomed)."""
+Writes public/assets/sprites/items/WateringCan.png and preview.png (can on the player, zoomed). The same can
+for characters working standing (WorkStanding.png, hands STAND_LIFT px higher) is WateringCanStanding.png, the
+sitting sheet raised by STAND_LIFT, with preview-standing.png. Raise the water stream (water-stream/build.py)
+by the same amount when the character stands."""
 import os
 from PIL import Image
 
@@ -20,6 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SPRITES = os.path.abspath(os.path.join(HERE, "../../public/assets/sprites"))
 OUT_DIR = os.path.join(SPRITES, "items")
 OUT = os.path.join(OUT_DIR, "WateringCan.png")
+OUT_STAND = os.path.join(OUT_DIR, "WateringCanStanding.png")
 
 CELL = 32
 OUTLINE = (0x0c, 0x0a, 0x07, 255)
@@ -29,6 +33,7 @@ TIN_SHADE = (0x4c, 0x74, 0x8a, 255)
 TIN_DARK = (0x34, 0x50, 0x68, 255)
 SIDE_HAND_X = 22              # left column of the extended hand in the right view
 SIDE_HAND_Y = 20              # its top row on frame 0
+STAND_LIFT = 3                # WorkStanding.png's hands sit this many px above WorkSitting.png's (upper body 1 up, not 2 down)
 SIDE_SWING = 2                # px the hand drops on frame 1 (TYPE_SWING in player-type/build.py)
 
 sheet = Image.new("RGBA", (CELL * 2, CELL * 4), (0, 0, 0, 0))
@@ -125,20 +130,33 @@ for frame in range(2):
 os.makedirs(OUT_DIR, exist_ok=True)
 sheet.save(OUT)
 
-# Preview: can on each character's seated sheet, back row behind the character, the rest in front.
-chars = [Image.open(os.path.join(SPRITES, n, "WorkSitting.png")).convert("RGBA") for n in ("player", "susan", "gloria")]
-bg = Image.new("RGBA", (sheet.width * 3 + 16, sheet.height), (200, 200, 200, 255))
-for i, body_sheet in enumerate(chars):
-    # Gloria's belly hands sit one row higher in the front view
-    dy = -1 if i == 2 else 0
-    for row in range(4):
-        box = (0, row * CELL, CELL * 2, (row + 1) * CELL)
-        can, body = sheet.crop(box), body_sheet.crop(box)
-        layers = (can, body) if row == 1 else (body, can)
-        for layer in layers:
-            bg.alpha_composite(layer, (i * (sheet.width + 8), row * CELL + (dy if row == 0 and layer is can else 0)))
-bg.resize((bg.width * 8, bg.height * 8), Image.NEAREST).save(os.path.join(HERE, "preview.png"))
+# Standing: each cell raised STAND_LIFT px on its own (nothing is drawn in the top rows, so nothing is lost)
+stand_sheet = Image.new("RGBA", sheet.size, (0, 0, 0, 0))
+for row in range(4):
+    for frame in range(2):
+        cell = sheet.crop((frame * CELL, row * CELL + STAND_LIFT, (frame + 1) * CELL, (row + 1) * CELL))
+        stand_sheet.paste(cell, (frame * CELL, row * CELL))
+stand_sheet.save(OUT_STAND)
+
+# Preview: can on each character's work sheet, back row behind the character, the rest in front.
+def preview(can_sheet, kind, name):
+    chars = [Image.open(os.path.join(SPRITES, n, kind + ".png")).convert("RGBA") for n in ("player", "susan", "gloria")]
+    bg = Image.new("RGBA", (can_sheet.width * 3 + 16, can_sheet.height), (200, 200, 200, 255))
+    for i, body_sheet in enumerate(chars):
+        # Gloria's belly hands sit one row higher in the front view
+        dy = -1 if i == 2 else 0
+        for row in range(4):
+            box = (0, row * CELL, CELL * 2, (row + 1) * CELL)
+            can, body = can_sheet.crop(box), body_sheet.crop(box)
+            layers = (can, body) if row == 1 else (body, can)
+            for layer in layers:
+                bg.alpha_composite(layer, (i * (can_sheet.width + 8), row * CELL + (dy if row == 0 and layer is can else 0)))
+    bg.resize((bg.width * 8, bg.height * 8), Image.NEAREST).save(os.path.join(HERE, name))
+
+
+preview(sheet, "WorkSitting", "preview.png")
+preview(stand_sheet, "WorkStanding", "preview-standing.png")
 alone = Image.new("RGBA", sheet.size, (200, 200, 200, 255))
 alone.alpha_composite(sheet)
 alone.resize((alone.width * 10, alone.height * 10), Image.NEAREST).save(os.path.join(HERE, "preview-can-only.png"))
-print("wrote", OUT)
+print("wrote", OUT, OUT_STAND)
