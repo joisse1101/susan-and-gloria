@@ -49,6 +49,7 @@ import {
     type Facing
 } from './interaction/player/playerSprite';
 import { FACING } from './interaction/npc/facing';
+import { facingFromVelocity, playerFacing } from './interaction/npc/workFacing';
 import { Shadows } from './interaction/Shadows';
 import { loadOfficeMap, preloadOfficeMap } from './map/loadOfficeMap';
 import { CAMERA_ZOOM, FEET_HEIGHT, FEET_LIFT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
@@ -418,12 +419,8 @@ export class OfficeScene extends Phaser.Scene {
     private updateSheetAnim(npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody, character: CharacterSprite) {
         const { x, y } = npc.body.velocity;
         const moving = x !== 0 || y !== 0;
-        let facing: Facing = npc.getData(FACING) ?? 'down';
-        if (moving) {
-            if (Math.abs(x) >= Math.abs(y)) facing = x < 0 ? 'left' : 'right';
-            else facing = y < 0 ? 'up' : 'down';
-            npc.setData(FACING, facing);
-        }
+        const facing = facingFromVelocity(x, y, npc.getData(FACING) ?? 'down');
+        if (moving) npc.setData(FACING, facing);
         if (!moving && this.work.isWorking(character.name as NpcName)) {
             if (character.type) {
                 npc.anims.play(typeAnimKey(facing, character.name), true);
@@ -445,11 +442,11 @@ export class OfficeScene extends Phaser.Scene {
 
     private updatePlayerAnim(moving: boolean) {
         const { x, y } = this.player.body.velocity;
-        if (x !== 0) this.facing = x < 0 ? 'left' : 'right';
-        else if (y !== 0) this.facing = y < 0 ? 'up' : 'down';
-        if (!moving && this.playerWork.isWorking()) {
+        const working = !moving && this.playerWork.isWorking();
+        // Working, they face the desk: the way they sat down, or the way the chair trip left them on the spot
+        this.facing = playerFacing(x, y, this.facing, working, this.player.getData(FACING));
+        if (working) {
             if (this.npcSeats.isSeated('player')) {
-                this.facing = this.player.getData(FACING) ?? this.facing; // the way they sat down, facing the desk
                 this.player.anims.play(typeAnimKey(this.facing), true);
                 return;
             }

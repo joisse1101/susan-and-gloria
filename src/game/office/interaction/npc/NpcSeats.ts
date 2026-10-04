@@ -3,6 +3,7 @@ import type { Chairs } from '../../furniture/Chairs';
 import { SeatLayers, SEAT_BACK, seatFrame, seatPosition } from '../../furniture/SeatLayers';
 import type { Facing } from '../player/playerSprite';
 import { FACING } from './facing';
+import { facingForStandingWork } from './workFacing';
 import type { NpcName } from './NpcBubbles';
 import type { WalkGrid } from './WalkGrid';
 import { nearestReachableCell, type Cell } from './pathfinding';
@@ -144,9 +145,17 @@ export class NpcSeats {
                 npc.setVelocity(0);
                 s.phase = 'none';
                 // The route and the last step did not get them onto the spot: no work from wherever they ended up
-                if (Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, s.spot.x, s.spot.y) > OFF_SPOT_PX) this.giveUps.set(s.name, 'lost');
+                {
+                    const onSpot = Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, s.spot.x, s.spot.y) <= OFF_SPOT_PX;
+                    if (!onSpot) this.giveUps.set(s.name, 'lost');
+                    // Walking back turned them; they work facing the desk
+                    const facing = facingForStandingWork(s.facing, onSpot);
+                    if (facing) npc.setData(FACING, facing);
+                }
                 return true;
             default:
+                // Working standing (no chair): face the desk
+                npc.setData(FACING, facingForStandingWork(s.facing, true));
                 return true;
         }
     }
