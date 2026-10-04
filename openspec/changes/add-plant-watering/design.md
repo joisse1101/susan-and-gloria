@@ -2,7 +2,7 @@
 
 See proposal.md for the motivation. Today the "should I start" decision for work is written twice: `WorkInteraction` (coworkers: scheduled visits, `deskAt`/`contains`, `isBusy`, `cooldownUntil`) and `PlayerWork` with the pure `playerSession` (player: `inZone`, `moving`, `typing`, `bubble`, `done`). The parts that are already shared are keyed by an actor id: `WorkSlots` claims, `NpcSeats` (`'player'` or a coworker name), `PathFollower`, and the A* helpers (`findPath`, `nearestReachableCell`, `nearestWalkableCell`). The plant is on collider layers, so the walk grid blocks it and an actor can never stand on it. The water tiles have no `direction` property.
 
-Sprite constraints: `WateringCan.png` is aligned cell for cell with the seated `WorkSitting.png` (hands at side x22-23, y20/22; front x14-17, y22-24). `WaterStream.png` is 48x16 (side, front, back), anchored to the can's rose. Standing watering sheets are drawn separately and put the hands on the same pixels, so neither sheet needs an offset.
+Sprite constraints: `WateringCan.png` is aligned cell for cell with the seated `WorkSitting.png` (hands at side x22-23, y20/22; front x14-17, y22-24). `WaterStream.png` is 48x16 (side, front, back), anchored to the can's rose. The standing pose is each character's existing `WorkStanding.png`, whose hands sit `STAND_LIFT` = 3px above the seated ones; `WateringCanStanding.png` is the can raised by the same amount, and the stream is raised 3px in code when the actor stands.
 
 ## Goals / Non-Goals
 
@@ -15,7 +15,7 @@ Sprite constraints: `WateringCan.png` is aligned cell for cell with the seated `
 - Moving the rest of work (scheduled visits, chair trips, jams, desk-taken, phrase lists, timers) onto the shared pieces. They stay as they are.
 - A shared trip runner for the bump, replan and give-up handling. Work's `updateVisit` interleaves it with desk-occupied checks, so it stays in work; the watering interaction implements its own small version, which can be merged later.
 - A chance roll on starting, a water level or growth state for the plant, or a visual change to the plant.
-- Drawing the standing watering sheets (done separately, before the sprite wiring task).
+- Drawing new standing sheets or a standing stream sheet: the standing pose reuses `WorkStanding.png`, and the stream is lifted in code.
 
 ## Decisions
 
@@ -33,7 +33,7 @@ Sprite constraints: `WateringCan.png` is aligned cell for cell with the seated `
 
 **7. Watering's cooldown is per plant, shared by all actors (decided), and the player must leave reach.** The plant rests after it has been watered: once anyone finishes, is interrupted from, or gives up watering it, nobody waters it again until the cooldown has passed. A second plant would have its own cooldown. Work keeps its existing per-coworker cooldown, so the cooldown helper is keyed by whatever rests (a plant, or a coworker for work). For coworkers it is a timestamp checked in the trigger. For the player the cooldown plus a "left reach since it ended" flag (the existing `done` idea) stops standing still from restarting it at once. Values go in a tuning file with comments, like `chairTuning.ts` and `pushTuning.ts`.
 
-**8. Sprites are overlays that follow the actor, drawn like the chair layers.** While watering, a can overlay and a stream overlay follow the sprite, using the can sheet's frame for the facing (down, up, right, left) and the stream cell for side, front or back. Back-view overlays are drawn behind the character, the others in front. The can overlay uses the standing sheet's frame timing. The back stream is used unchanged first.
+**8. Sprites are overlays that follow the actor, drawn like the chair layers.** While watering, a can overlay and a stream overlay follow the sprite, using the can sheet's frame for the facing (down, up, right, left) and the stream cell for side, front or back. Back-view overlays are drawn behind the character, the others in front. The can overlay uses `WateringCanStanding.png` and the standing sheet's frame timing, and the stream overlay is offset up by `STAND_LIFT` (3px) to follow the raised hands. The back stream is used unchanged first.
 
 **9. Work priority.** Work and watering never run together; an actor already heading for or doing one interaction does not start the other. When both could start in the same frame, work wins (its trips are rarer and deliberate).
 

@@ -13,7 +13,7 @@ The map now marks the office plant with `interaction = water` tiles, and the wat
 - Treat adjacent `water` tiles as one plant (one claim, one watering at a time).
 - Load and draw `WateringCan.png` and `WaterStream.png` while someone is watering. The back-view stream is used as it is first and judged in the game.
 
-Not in this change: drawing the standing watering pose sheets. They will be drawn separately, before the sprite wiring task is started, with the hands on the same pixels as the seated `WorkSitting.png` so the existing can and stream sheets line up unchanged.
+There are no separate standing watering pose sheets: the standing pose reuses each character's `WorkStanding.png`, whose hands sit 3px (`STAND_LIFT`) above the seated ones. The can overlay for it is `WateringCanStanding.png` (already added), and the stream is raised by the same 3px in code.
 
 ## Capabilities
 
@@ -30,4 +30,4 @@ Not in this change: drawing the standing watering pose sheets. They will be draw
 - New shared trigger module with unit tests (pure logic, as the other interaction code), and a new watering interaction using `PathFollower`, `findPath`, `nearestReachableCell` and `WorkSlots`-style claims.
 - `OfficeScene.ts` and `Wander.ts`: wire the interaction in, and update the animations and overlays while watering.
 - `map/loadOfficeMap.ts` or the interaction's `collectTiles`: read `interaction = water` tiles and merge adjacent ones.
-- Assets: `public/assets/sprites/items/WateringCan.png`, `WaterStream.png` (already added), and the standing watering sheets (drawn separately).
+- Assets: `public/assets/sprites/items/WateringCan.png`, `WateringCanStanding.png` and `WaterStream.png` (all already added); the existing `WorkStanding.png` sheets serve as the standing pose.
