@@ -34,11 +34,41 @@ export function reachableCells(grid: WalkGrid, start: Cell): Cell[] {
             const key = n.cy * grid.cols + n.cx;
             if (seen.has(key)) continue;
             seen.add(key);
-            queue.push(n);
-            found.push(n);
+            const next = { cx: n.cx, cy: n.cy };
+            queue.push(next);
+            found.push(next);
         }
     }
     return found;
+}
+
+// The walkable cell nearest (cx, cy), searching outwards ring by ring; the cell itself when it is walkable. Null when none within `maxRadius`.
+export function nearestWalkableCell(grid: WalkGrid, cx: number, cy: number, maxRadius = 12): Cell | null {
+    for (let r = 0; r <= maxRadius; r++) {
+        let best: Cell | null = null;
+        let bestDist = Infinity;
+        for (let y = cy - r; y <= cy + r; y++) {
+            for (let x = cx - r; x <= cx + r; x++) {
+                if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) !== r || !grid.isWalkable(x, y)) continue;
+                const d = (x - cx) ** 2 + (y - cy) ** 2;
+                if (d < bestDist) { best = { cx: x, cy: y }; bestDist = d; }
+            }
+        }
+        if (best) return best;
+    }
+    return null;
+}
+
+// The cell nearest `target` that can be walked to from `start` (`start` included), for goals that sit on a blocked cell
+// or behind a wall. Null when even the nearest one is more than `maxDist` cells from the target.
+export function nearestReachableCell(grid: WalkGrid, start: Cell, target: Cell, maxDist: number): Cell | null {
+    let best: Cell | null = null;
+    let bestDist = Infinity;
+    for (const c of [start, ...reachableCells(grid, start)]) {
+        const d = Math.hypot(c.cx - target.cx, c.cy - target.cy);
+        if (d < bestDist) { best = c; bestDist = d; }
+    }
+    return best && bestDist <= maxDist ? best : null;
 }
 
 // Octile distance: the true cost on an 8-direction grid, so the estimate never overshoots

@@ -1,22 +1,22 @@
 ## 1. Desk occupancy
 
-- [ ] 1.1 Add the pure `WorkSlots` registry (`claim`, `release`, `isFree`, `claimRandom` with injected rng) and verify unit tests cover double-claim refused, one slot per owner, idempotent release, and `claimRandom` returning nothing when all are held
-- [ ] 1.2 Add `DESK_TAKEN_PHRASES` to `workPhrases.ts` and verify the list is exported and non-empty
-- [ ] 1.3 Give each work tile an id and route `updateVisit` through `claimRandom`; reschedule when it returns nothing; verify with a debug log that two coworkers never claim the same tile
-- [ ] 1.4 Make `shouldWork` and `approachWorkTile` pick the first claimable desk whose zone contains the coworker, so a held desk is passed over silently; verify a coworker wandering through a held zone keeps walking
-- [ ] 1.5 Release the desk in `scheduleVisit`, `cancel` and on finish; verify no claim remains after each exit path
-- [ ] 1.6 Make `PlayerWork` claim a free desk as `'player'` when it starts and release it on stop, never stealing; verify a coworker does not choose the desk the player is working at
+- [x] 1.1 Add the pure `WorkSlots` registry (`claim`, `release`, `isFree`, `claimRandom` with injected rng) and verify unit tests cover double-claim refused, one slot per owner, idempotent release, and `claimRandom` returning nothing when all are held
+- [x] 1.2 Add `DESK_TAKEN_PHRASES` to `workPhrases.ts` and verify the list is exported and non-empty
+- [x] 1.3 Give each work tile an id and route `updateVisit` through `claimRandom`; reschedule when it returns nothing; verify with a debug log that two coworkers never claim the same tile
+- [x] 1.4 Make `shouldWork` and `approachWorkTile` pick the first claimable desk whose zone contains the coworker, so a held desk is passed over silently; verify a coworker wandering through a held zone keeps walking
+- [x] 1.5 Release the desk in `scheduleVisit`, `cancel` and on finish; verify no claim remains after each exit path
+- [x] 1.6 Make `PlayerWork` claim a free desk as `'player'` when it starts and release it on stop, never stealing; verify a coworker does not choose the desk the player is working at
 
 ## 2. Shared path following
 
-- [ ] 2.1 Extract the waypoint-following logic from `Wander` into a `PathFollower` and verify the existing wander behavior and `pathing.test.ts` still pass
-- [ ] 2.2 Add the pure goal-fallback helper (nearest walkable cell to a target) and verify unit tests cover an unwalkable goal, a walkable goal and an unreachable goal
+- [x] 2.1 Extract the waypoint-following logic from `Wander` into a `PathFollower` and verify the existing wander behavior and `pathing.test.ts` still pass
+- [x] 2.2 Add the pure goal-fallback helper (nearest walkable cell to a target) and verify unit tests cover an unwalkable goal, a walkable goal and an unreachable goal
 
 ## 3. Routed work visit
 
-- [ ] 3.1 Replace the straight-line walk in `updateVisit` with a `PathFollower` to the work zone, keeping the give-up timer; verify in play that a coworker walks around furniture to a desk
-- [ ] 3.2 Replace the straight-line step in `approachWorkTile` with a short final step onto the exact spot; verify the coworker ends flush against the desk and faces it
-- [ ] 3.3 When the claimed desk is unusable on arrival, say a random `DESK_TAKEN_PHRASES` line, then release and reschedule in the phrase's `onDone`; verify by standing in a desk's zone while a coworker visits
+- [x] 3.1 Replace the straight-line walk in `updateVisit` with a `PathFollower` to the work zone, keeping the give-up timer; verify in play that a coworker walks around furniture to a desk
+- [x] 3.2 Replace the straight-line step in `approachWorkTile` with a short final step onto the exact spot; verify the coworker ends flush against the desk and faces it
+- [x] 3.3 When the claimed desk is unusable on arrival, say a random `DESK_TAKEN_PHRASES` line, then release and reschedule in the phrase's `onDone`; verify by standing in a desk's zone while a coworker visits
 
 ## 4. Routed chair fetch
 

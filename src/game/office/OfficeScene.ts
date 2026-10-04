@@ -110,7 +110,7 @@ export class OfficeScene extends Phaser.Scene {
 
         this.chat = new Chat(this, {
             scrollNpcSpeech: (lines) => this.bubbles.scroll(lines),
-            say: (text) => this.sayHandler?.(text) ?? true
+            say: (text) => this.debugCommand(text) || (this.sayHandler?.(text) ?? true)
         });
 
         // 1. OBSTACLES: Group for static walls/desks
@@ -121,7 +121,13 @@ export class OfficeScene extends Phaser.Scene {
             hideBubble: (name) => this.bubbles.hideMutter(name),
             isBusy: (name) => this.bubbles.isVisible(name),
             fetchChair: (name) => this.npcSeats.ready(name),
-            releaseChair: (name) => this.npcSeats.release(name)
+            releaseChair: (name) => this.npcSeats.release(name),
+            walkGrid: () => this.walkGrid,
+            isPlayerIn: (z) => {
+                const { x, y } = this.player.body.center;
+                return x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1;
+            },
+            isPushingChair: (npc) => this.chairs.isPushing(npc)
         });
         this.thinking = new ThinkingInteraction(this, {
             bubble: (name) => this.bubbles.get(name),
@@ -154,6 +160,8 @@ export class OfficeScene extends Phaser.Scene {
             player: this.player,
             bubble: this.chat.bubble,
             isInWorkZone: (sprite) => this.work.isInZone(sprite),
+            claimDesk: () => this.work.claimFor('player', this.player),
+            releaseDesk: () => this.work.releaseFor('player'),
             isTyping: () => this.chat.isTyping
         });
 
@@ -234,6 +242,15 @@ export class OfficeScene extends Phaser.Scene {
         this.shadows.update();
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
         this.chat.bubble.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
+    }
+
+    // Chat commands, handled here instead of being sent to the coworkers: "/gloria-work" and "/susan-work"
+    // make that coworker head for a work desk now. True when the line was a command.
+    private debugCommand(text: string) {
+        const match = /^\/*(gloria|susan)-work$/i.exec(text.trim());
+        if (!match) return false;
+        this.work.forceVisit(match[1].toLowerCase() as NpcName);
+        return true;
     }
 
     private updateNpc(name: NpcName, npc: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {

@@ -1,6 +1,15 @@
 // Work behaviour shared by coworkers and the player
 export const WORK_DURATION_MS = 10000;
 export const WORK_PHRASE_MS = 1200;
+// A coworker says one of these (picked at random) when it reaches its desk and can't use it. Add or edit lines freely.
+export const DESK_TAKEN_PHRASES = [
+    'oops, maybe later...',
+    'oh, someone\'s there...',
+    'I\'ll come back...',
+    'sorry, didn\'t see you there...',
+    'ah, taken. another time...',
+    'guess I\'ll wait...'
+];
 export const WORK_PHRASES = [
     // Thinking & Processing
     'hmm...',

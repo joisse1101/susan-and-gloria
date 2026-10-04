@@ -1,7 +1,11 @@
 import Phaser from 'phaser';
 import type { NpcName } from '../../OfficeScene';
 import { faceHorizontal } from './facing';
-import { WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
+import { CELL, type WalkGrid } from './WalkGrid';
+import { findPath, nearestReachableCell, nearestWalkableCell } from './pathfinding';
+import { PathFollower, WALK_SPEED } from './PathFollower';
+import { WorkSlots } from './WorkSlots';
+import { DESK_TAKEN_PHRASES, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
 
 // Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one
 // (in the tile's "direction" property: left, right, up or down) stops and works
@@ -16,11 +20,33 @@ const DIRECTIONS: Record<string, { dx: number; dy: number }> = {
 // They deliberately walk to a work zone about once a minute, giving up if they can't get there
 const WORK_VISIT_MS = { min: 50000, max: 70000 };
 const WORK_VISIT_GIVE_UP_MS = 20000;
-const WALK_SPEED = 40;
 // Pause after working so they walk away instead of restarting while still next to the desk
 const WORK_COOLDOWN_MS = 8000;
+// The step from the zone onto the exact spot against the desk: after this long, or if they end up further than
+// SPOT_TOLERANCE_PX from it, the desk is unusable (the player is standing in the way)
+const APPROACH_MS = 2000;
+const SPOT_TOLERANCE_PX = 12;
+// The zone's centre can sit on a cell the grid keeps clear around the desk; settle for a reachable cell this close (in cells)
+const GOAL_FALLBACK_CELLS = 4;
+// Bumps into the player or the other coworker on the way before giving up the trip
+const MAX_BUMPS = 3;
 
 interface Zone { x0: number; y0: number; x1: number; y1: number }
+
+interface Desk {
+    id: string; // "tx,ty", the key the desk is claimed under
+    tx: number;
+    ty: number;
+    zone: Zone;
+    dir?: { dx: number; dy: number };
+}
+
+interface Visit {
+    desk: Desk;
+    follower: PathFollower;
+    giveUpAt: number;
+    bumps: number;
+}
 
 type Npc = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 
@@ -38,18 +64,28 @@ export interface WorkHost {
     fetchChair(name: NpcName): boolean;
     // They're done or interrupted: the chair, if any, is left where it is
     releaseChair(name: NpcName): void;
+    // The grid the work trips are routed over (it is built after the interaction, so it is looked up on use)
+    walkGrid(): WalkGrid;
+    // True when the player's feet (body centre) are inside the rectangle, in px
+    isPlayerIn(zone: Zone): boolean;
+    // True while the coworker is sliding a loose chair out of its way, which isn't a dead end for a route
+    isPushingChair(npc: Npc): boolean;
 }
 
 export class WorkInteraction {
     // tx/ty is the work tile, zone the area (in tile units) a coworker stands in to use it
-    private tiles: { tx: number; ty: number; zone: Zone; dir?: { dx: number; dy: number } }[] = [];
-    private approachSince = new Map<NpcName, number>();
+    private tiles: Desk[] = [];
+    // Who is using which desk; claimed when a coworker picks one, released on every way out
+    private slots = new WorkSlots();
+    // Stepping from the zone onto the exact spot against the desk
+    private approach = new Map<NpcName, number>();
     private fetching = new Set<NpcName>();
     private tileSize = 32;
     private working = new Map<NpcName, { timers: Phaser.Time.TimerEvent[] }>();
+    private turnedAway = new Map<NpcName, Phaser.Time.TimerEvent[]>();
     private cooldownUntil = new Map<NpcName, number>();
     private nextVisitAt = new Map<NpcName, number>();
-    private visit = new Map<NpcName, { x: number; y: number; giveUpAt: number }>();
+    private visit = new Map<NpcName, Visit>();
 
     private scene: Phaser.Scene;
     private host: WorkHost;
@@ -66,7 +102,7 @@ export class WorkInteraction {
             this.tileSize = tile.width;
             const dir = DIRECTIONS[String(this.tileProperty(tileset, tile.index, 'direction'))];
             if (!dir) console.warn(`[office] work tile at ${tile.x},${tile.y} has no valid direction; using the tile itself`);
-            this.tiles.push({ tx: tile.x, ty: tile.y, zone: this.zoneFor(tile.x, tile.y, dir), dir });
+            this.tiles.push({ id: `${tile.x},${tile.y}`, tx: tile.x, ty: tile.y, zone: this.zoneFor(tile.x, tile.y, dir), dir });
         });
     }
 
@@ -101,44 +137,93 @@ export class WorkInteraction {
     // Call every frame for each coworker. Returns true while the coworker is walking to a work zone,
     // in which case this has set their velocity and they shouldn't wander.
     update(name: NpcName): boolean {
-        const busy = this.host.isBusy(name);
-        if (busy) {
+        if (this.host.isBusy(name)) {
             if (this.fetching.has(name)) this.cancel(name); // interrupted on the way to a chair: let go of it
-        } else if (this.fetching.has(name) || (this.shouldWork(name) && this.approachWorkTile(name))) {
-            // At the work spot: first get a chair if one is near, then work
-            this.fetching.add(name);
-            if (this.host.fetchChair(name)) {
-                this.fetching.delete(name);
-                this.startWork(name);
-            }
+            return false;
         }
-        return !busy && !this.working.has(name) && (this.fetching.has(name) || this.approachSince.has(name) || this.updateVisit(name));
+        if (this.working.has(name)) return false;
+        if (this.fetching.has(name)) return this.fetch(name);
+
+        const desk = this.deskAt(name);
+        if (desk) {
+            // At a desk they can use: step onto the spot, then get a chair if one is near, then work
+            const step = this.approachWorkTile(name, desk);
+            if (step === 'failed') {
+                this.turnAway(name);
+                return false;
+            }
+            if (step === 'moving') return true;
+            this.fetching.add(name);
+            return this.fetch(name);
+        }
+        if (this.approach.delete(name) && !this.visit.has(name)) this.slots.release(name); // pushed out of the zone
+        return this.updateVisit(name);
     }
 
-    // Stops working without touching the bubble (chat takes the bubble over when it interrupts)
+    private fetch(name: NpcName) {
+        if (!this.host.fetchChair(name)) return true;
+        this.fetching.delete(name);
+        this.startWork(name);
+        return false;
+    }
+
+    // Stops working without touching the bubble (chat takes the bubble over when it interrupts).
+    // Lets go of the desk and drops any trip to it, so it is free for anyone else.
     cancel(name: NpcName) {
         if (this.fetching.delete(name) || this.working.has(name)) this.host.releaseChair(name);
+        this.turnedAway.get(name)?.forEach((t) => t.remove());
+        this.turnedAway.delete(name);
+        this.approach.delete(name);
+        if (this.visit.has(name) || this.slots.heldBy(name) !== undefined) this.scheduleVisit(name);
+        this.slots.release(name);
         const work = this.working.get(name);
         if (!work) return;
         work.timers.forEach((t) => t.remove());
         this.working.delete(name);
     }
 
+    // Chat command shortcut: drops whatever the coworker is doing and starts a work visit on the next frame
+    forceVisit(name: NpcName) {
+        this.cancel(name);
+        this.host.hideBubble(name);
+        this.cooldownUntil.delete(name);
+        this.nextVisitAt.set(name, 0);
+    }
+
     isWorking(name: NpcName) {
         return this.working.has(name);
     }
 
-    // True when the coworker's feet are inside a work zone (the one drawn by drawZones) and they aren't resting
-    private shouldWork(name: NpcName) {
-        if (this.working.has(name) || this.scene.time.now < (this.cooldownUntil.get(name) ?? 0)) return false;
-        return this.isInZone(this.host.npc(name));
+    // The player takes the desk whose zone they stand in, if nobody holds it. Never refused work: if a coworker got
+    // there first the player just works too, and the coworker is turned away when it arrives.
+    claimFor(owner: string, sprite: Npc) {
+        const desk = this.tiles.find((d) => this.contains(d, sprite) && this.slots.isFree(d.id, owner));
+        if (desk) this.slots.claim(desk.id, owner);
+    }
+
+    releaseFor(owner: string) {
+        this.slots.release(owner);
+    }
+
+    // The desk this coworker may use where it stands: the one it holds if its zone contains them, else the first free
+    // desk whose zone does. A desk someone else holds is passed over silently. Not while resting, or already working.
+    private deskAt(name: NpcName): Desk | undefined {
+        if (this.working.has(name) || this.scene.time.now < (this.cooldownUntil.get(name) ?? 0)) return undefined;
+        const npc = this.host.npc(name);
+        const held = this.slots.heldBy(name);
+        if (held !== undefined) return this.tiles.find((d) => d.id === held && this.contains(d, npc));
+        return this.tiles.find((d) => this.contains(d, npc) && this.slots.isFree(d.id, name));
     }
 
     // True when the sprite's feet (its physics body centre) are inside any work zone
     isInZone(sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody) {
+        return this.tiles.some((d) => this.contains(d, sprite));
+    }
+
+    private contains({ zone: z }: Desk, sprite: Npc) {
         const x = sprite.body.center.x / this.tileSize;
         const y = sprite.body.center.y / this.tileSize;
-        return this.tiles.some(({ zone: z }) => x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1);
+        return x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1;
     }
 
     private scheduleVisit(name: NpcName) {
@@ -146,8 +231,9 @@ export class WorkInteraction {
         this.nextVisitAt.set(name, this.scene.time.now + Phaser.Math.Between(WORK_VISIT_MS.min, WORK_VISIT_MS.max));
     }
 
-    // Every so often, head for the work zone of a random work tile. Returns true while walking there.
-    // There's no pathfinding, so a blocked route is abandoned after WORK_VISIT_GIVE_UP_MS.
+    // Every so often, claim a free desk and walk the A* route to its work zone. Returns true while walking there.
+    // Nothing free, no route, a trip that takes longer than WORK_VISIT_GIVE_UP_MS or keeps getting bumped: the desk
+    // is let go and the visit tried again later.
     private updateVisit(name: NpcName) {
         if (this.tiles.length === 0) return false;
         const now = this.scene.time.now;
@@ -155,52 +241,124 @@ export class WorkInteraction {
         if (!visit) {
             if (!this.nextVisitAt.has(name)) this.scheduleVisit(name);
             if (now < (this.nextVisitAt.get(name) ?? 0)) return false;
-            const t = Phaser.Utils.Array.GetRandom(this.tiles);
-            visit = { x: ((t.zone.x0 + t.zone.x1) / 2) * this.tileSize, y: ((t.zone.y0 + t.zone.y1) / 2) * this.tileSize, giveUpAt: now + WORK_VISIT_GIVE_UP_MS };
+            const id = this.slots.claimRandom(this.tiles.map((d) => d.id), name, Math.random);
+            if (id === undefined) {
+                this.scheduleVisit(name); // every desk is held
+                return false;
+            }
+            const desk = this.tiles.find((d) => d.id === id)!;
+            const follower = this.routeTo(name, desk);
+            if (!follower) {
+                this.slots.release(name);
+                this.scheduleVisit(name);
+                return false;
+            }
+            console.log(`[office] ${name} claims desk ${id} (tile x,y; zone in tiles ${JSON.stringify(desk.zone)})`);
+            visit = { desk, follower, giveUpAt: now + WORK_VISIT_GIVE_UP_MS, bumps: 0 };
             this.visit.set(name, visit);
             this.cooldownUntil.delete(name); // a visit is deliberate, so skip the rest period
         }
-        if (now > visit.giveUpAt) {
-            this.scheduleVisit(name);
-            return false;
-        }
         const npc = this.host.npc(name);
-        const dir = new Phaser.Math.Vector2(visit.x - npc.body.center.x, visit.y - npc.body.center.y).normalize();
-        npc.setVelocity(dir.x * WALK_SPEED, dir.y * WALK_SPEED);
-        if (npc.body.velocity.x !== 0) faceHorizontal(npc, npc.body.velocity.x < 0);
+        if (now > visit.giveUpAt) return this.giveUp(name, npc);
+        if (PathFollower.isBlocked(npc, this.host.isPushingChair(npc))) {
+            // Something got in the way: route again from where they stand
+            npc.setVelocity(0);
+            const follower = ++visit.bumps >= MAX_BUMPS ? undefined : this.routeTo(name, visit.desk);
+            if (!follower) return this.giveUp(name, npc);
+            visit.follower = follower;
+        }
+        if (visit.follower.step(npc) === 'arrived') {
+            // Close enough to the zone, it is entered by now: the next frame steps onto the spot. Otherwise the route fell short.
+            if (!this.contains(visit.desk, npc)) return this.giveUp(name, npc);
+        }
         return true;
     }
 
-    // Walks a coworker standing in a work zone to the spot flush against the work tile. Returns true once
-    // they're there (or the walk is taking too long), after turning them to face the tile.
+    private giveUp(name: NpcName, npc: Npc) {
+        npc.setVelocity(0);
+        this.slots.release(name);
+        this.scheduleVisit(name);
+        return false;
+    }
+
+    // The A* route from where the coworker stands to the desk's work zone, or null when there is none.
+    // The zone's centre may sit on a cell kept clear around the desk, so the goal is the nearest reachable cell to it.
+    private routeTo(name: NpcName, desk: Desk): PathFollower | null {
+        const grid = this.host.walkGrid();
+        const npc = this.host.npc(name);
+        const start = nearestWalkableCell(grid, Math.floor(npc.body.center.x / CELL), Math.floor(npc.body.center.y / CELL));
+        if (!start) return null;
+        const { zone: z } = desk;
+        const target = {
+            cx: Math.floor(((z.x0 + z.x1) / 2) * this.tileSize / CELL),
+            cy: Math.floor(((z.y0 + z.y1) / 2) * this.tileSize / CELL)
+        };
+        const goal = nearestReachableCell(grid, start, target, GOAL_FALLBACK_CELLS);
+        const path = goal ? findPath(grid, start, goal) : null;
+        return path ? new PathFollower(start, path) : null;
+    }
+
+    // Walks a coworker standing in a work zone to the spot flush against the work tile: 'ready' once they're there,
+    // after turning them to face the tile, 'failed' when they can't get onto it (the player is in the way).
     // The sprites are side-on, so up/down tiles get no flip.
-    private approachWorkTile(name: NpcName) {
+    private approachWorkTile(name: NpcName, desk: Desk): 'moving' | 'ready' | 'failed' {
         const npc = this.host.npc(name);
         const size = this.tileSize;
-        const cx = npc.body.center.x / size;
-        const cy = npc.body.center.y / size;
-        const t = this.tiles.find(({ zone: z }) => cx >= z.x0 && cx <= z.x1 && cy >= z.y0 && cy <= z.y1);
-        if (!t?.dir) return true;
-        const { dx, dy } = t.dir;
-        // Target body centre (px): flush with the tile edge, level with it along the edge
-        const x = dx < 0 ? t.tx * size - npc.body.halfWidth : dx > 0 ? (t.tx + 1) * size + npc.body.halfWidth
-            : Phaser.Math.Clamp(npc.body.center.x, t.tx * size, (t.tx + 1) * size);
-        const y = dy < 0 ? t.ty * size - npc.body.halfHeight : dy > 0 ? (t.ty + 1) * size + npc.body.halfHeight
-            : (t.ty + 1) * size - npc.body.halfHeight; // side tiles: body's bottom edge level with the tile's bottom edge
         const now = this.scene.time.now;
-        if (!this.approachSince.has(name)) this.approachSince.set(name, now);
+        if (!this.approach.has(name)) {
+            if (!this.slots.claim(desk.id, name) || this.host.isPlayerIn(this.zonePx(desk))) return 'failed';
+            this.approach.set(name, now);
+            this.visit.delete(name); // arrived: the route is done
+        }
+        if (!desk.dir) return this.arrive(name);
+        const { dx, dy } = desk.dir;
+        // Target body centre (px): flush with the tile edge, level with it along the edge
+        const x = dx < 0 ? desk.tx * size - npc.body.halfWidth : dx > 0 ? (desk.tx + 1) * size + npc.body.halfWidth
+            : Phaser.Math.Clamp(npc.body.center.x, desk.tx * size, (desk.tx + 1) * size);
+        const y = dy < 0 ? desk.ty * size - npc.body.halfHeight : dy > 0 ? (desk.ty + 1) * size + npc.body.halfHeight
+            : (desk.ty + 1) * size - npc.body.halfHeight; // side tiles: body's bottom edge level with the tile's bottom edge
         const dist = Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, x, y);
-        if (dist > 2 && now - (this.approachSince.get(name) ?? now) < 2000) {
+        const timedOut = now - (this.approach.get(name) ?? now) >= APPROACH_MS;
+        if (dist > 2 && !timedOut) {
             const v = new Phaser.Math.Vector2(x - npc.body.center.x, y - npc.body.center.y).normalize();
             npc.setVelocity(v.x * WALK_SPEED, v.y * WALK_SPEED);
-            return false;
+            return 'moving';
         }
-        this.approachSince.delete(name);
-        npc.setVelocity(0);
+        if (dist > SPOT_TOLERANCE_PX) return 'failed';
         // dir is the side of the tile they stand on, so the tile is the opposite way. Sprites face right
         // by default, so flip when they stand to the right of the tile (tile on their left)
         if (dx !== 0) faceHorizontal(npc, dx > 0);
-        return true;
+        return this.arrive(name);
+    }
+
+    private arrive(name: NpcName) {
+        this.approach.delete(name);
+        this.host.npc(name).setVelocity(0);
+        return 'ready' as const;
+    }
+
+    private zonePx({ zone: z }: Desk): Zone {
+        const s = this.tileSize;
+        return { x0: z.x0 * s, y0: z.y0 * s, x1: z.x1 * s, y1: z.y1 * s };
+    }
+
+    // The desk is unusable: say a random "taken" line, then give it up and try again later. The coworker
+    // stays put while the bubble is up. The desk is released once the line is shown.
+    private turnAway(name: NpcName) {
+        this.approach.delete(name);
+        this.host.npc(name).setVelocity(0);
+        console.log(`[office] ${name} turned away from its desk`);
+        const timers: Phaser.Time.TimerEvent[] = [];
+        this.turnedAway.set(name, timers);
+        this.host.say(name, Phaser.Utils.Array.GetRandom(DESK_TAKEN_PHRASES), () => {
+            this.slots.release(name);
+            this.scheduleVisit(name);
+            this.cooldownUntil.set(name, this.scene.time.now + WORK_COOLDOWN_MS);
+            timers.push(this.scene.time.delayedCall(WORK_PHRASE_MS, () => {
+                this.turnedAway.delete(name);
+                this.host.hideBubble(name);
+            }));
+        });
     }
 
     // Stand still (the scene holds the idle sprite on its first frame) and mutter generic thinking phrases for WORK_DURATION_MS

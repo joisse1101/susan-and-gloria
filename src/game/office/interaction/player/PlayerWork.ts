@@ -8,6 +8,9 @@ export interface PlayerWorkHost {
     player: Sprite;
     bubble: Phaser.GameObjects.Text;
     isInWorkZone(sprite: Sprite): boolean;
+    // Mark the desk the player stands at as in use (if nobody holds it) / free it again, so coworkers don't pick it
+    claimDesk(): void;
+    releaseDesk(): void;
     isTyping(): boolean;
 }
 
@@ -39,6 +42,7 @@ export class PlayerWork {
 
     private start() {
         const { bubble } = this.host;
+        this.host.claimDesk();
         const endAt = this.scene.time.now + WORK_DURATION_MS;
         const timer = this.scene.time.addEvent({
             delay: WORK_PHRASE_MS * 2,
@@ -67,6 +71,7 @@ export class PlayerWork {
         const { bubble } = this.host;
         this.work.timer.remove();
         this.work = undefined;
+        this.host.releaseDesk();
         bubble.setStyle({ fontStyle: 'normal', color: '#000000' });
         if (!this.host.isTyping()) bubble.setVisible(false);
     }

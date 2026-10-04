@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { describe, expect, it } from 'vitest';
 import { CELL, WalkGrid } from './WalkGrid';
-import { findPath, reachableCells, toWaypoints } from './pathfinding';
+import { findPath, nearestReachableCell, nearestWalkableCell, reachableCells, toWaypoints } from './pathfinding';
 
 // Builds a grid of `cols` x `rows` cells whose solids are given as px rects {x, y, w, h}
 function makeGrid(cols: number, rows: number, solids: { x: number; y: number; w: number; h: number }[] = []) {
@@ -104,5 +104,44 @@ describe('toWaypoints', () => {
     it('keeps a waypoint at every turn', () => {
         const waypoints = toWaypoints(cell(0, 0), [cell(1, 0), cell(2, 0), cell(2, 1), cell(2, 2)]);
         expect(waypoints).toEqual([cell(2, 0), cell(2, 2)]);
+    });
+});
+
+describe('nearestWalkableCell', () => {
+    it('returns the cell itself when it is walkable', () => {
+        const grid = makeGrid(20, 5);
+        expect(nearestWalkableCell(grid, 5, 2)).toEqual(cell(5, 2));
+    });
+
+    it('moves off a blocked cell to the nearest walkable one', () => {
+        const grid = makeGrid(20, 5, [{ x: 80, y: 16, w: 16, h: 8 }]); // cells 10-11 blocked, 9 and 12 in the margin
+        const found = nearestWalkableCell(grid, 10, 2)!;
+        expect(grid.isWalkable(found.cx, found.cy)).toBe(true);
+        expect(Math.max(Math.abs(found.cx - 10), Math.abs(found.cy - 2))).toBe(1);
+    });
+
+    it('returns null when nothing walkable is within the radius', () => {
+        const grid = makeGrid(20, 5, [{ x: 0, y: 0, w: 160, h: 40 }]);
+        expect(nearestWalkableCell(grid, 10, 2, 3)).toBeNull();
+    });
+});
+
+describe('nearestReachableCell', () => {
+    it('returns the target when it is reachable', () => {
+        const grid = makeGrid(30, 8);
+        expect(nearestReachableCell(grid, cell(3, 3), cell(20, 3), 4)).toEqual(cell(20, 3));
+    });
+
+    it('falls back to the nearest reachable cell for a goal on a blocked cell', () => {
+        const grid = makeGrid(30, 8, [{ x: 160, y: 24, w: 16, h: 8 }]); // cells 20-21, row 3
+        const found = nearestReachableCell(grid, cell(3, 3), cell(20, 3), 4)!;
+        expect(found).not.toBeNull();
+        expect(grid.isWalkable(found.cx, found.cy)).toBe(true);
+        expect(findPath(grid, cell(3, 3), found)).not.toBeNull();
+    });
+
+    it('returns null when the goal is walled off from the start', () => {
+        const grid = makeGrid(40, 5, [{ x: 80, y: 0, w: 24, h: 40 }]); // wall at cells 10-12, floor to row 4
+        expect(nearestReachableCell(grid, cell(3, 2), cell(30, 2), 4)).toBeNull();
     });
 });
