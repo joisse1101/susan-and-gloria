@@ -26,6 +26,8 @@ import { WorkInteraction } from './interaction/npc/WorkInteraction';
 import { ThinkingInteraction } from './interaction/npc/ThinkingInteraction';
 import { NpcBubbles, type NpcName } from './interaction/npc/NpcBubbles';
 import { Wander } from './interaction/npc/Wander';
+import { WalkGrid } from './interaction/npc/WalkGrid';
+import { WalkGridOverlay } from './interaction/npc/WalkGridOverlay';
 import { Chat } from './interaction/player/Chat';
 import { PlayerWork } from './interaction/player/PlayerWork';
 import {
@@ -45,7 +47,7 @@ import {
 import { FACING } from './interaction/npc/facing';
 import { Shadows } from './interaction/Shadows';
 import { loadOfficeMap, preloadOfficeMap } from './map/loadOfficeMap';
-import { CAMERA_ZOOM, FEET_HEIGHT, FEET_LIFT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPRITE_SCALE } from './constants';
+import { CAMERA_ZOOM, FEET_HEIGHT, FEET_LIFT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
 
 interface PlaceOptions {
     // Height (unscaled px) of the collision body measured up from the object's base; omit for no collision
@@ -77,6 +79,7 @@ export class OfficeScene extends Phaser.Scene {
     private wander!: Wander;
     private playerWork!: PlayerWork;
     private npcSeats!: NpcSeats;
+    private walkGrid!: WalkGrid;
 
     // Set by OfficeGame before create() runs, so it lives here rather than on Chat
     public setSayHandler(handler: (text: string) => boolean) {
@@ -127,6 +130,9 @@ export class OfficeScene extends Phaser.Scene {
         });
         this.mapSize = loadOfficeMap(this, this.obstacles, (layer, tileset) => this.work.collectTiles(layer, tileset));
         // this.work.drawZones(SPEECH_DEPTH - 1); // TODO: some button or env to toggle show
+        // Static solids are all in place now, so the walkable grid is built once here. Press G to show it (green = walkable, red = blocked)
+        this.walkGrid = new WalkGrid(this.physics.world.bounds, this.obstacles);
+        new WalkGridOverlay(this, this.walkGrid, SPEECH_DEPTH - 1, 'G', () => this.chat.isTyping);
 
         // Pieces: place(name, centreX, centreY, { solid, flat, atlas }). Names live in interiorAtlas.ts; for officeAtlas.ts names pass atlas: 'office'
         // To add an object: pick a frame name, a position in canvas px (640x416), and solid (collision height in px) if it should block the player.
