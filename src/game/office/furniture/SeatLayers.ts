@@ -45,10 +45,11 @@ export class SeatLayers {
         this.shadow = scene.add.image(0, 0, OBJECT_SHADOW_KEY).setScale(SPRITE_SCALE).setVisible(false);
     }
 
-    // `sitter` must already be depth-sorted this frame
-    show(sitter: Phaser.GameObjects.Sprite, facing: Facing) {
+    // `sitter` must already be depth-sorted this frame. `at` is the chair's centre while it is still sliding in;
+    // by default it sits in its final place under the sitter.
+    show(sitter: Phaser.GameObjects.Sprite, facing: Facing, at?: { x: number; y: number }) {
         const frame = seatFrame(facing);
-        const { x, y } = seatPosition(sitter.x, sitter.y, facing);
+        const { x, y } = at ?? seatPosition(sitter.x, sitter.y, facing);
         for (const layer of [this.chair, this.handle]) layer.setFrame(frame).setPosition(x, y).setVisible(true);
         this.chair.setDepth(sitter.depth - 1);
         this.handle.setDepth(sitter.depth + 1);

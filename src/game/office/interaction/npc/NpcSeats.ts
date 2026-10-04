@@ -187,6 +187,8 @@ export class NpcSeats {
         const s = this.states.get(name);
         const layers = this.layers.get(name) ?? this.layers.set(name, new SeatLayers(this.scene)).get(name)!;
         if (s?.phase === 'seated') layers.show(this.npc(name), s.facing);
+        // Sliding in: the same chair/armrest sandwich from the start, at the chair's current spot
+        else if (s?.phase === 'slide' && s.chair) layers.show(this.npc(name), s.facing, { x: s.chair.x, y: s.chair.y });
         else layers.hide();
     }
 
@@ -348,6 +350,8 @@ export class NpcSeats {
         s.seat = seatPosition(npc.x, npc.y, s.facing);
         chair.setFrame(seatFrame(s.facing));
         chair.body.enable = false;
+        // The seat layers draw the chair from here; the sprite just carries its position (and hides its own shadow)
+        chair.setVisible(false);
         s.phase = 'slide';
     }
 
