@@ -3,6 +3,10 @@
 
 // Data key set on a coworker the resolver stopped this frame, so its route follower treats it as blocked and replans
 export const PUSH_STOPPED = 'pushStopped';
+// Data key set on a coworker for the one frame it is first displaced by a push, or let go of after a pull (one shove, however long)
+export const PUSH_SHOVED = 'pushShoved';
+// Data key set on a coworker the player is holding with the pull key: its own route steering is suspended meanwhile
+export const PUSH_HELD = 'pushHeld';
 
 export interface Rect {
     left: number;
@@ -37,6 +41,8 @@ export interface PushResult {
     released: Set<string>;
     // Bodies displaced by someone else's push, with how far (not the roots' own steps)
     pushed: Map<string, { dx: number; dy: number }>;
+    // Who started the chain that displaced each pushed body
+    pushedBy: Map<string, string>;
 }
 
 // Rects that merely touch do not overlap; this absorbs float noise from the physics separation
@@ -62,7 +68,7 @@ function canPush(mover: PushBody, target: PushBody, playerChain: boolean) {
 }
 
 export function resolvePush(bodies: PushBody[], solids: Rect[]): PushResult {
-    const result: PushResult = { blockedX: new Set(), blockedY: new Set(), released: new Set(), pushed: new Map() };
+    const result: PushResult = { blockedX: new Set(), blockedY: new Set(), released: new Set(), pushed: new Map(), pushedBy: new Map() };
     const rects = new Map(bodies.map((b) => [b.id, { ...b.rect }]));
     const handled = new Set<string>();
     const order = [...bodies.filter((b) => b.role === 'driver'), ...bodies.filter((b) => b.role === 'trailing'), ...bodies.filter((b) => b.role === 'coasting')];
@@ -110,6 +116,7 @@ export function resolvePush(bodies: PushBody[], solids: Rect[]): PushResult {
                 rects.set(id, shift(rects.get(id)!, axis, by));
                 if (id === root.id) continue;
                 handled.add(id);
+                result.pushedBy.set(id, root.id);
                 const prev = result.pushed.get(id) ?? { dx: 0, dy: 0 };
                 result.pushed.set(id, axis === 'x' ? { dx: prev.dx + by, dy: prev.dy } : { dx: prev.dx, dy: prev.dy + by });
             }

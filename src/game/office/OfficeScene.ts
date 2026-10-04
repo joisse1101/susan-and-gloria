@@ -20,7 +20,7 @@ import {
     type FurnitureFrameName
 } from './atlases/furnitureAtlas';
 import { Chairs } from './furniture/Chairs';
-import { PLAYER_WALK_SPEED, PULL_SPEED } from './pushTuning';
+import { COWORKER_DRAG, COWORKER_MASS, PLAYER_PUSH_SPEED, PLAYER_WALK_SPEED, PULL_SPEED } from './pushTuning';
 import { NpcSeats } from './interaction/npc/NpcSeats';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
@@ -131,7 +131,6 @@ export class OfficeScene extends Phaser.Scene {
                 const idle = this.player.body.velocity.lengthSq() === 0; // walking through doesn't occupy a desk
                 return idle && x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1;
             },
-            isPushingChair: (npc) => this.chairs.isPushing(npc),
             chairBumped: (name) => this.npcSeats.hasBumped(name)
         });
         this.thinking = new ThinkingInteraction(this, {
@@ -202,8 +201,7 @@ export class OfficeScene extends Phaser.Scene {
 
         this.wander = new Wander(this, {
             updateWork: (name) => this.work.update(name),
-            isBusy: (name) => this.bubbles.isVisible(name),
-            isPushingChair: (npc) => this.chairs.isPushing(npc)
+            isBusy: (name) => this.bubbles.isVisible(name)
         }, this.walkGrid);
 
         // 3. WORLD COLLISION: Enable solid boundaries
@@ -239,9 +237,20 @@ export class OfficeScene extends Phaser.Scene {
     }
 
     override update() {
-        const pulling = !this.chat.isTyping && !this.playerWork.isFetching() && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true);
+        // Coworkers not in an interaction can be pushed and pulled; one that is blocks like a wall
+        const free = (['gloria', 'susan'] as const).filter((name) => !this.isImmovable(name));
+        const coworkers = free.map((name) => ({ id: name, sprite: this.npcSprite(name) }));
+        // A shoved coworker coasts on under COWORKER_DRAG; otherwise it only moves when something sets its velocity
+        const coasting = new Map<NpcName, Phaser.Math.Vector2>();
+        for (const name of ['gloria', 'susan'] as const) {
+            const npc = this.npcSprite(name);
+            npc.body.pushable = !this.isImmovable(name);
+            if (this.chairs.wasShoved(name) && !this.isImmovable(name)) coasting.set(name, npc.body.velocity.clone());
+            npc.setVelocity(0);
+        }
+        const pulling = !this.chat.isTyping && !this.playerWork.isFetching() && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true, coworkers);
         if (!pulling) this.chairs.grab(this.player, false);
-        const speed = pulling ? PULL_SPEED : PLAYER_WALK_SPEED;
+        const speed = pulling ? PULL_SPEED : this.chairs.isPlayerPushing() ? PLAYER_PUSH_SPEED : PLAYER_WALK_SPEED;
         this.player.setVelocity(0);
 
         // A movement key is the player taking control: it cancels the chair trip, whose own walking is not "moving"
@@ -265,12 +274,29 @@ export class OfficeScene extends Phaser.Scene {
         this.npcSeats.update('player');
         this.updateNpc('gloria', this.gloria);
         this.updateNpc('susan', this.susan);
+        const dt = 1 / this.physics.world.fps;
+        for (const [name, residual] of coasting) {
+            const npc = this.npcSprite(name);
+            if (npc.body.velocity.lengthSq() > 0) continue;
+            const speed = Math.max(0, residual.length() - COWORKER_DRAG * dt);
+            if (speed > 0) npc.setVelocity((residual.x / residual.length()) * speed, (residual.y / residual.length()) * speed);
+        }
         this.shadows.update();
         this.chairReach.update();
         // Last, once every velocity is set: stop any push that would end up in a wall or furniture
-        this.chairs.gate([{ id: 'player', kind: 'player', sprite: this.player }, { id: 'gloria', kind: 'coworker', sprite: this.gloria }, { id: 'susan', kind: 'coworker', sprite: this.susan }]);
+        this.chairs.gate([{ id: 'player', kind: 'player', sprite: this.player }, { id: 'gloria', kind: 'coworker', sprite: this.gloria, immovable: this.isImmovable('gloria') }, { id: 'susan', kind: 'coworker', sprite: this.susan, immovable: this.isImmovable('susan') }]);
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
         this.chat.bubble.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
+    }
+
+    private npcSprite(name: NpcName) {
+        return name === 'susan' ? this.susan : this.gloria;
+    }
+
+    // In an interaction: a bubble is up (noticed, thinking, talking), or it has reached its desk (fetching a chair,
+    // seated, working). Derived each frame, so it cannot go stale. Walking to a desk is still pushable.
+    private isImmovable(name: NpcName) {
+        return this.bubbles.isVisible(name) || this.work.isAtDesk(name) || this.npcSeats.isSeated(name);
     }
 
     // Chat commands, handled here instead of being sent to the coworkers: "/gloria-work" and "/susan-work"
@@ -363,7 +389,7 @@ export class OfficeScene extends Phaser.Scene {
         const sprite = this.physics.add.sprite(x, y, `${character.name}-idle`);
         sprite.setScale(SPRITE_SCALE);
         this.shadows.add(sprite, { hideWhen: () => this.npcSeats.isSeated(character.name as NpcName) });
-        sprite.body.pushable = false;
+        sprite.setMass(COWORKER_MASS);
         sprite.body.setSize(PLAYER_BODY.width, FEET_HEIGHT);
         sprite.body.setOffset(PLAYER_BODY.offsetX, sprite.height - FEET_HEIGHT - FEET_LIFT);
         this.sortByBottom(sprite);

@@ -69,8 +69,6 @@ export interface WorkHost {
     walkGrid(): WalkGrid;
     // True when the player is standing still with their feet (body centre) inside the rectangle, in px
     isPlayerStillIn(zone: Zone): boolean;
-    // True while the coworker is sliding a loose chair out of its way, which isn't a dead end for a route
-    isPushingChair(npc: Npc): boolean;
     // True once if the coworker bumped into something and so had to reroute since it was last asked
     chairBumped(name: NpcName): boolean;
 }
@@ -228,6 +226,11 @@ export class WorkInteraction {
         this.nextVisitAt.set(name, 0);
     }
 
+    // From arriving at the work zone until work ends or it gives up: fetching a chair, sitting and working
+    isAtDesk(name: NpcName) {
+        return this.approach.has(name) || this.fetching.has(name) || this.working.has(name);
+    }
+
     isWorking(name: NpcName) {
         return this.working.has(name);
     }
@@ -309,7 +312,7 @@ export class WorkInteraction {
         const npc = this.host.npc(name);
         if (now > visit.giveUpAt) return this.giveUp(name, npc);
         // The desk was taken on the way: near it, or after a bump, give it up and say so
-        const blocked = PathFollower.isBlocked(npc, this.host.isPushingChair(npc));
+        const blocked = PathFollower.isBlocked(npc);
         if (this.occupied(name, visit.desk) && (blocked || this.nearSpot(name, visit.desk))) {
             this.turnAway(name);
             return false;

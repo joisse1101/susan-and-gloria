@@ -7,9 +7,9 @@ export const CHAIR_MASS = 1;
 export const COWORKER_MASS = 1;
 
 // How fast a free body slows down. Raise it and a shoved body coasts a shorter distance.
-// COWORKER_DRAG is 0 because coworkers set their own velocity every frame; raise it to make a shoved coworker slide to a stop.
+// COWORKER_DRAG only applies to a coworker that was shoved: raise it and it stops sooner, 0 and it stops dead.
 export const CHAIR_DRAG = 600;
-export const COWORKER_DRAG = 0;
+export const COWORKER_DRAG = 600;
 
 // How long a rolled chair (one pushed away by whoever stood up) coasts under its temporary drag before normal drag returns.
 // Raise it for a longer slide.
@@ -22,5 +22,5 @@ export const CHAIR_MAX_SPEED = 120;
 // the chair keeps up; raise both together.
 export const PLAYER_WALK_SPEED = 160;
 export const PULL_SPEED = CHAIR_MAX_SPEED;
-// The speed while driving a push chain (read once pushing at walking pace is wired in). Raise it and the player shoves faster.
+// The speed while pushing something. Raise it and the player shoves faster; keep it near CHAIR_MAX_SPEED or gaps open up.
 export const PLAYER_PUSH_SPEED = PULL_SPEED;

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { NpcName } from './NpcBubbles';
 import { CELL, type WalkGrid } from './WalkGrid';
 import { findPath, nearestWalkableCell, reachableCells, type Cell } from './pathfinding';
+import { PUSH_HELD } from '../pushChain';
 import { PathFollower } from './PathFollower';
 
 type Sprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -19,7 +20,6 @@ export interface WanderHost {
     updateWork(name: NpcName): boolean;
     // A bubble is up (noticed, thinking or talking)
     isBusy(name: NpcName): boolean;
-    isPushingChair(npc: Sprite): boolean;
 }
 
 interface Trip {
@@ -43,6 +43,8 @@ export class Wander {
     }
 
     update(name: NpcName, npc: Sprite) {
+        // Pulled by the player: its steering is suspended, and it replans once it is let go
+        if (npc.getData(PUSH_HELD) === true) return;
         const heading = this.host.updateWork(name);
         const busy = this.host.isBusy(name); // after the work update: starting work puts a bubble up
         if (busy) {
@@ -58,7 +60,7 @@ export class Wander {
 
         const trip = this.trips.get(name);
         if (trip) {
-            const blocked = PathFollower.isBlocked(npc, this.host.isPushingChair(npc));
+            const blocked = PathFollower.isBlocked(npc);
             if (blocked) this.replan(name, npc);
             else this.follow(name, npc, trip);
         } else if (this.scene.time.now >= (this.until.get(name) ?? 0)) {

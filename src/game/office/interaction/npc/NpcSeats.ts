@@ -359,7 +359,7 @@ export class NpcSeats {
             npc.setVelocity(0);
             return true;
         }
-        if (!PathFollower.isBlocked(npc, this.chairs.isPushing(npc))) return false;
+        if (!PathFollower.isBlocked(npc)) return false;
         s.bumps++;
         s.bumped = true;
         npc.setVelocity(0);
