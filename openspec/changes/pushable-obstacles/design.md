@@ -17,7 +17,7 @@ See proposal.md for motivation. Today (`furniture/Chairs.ts`, `OfficeScene.ts`):
 
 **Non-Goals:**
 - Changing the physics engine, the A* grid, or route planning around chairs and bodies.
-- Pulling coworkers, or the player being pushed.
+- The player being pushed or pulled.
 - Mass or friction tuning beyond what feels right; speeds are constants to tweak.
 
 ## Decisions
@@ -32,6 +32,10 @@ The Phaser side feeds it from the colliders' process callbacks and sets `body.im
 ### 2. Drivers, not body types, decide who pushes
 Each frame the scene collects drivers: the player when it has non-zero velocity (walking or pulling a chair), a coworker while `PathFollower`/work walking sets its velocity. A chain is rooted at a driver and follows contacts in front of it. Coasting chairs (after `roll()` or release) are never drivers, so they stop against coworkers.
 
+A pulled body (chair or coworker) is a trailing link, not a front link: it is not part of the chain being pushed, so if it is blocked the player is not stopped. `Chairs.grab`/`drag` keep working as today for chairs (held chair follows the player's velocity, released past `RELEASE_GAP`), and a blocked held body is released at once. The resolver still keeps it out of solids and lets it push chairs or a coworker in front of it as part of its own chain.
+
+Pulling generalises from "held chair" to "held pullable". The grab picks the nearest loose chair or non-immovable coworker within `GRAB_GAP`, one at a time. A held coworker has its `PathFollower` steering suspended and its velocity set to the player's; it is released when blocked, lagging past `RELEASE_GAP`, the key is let go, or `isImmovable` turns true (so a bubble coming up frees it). Release counts as one shove for the shoved signal (decision 4), not one per frame, so a long pull is a single bump. The grab/hold logic moves out of `Chairs` into the small `Pushables` owner so chairs and coworkers share it.
+
 Coworker-driven chains are limited to one hop for coworkers: chairs and one other coworker directly, never a coworker through a chair. The resolver takes this as a depth/kind rule keyed on the driver's kind.
 
 ### 3. Immovable is a derived predicate, not stored state
@@ -43,9 +47,17 @@ Coworker-driven chains are limited to one hop for coworkers: chairs and one othe
 The resolver step returns, per coworker, whether it was displaced by a push. `Wander` and `WorkInteraction` read it in place of `PathFollower.isBlocked(npc, pushingChair)` and `isPushingChair`; both react the same way: stop, replan from the current cell, count a bump toward `MAX_BUMPS`, give up after the limit. `isBlocked` stays only for being stopped by something that did not move (player, immovable coworker, solid). For a work trip the claim is kept on a shove; an occupied desk still ends in the existing turn-away.
 
 ### 5. Shove speed
-While driving a chain the player moves at the existing `PULL_SPEED` (120) so chairs, capped at `MAX_SPEED`, keep up. Coworkers keep `WALK_SPEED`. Both are constants to adjust by feel.
+While driving a chain the player moves at the existing `PULL_SPEED` (120) so chairs, capped at `MAX_SPEED`, keep up. Coworkers keep `WALK_SPEED`. All of these live in the tuning file (decision 6) and are adjusted by feel.
+
+### 6. Tuning knobs in one place
+A single module, `src/game/office/pushTuning.ts`, exports every number that sets how pushing feels: chair and coworker mass, chair and coworker drag, `ROLL_MS`, `PULL_SPEED` / chair max speed, and the player's push speed. Today these are scattered (`DRAG`, `MAX_SPEED`, `ROLL_MS`, `PULL_SPEED` in `Chairs.ts`; coworker body setup in `OfficeScene.ts`) and not exported. Chairs, coworkers and the player read mass, drag and speed from this module only, so nothing is hard-coded elsewhere. Vite hot-reloads it, so tuning is edit, save, play. The existing values move over unchanged, so behavior does not change until the user edits them. Each value has a one-line comment saying what raising it does.
+
+*Alternative:* a live in-game panel or debug keys. Rejected for now: extra feature to build and maintain; the file is enough to tune by feel.
 
 ## Risks / Trade-offs
+
+- [Dragging a coworker fights its own steering, and a stale velocity could be applied after release] → suspend steering while held; on release run the shoved path (stop, replan) so steering restarts from a clean state.
+- [Pulling a coworker through a doorway or tight gap jams it against furniture] → blocked held bodies are released, never forced.
 
 - [Process-callback ordering in Arcade makes the resolver see stale positions] → resolver works on the bodies' positions at the start of the step and decides before separation; cover with tests for chains, corners, and a driver against a wall.
 - [Tunnelling at corner or diagonal contacts] → same resolver tests; check axis-wise in the pure module; manual check with the walk-grid and chair-reach debug views.
@@ -56,4 +68,4 @@ While driving a chain the player moves at the existing `PULL_SPEED` (120) so cha
 
 ## Open Questions
 
-- Exact push speed and whether chairs should be lighter than coworkers (tune by feel after the first playtest).
+- Exact push speed, mass and drag, and whether chairs should be lighter than coworkers: tune by feel after the first playtest by editing `pushTuning.ts`; no code change needed.

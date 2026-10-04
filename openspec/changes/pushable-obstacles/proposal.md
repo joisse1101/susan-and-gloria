@@ -5,6 +5,7 @@ Chairs can be shoved around, but the rule that keeps them out of walls is a set 
 ## What Changes
 
 - Chairs, Susan and Gloria become **pushable obstacles**; the player pushes but is never pushed.
+- The player can also **pull** a free coworker with the pull key, the same way they pull a chair. A pulled coworker trails the player and is let go of if it is blocked, lags, or enters an interaction; being pulled and then let go makes it stop and replan.
 - A push starts at a **driver**: a body moving under its own power this step (the player walking or pulling, a free coworker walking). It travels along the chain of bodies in front of the driver.
 - A chair only pushes a coworker while the player is driving it (pushing or pulling); a coasting chair (after a roll, or let go of) stops against a coworker like against a wall.
 - Coworkers can shove each other. A coworker driving a push moves chairs and one other coworker directly; it does not relay a push through a chair onto a coworker.
@@ -16,7 +17,7 @@ Chairs can be shoved around, but the rule that keeps them out of walls is a set 
 ## Capabilities
 
 ### New Capabilities
-- `office-pushables`: which bodies are pushable, who drives a push, the chain rule that stops it at solids, and when coworkers become immovable.
+- `office-pushables`: which bodies are pushable and pullable, who drives a push, the chain rule that stops it at solids, how pulled bodies trail the player, and when coworkers become immovable.
 
 ### Modified Capabilities
 - `office-npc-wander`: a coworker that is shoved (not only bumped) stops and replans.
@@ -27,6 +28,7 @@ Chairs can be shoved around, but the rule that keeps them out of walls is a set 
 - `src/game/office/furniture/Chairs.ts`: jam flags and `yieldIfJammed` replaced by the chain resolver.
 - New pure module for the chain resolver with Vitest tests (alongside the existing `interaction/npc/*.test.ts` style).
 - `OfficeScene.ts`: collider wiring (player/coworker/chair colliders, `pushable` flags, coworker immovable predicate).
+- New `src/game/office/pushTuning.ts`: mass, drag and speed constants for chairs, coworkers and the player in one tunable place.
 - `Wander.ts`, `WorkInteraction.ts`, `PathFollower.ts`: shared shoved signal replaces `isBlocked`/`isPushingChair`.
 - `CLAUDE.md` architecture notes for the Office section.
 - No new dependencies; Arcade physics stays (Matter was considered and rejected as a rewrite for little gain).
