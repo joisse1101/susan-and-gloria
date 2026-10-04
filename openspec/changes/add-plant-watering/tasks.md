@@ -8,7 +8,7 @@ Everything in this group is done, and every test passing, before any task in gro
 - [x] 1.4 Generalise the flush approach step and `spotFor` to a rectangle and a side, keeping the desk case; verify the existing `deskSpot` tests pass and add tests for a rectangle on each side
 - [x] 1.5 Add the say-then-hide helper; verify with a unit test that it says one random line, hides after the delay, and does not hide a newer line
 - [x] 1.6 Add the interaction registry (priority order, one per actor, `cancelAll`, `isEngaged`, `pose`, `updateInteractions`); verify with unit tests for exclusion, work winning a tie, and cancel fan-out
-- [ ] 1.7 Tune values (reach, cooldown, watering duration) in one commented tuning file; verify each is read from there and nowhere else
+- [x] 1.7 Tune values (reach, cooldown, watering duration) in one commented tuning file; verify each is read from there and nowhere else
 
 ## 2. Work moved onto the shared pieces
 
@@ -19,12 +19,12 @@ Everything in this group is done, and every test passing, before any task in gro
 ## 3. Plant objects
 
 - [x] 3.1 Collect `interaction = water` tiles with the shared scan, dedupe cells, merge touching cells into plants with a bounding rectangle and an optional `direction`; verify with a unit test using the real map's tiles (14,3 on two layers and 15,3) that they form one plant
-- [ ] 3.2 Add the plant's reach zone (0.5 tile on all sides) and a debug overlay for it; verify the overlay shows one zone around the two plant tiles
+- [x] 3.2 Add the plant's reach zone (0.5 tile on all sides) and a debug overlay for it; verify the overlay shows one zone around the two plant tiles
 
 ## 4. Watering interaction
 
-- [ ] 4.1 Add the actor adapter (sprite, interrupted, standing still, say, owner id) for Susan, Gloria and the player; verify with unit tests that interruptions match `office-interaction-trigger`
-- [ ] 4.2 Claim the plant with one holder at a time; verify with a unit test that a second actor cannot claim it and that every way out releases it
+- [x] 4.1 Add the actor adapter (sprite, interrupted, standing still, say, owner id) for Susan, Gloria and the player; verify with unit tests that interruptions match `office-interaction-trigger`
+- [x] 4.2 Claim the plant with one holder at a time; verify with a unit test that a second actor cannot claim it and that every way out releases it
 - [ ] 4.3 Add the praise phrase list beside the work phrases, and have a newcomer who finds the plant being watered say one once per encounter (coworkers by mutter, the player in their bubble); verify with a unit test that the line is said once and not repeated until the newcomer has left reach and come back, and in the game that a coworker passing the watering player says one
 - [ ] 4.4 Route an actor to the nearest open spot beside the plant (shared route, bump-and-replan, give-up) and step flush and face it with the shared approach step; verify in the game that a coworker goes to the open side, never the wall side, and gives up cleanly when blocked
 - [ ] 4.5 Run the watering for the set duration, then free the plant and start the cooldown; verify a coworker waters, stops, and does not restart until the cooldown has passed

@@ -39,6 +39,9 @@ import { mergePlants, plantCells, reachZone, type PlantCell } from './interactio
 import { PlantOverlay } from './interaction/plantOverlay';
 import { scanInteractionTiles } from './interaction/zones';
 import { WATER_REACH_TILES } from './interaction/waterTuning';
+import { WaterInteraction } from './interaction/WaterInteraction';
+import { PlantShared } from './interaction/plantShared';
+import { coworkerInterrupted } from './interaction/waterActor';
 import {
     PLAYER_BODY,
     PLAYER_IDLE_KEY,
@@ -77,6 +80,7 @@ export class OfficeScene extends Phaser.Scene {
     private gloria!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private work!: WorkInteraction;
+    private coworkerWater!: WaterInteraction<NpcName>;
     // What each actor is doing, in priority order (work first); the scene asks these, never the interactions
     private coworkerInteractions = new InteractionRegistry<NpcName>();
     private playerInteractions = new InteractionRegistry<'player'>();
@@ -164,6 +168,20 @@ export class OfficeScene extends Phaser.Scene {
             waterCells.push(...plantCells(tiles));
         });
         const plants = mergePlants(waterCells, waterTileSize);
+        // Coworkers water after work in priority; the plant's claim and cooldown are shared by every actor
+        this.coworkerWater = new WaterInteraction<NpcName>(this, {
+            actor: (name) => {
+                const sprite = this.npcSprite(name);
+                return {
+                    sprite,
+                    interrupted: () => coworkerInterrupted(this.bubbles.isVisible(name)),
+                    standingStill: () => sprite.body.velocity.lengthSq() === 0,
+                    stillRequired: false
+                };
+            },
+            walkGrid: () => this.walkGrid
+        }, new PlantShared(plants));
+        this.coworkerInteractions.register(this.coworkerWater);
         // Press P to outline each plant (blue) and the zone an actor must be in to water it (white)
         new PlantOverlay(this, plants.map((p) => ({ rect: p.rect, reach: reachZone(p, WATER_REACH_TILES), tileSize: p.tileSize })), SPEECH_DEPTH - 1, 'P', () => this.chat.isTyping);
         // this.work.drawZones(SPEECH_DEPTH - 1); // TODO: some button or env to toggle show
@@ -339,12 +357,20 @@ export class OfficeScene extends Phaser.Scene {
         return this.bubbles.isVisible(name) || this.coworkerInteractions.isEngaged(name) || this.npcSeats.isSeated(name);
     }
 
-    // Chat commands, handled here instead of being sent to the coworkers: "/gloria-work" and "/susan-work"
-    // make that coworker head for a work desk now. True when the line was a command.
+    // Chat commands, handled here instead of being sent to the coworkers: "/gloria-work" and "/susan-work" make that
+    // coworker head for a work desk now, "/gloria-water" and "/susan-water" for the plant (if it is free).
+    // True when the line was a command.
     private debugCommand(text: string) {
-        const match = /^\/*(gloria|susan)-work$/i.exec(text.trim());
+        const match = /^\/*(gloria|susan)-(work|water)$/i.exec(text.trim());
         if (!match) return false;
-        this.work.forceVisit(match[1].toLowerCase() as NpcName);
+        const name = match[1].toLowerCase() as NpcName;
+        if (match[2].toLowerCase() === 'work') {
+            this.work.forceVisit(name);
+        } else {
+            this.coworkerInteractions.cancelAll(name);
+            this.bubbles.hideMutter(name);
+            this.coworkerWater.force(name);
+        }
         return true;
     }
 

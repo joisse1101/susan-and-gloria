@@ -61,3 +61,27 @@ export function reachZone(plant: Plant, reach: number): Rect {
     const { x0, y0, x1, y1 } = plant.rect;
     return { x0: x0 - reach, y0: y0 - reach, x1: x1 + reach, y1: y1 + reach };
 }
+
+const DIRECTIONS: Record<string, { dx: number; dy: number }> = {
+    left: { dx: -1, dy: 0 },
+    right: { dx: 1, dy: 0 },
+    up: { dx: 0, dy: -1 },
+    down: { dx: 0, dy: 1 }
+};
+
+// The side of the plant an actor at (x, y) px stands on, as for a desk (`dir` is the side of the tile they stand on):
+// the plant's own `direction` when it has one, else the side the point is furthest outside of
+export function standSide(plant: Plant, x: number, y: number): { dx: number; dy: number } {
+    const fixed = plant.direction ? DIRECTIONS[plant.direction] : undefined;
+    if (fixed) return fixed;
+    const s = plant.tileSize;
+    const left = plant.rect.x0 * s - x;
+    const right = x - plant.rect.x1 * s;
+    const above = plant.rect.y0 * s - y;
+    const below = y - plant.rect.y1 * s;
+    const out = Math.max(left, right, above, below);
+    if (out <= 0) return { dx: 0, dy: 1 };
+    if (out === below) return { dx: 0, dy: 1 };
+    if (out === above) return { dx: 0, dy: -1 };
+    return out === left ? { dx: -1, dy: 0 } : { dx: 1, dy: 0 };
+}

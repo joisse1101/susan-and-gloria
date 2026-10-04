@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergePlants, reachZone } from './plants';
+import { mergePlants, reachZone, standSide } from './plants';
 
 describe('mergePlants', () => {
     it('merges the real map\'s tiles (14,3 on two layers and 15,3) into one plant', () => {
@@ -22,5 +22,18 @@ describe('reachZone', () => {
     it('grows the plant by the reach on all sides', () => {
         const [plant] = mergePlants([{ tx: 14, ty: 3 }, { tx: 15, ty: 3 }], 32);
         expect(reachZone(plant, 0.5)).toEqual({ x0: 13.5, y0: 2.5, x1: 16.5, y1: 4.5 });
+    });
+});
+
+describe('standSide', () => {
+    const [plant] = mergePlants([{ tx: 14, ty: 3 }, { tx: 15, ty: 3 }], 32);
+    it('picks the side the point is furthest outside of', () => {
+        expect(standSide(plant, 15 * 32, 4 * 32 + 10)).toEqual({ dx: 0, dy: 1 });
+        expect(standSide(plant, 14 * 32 - 10, 3.5 * 32)).toEqual({ dx: -1, dy: 0 });
+        expect(standSide(plant, 16 * 32 + 10, 3.5 * 32)).toEqual({ dx: 1, dy: 0 });
+        expect(standSide(plant, 15 * 32, 3 * 32 - 10)).toEqual({ dx: 0, dy: -1 });
+    });
+    it('uses the plant\'s own direction when it has one', () => {
+        expect(standSide({ ...plant, direction: 'left' }, 15 * 32, 4 * 32 + 10)).toEqual({ dx: -1, dy: 0 });
     });
 });
