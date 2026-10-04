@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SPRITE_SCALE } from '../constants';
 import type { Facing } from './player/playerSprite';
 import { waterPropLayout } from './waterPropLayout';
+import { WATER_BOB_MS, WATER_BOB_PX } from './waterTuning';
 
 type Sprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 
@@ -28,6 +29,12 @@ export class WaterProps {
         this.stream = scene.add.image(0, 0, STREAM_KEY, 0).setScale(SPRITE_SCALE).setOrigin(0, 0).setVisible(false);
     }
 
+    // The stream's vertical offset (sprite px, whole pixels): 0 to WATER_BOB_PX and back, once per WATER_BOB_MS
+    private bob(actor: Sprite) {
+        const phase = (actor.scene.time.now % WATER_BOB_MS) / WATER_BOB_MS;
+        return Math.round(((Math.sin(phase * 2 * Math.PI) + 1) / 2) * WATER_BOB_PX);
+    }
+
     // Call every frame after the actor has been depth-sorted: shows the props while `watering`, hides them otherwise
     update(actor: Sprite, name: string, facing: Facing, watering: boolean) {
         if (!watering) {
@@ -43,7 +50,7 @@ export class WaterProps {
         this.stream
             .setFrame(layout.cell)
             .setFlipX(layout.flipX)
-            .setPosition(topLeft.x + layout.x * SPRITE_SCALE, topLeft.y + layout.y * SPRITE_SCALE)
+            .setPosition(topLeft.x + layout.x * SPRITE_SCALE, topLeft.y + (layout.y + this.bob(actor)) * SPRITE_SCALE)
             .setVisible(true);
         const depth = layout.behind ? actor.depth - 1 : actor.depth + 1;
         this.can.setDepth(depth);

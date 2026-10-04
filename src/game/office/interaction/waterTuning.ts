@@ -9,5 +9,10 @@ export const WATER_DURATION_MS = 8000;
 // How long (ms) the plant rests after anyone finished, was interrupted from, or gave up watering it. Shared by every actor.
 export const WATER_COOLDOWN_MS = 5000;
 
+// How far (sprite px) the water stream moves up and down while watering, and how long (ms) one full up-and-down takes.
+// The movement is rounded to whole sprite pixels, so 2 gives three positions. 0 keeps the stream still.
+export const WATER_BOB_PX = 2;
+export const WATER_BOB_MS = 400;
+
 // A trip to the plant that takes longer than this (ms) is given up
 export const WATER_GIVE_UP_MS = 20000;
