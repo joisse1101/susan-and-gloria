@@ -10,6 +10,14 @@ export const DESK_TAKEN_PHRASES = [
     'ah, taken. another time...',
     'guess I\'ll wait...'
 ];
+// The player says one of these when they give up fetching a chair, as if they forgot what they were doing
+export const FORGETFUL_PHRASES = [
+    'what was I doing?',
+    'hmm?',
+    'wait, why did I come over here?',
+    'huh, what was I after...',
+    'now where was I going?'
+];
 export const WORK_PHRASES = [
     // Thinking & Processing
     'hmm...',

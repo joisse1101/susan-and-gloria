@@ -5,6 +5,7 @@ import { CELL, type WalkGrid } from './WalkGrid';
 import { findPath, nearestReachableCell, nearestWalkableCell } from './pathfinding';
 import { PathFollower, WALK_SPEED } from './PathFollower';
 import { WorkSlots } from './WorkSlots';
+import { facingFor, spotFor } from './deskSpot';
 import { DESK_TAKEN_PHRASES, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
 
 // Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one
@@ -362,7 +363,6 @@ export class WorkInteraction {
             this.visit.delete(name); // arrived: the route is done
         }
         if (!desk.dir) return this.arrive(name);
-        const { dx, dy } = desk.dir;
         const { x, y } = this.spotFor(desk, npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x);
         const dist = Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, x, y);
         const timedOut = now - (this.approach.get(name) ?? now) >= APPROACH_MS;
@@ -372,23 +372,25 @@ export class WorkInteraction {
             return 'moving';
         }
         if (dist > SPOT_TOLERANCE_PX) return 'failed';
-        // dir is the side of the tile they stand on, so they face the opposite way: left of the tile means facing right, and so on.
-        // The facing also decides which side of them the chair is parked on.
-        npc.setData(FACING, dx > 0 ? 'left' : dx < 0 ? 'right' : dy > 0 ? 'up' : 'down');
+        // They face the desk; the facing also decides which side of them the chair is parked on
+        npc.setData(FACING, facingFor(desk.dir));
         return this.arrive(name);
     }
 
     // Body centre (px) of the spot flush against the work tile, level with it along the edge (`alongX` picks where on
     // an up/down tile's edge). A tile with no direction has its centre as the spot.
     private spotFor(desk: Desk, halfWidth: number, halfHeight: number, alongX: number) {
-        const size = this.tileSize;
-        if (!desk.dir) return { x: (desk.tx + 0.5) * size, y: (desk.ty + 0.5) * size };
-        const { dx, dy } = desk.dir;
-        const x = dx < 0 ? desk.tx * size - halfWidth : dx > 0 ? (desk.tx + 1) * size + halfWidth
-            : Phaser.Math.Clamp(alongX, desk.tx * size, (desk.tx + 1) * size);
-        const y = dy < 0 ? desk.ty * size - halfHeight : dy > 0 ? (desk.ty + 1) * size + halfHeight
-            : (desk.ty + 1) * size - halfHeight; // side tiles: body's bottom edge level with the tile's bottom edge
-        return { x, y };
+        return spotFor(desk, this.tileSize, halfWidth, halfHeight, alongX);
+    }
+
+    // Where the player works at the desk whose zone they stand in (the one they hold if its zone contains them):
+    // the flush spot, and the way they face the desk (undefined for a tile with no direction). Undefined outside every zone.
+    spotAndFacing(sprite: Npc) {
+        const held = this.slots.heldBy('player');
+        const desk = this.tiles.find((d) => d.id === held && this.contains(d, sprite)) ?? this.tiles.find((d) => this.contains(d, sprite));
+        if (!desk) return undefined;
+        const spot = this.spotFor(desk, sprite.body.halfWidth, sprite.body.halfHeight, sprite.body.center.x);
+        return { spot, facing: facingFor(desk.dir) };
     }
 
     // Where a coworker stands to work at each desk (body centre, px), for the chair reach debug view

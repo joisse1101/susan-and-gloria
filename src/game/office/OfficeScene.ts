@@ -166,7 +166,14 @@ export class OfficeScene extends Phaser.Scene {
             isInWorkZone: (sprite) => this.work.isInZone(sprite),
             claimDesk: () => this.work.claimFor('player', this.player),
             releaseDesk: () => this.work.releaseFor('player'),
-            isTyping: () => this.chat.isTyping
+            isTyping: () => this.chat.isTyping,
+            fetchChair: () => {
+                // The spot and facing are only read when the trip starts, while the player is still in the zone
+                const target = this.work.spotAndFacing(this.player);
+                return this.npcSeats.ready('player', target?.facing ?? this.facing, target?.spot);
+            },
+            releaseChair: () => this.npcSeats.release('player'),
+            gaveUp: () => this.npcSeats.hasGivenUp('player')
         });
 
         this.player.body.pushable = false; // chairs move out of its way, not the other way round
@@ -222,15 +229,22 @@ export class OfficeScene extends Phaser.Scene {
 
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
+            // Debug: press B to make the player's current or next chair trip fail as if blocked (the chat box can't be
+            // open then, since a trip stops while typing)
+            this.input.keyboard.on('keydown-B', () => {
+                if (!this.chat.isTyping) this.npcSeats.forceBlock('player');
+            });
         }
     }
 
     override update() {
-        const pulling = !this.chat.isTyping && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true);
+        const pulling = !this.chat.isTyping && !this.playerWork.isFetching() && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true);
         if (!pulling) this.chairs.grab(this.player, false);
         const speed = pulling ? PULL_SPEED : 160;
         this.player.setVelocity(0);
 
+        // A movement key is the player taking control: it cancels the chair trip, whose own walking is not "moving"
+        const keyMoving = !this.chat.isTyping && (this.cursors.left.isDown || this.cursors.right.isDown || this.cursors.up.isDown || this.cursors.down.isDown);
         if (!this.chat.isTyping) {
             if (this.cursors.left.isDown) this.player.setVelocityX(-speed);
             else if (this.cursors.right.isDown) this.player.setVelocityX(speed);
@@ -242,12 +256,12 @@ export class OfficeScene extends Phaser.Scene {
         this.player.body.velocity.normalize().scale(speed);
         if (pulling) this.chairs.drag(this.player);
 
+        this.playerWork.update(keyMoving); // during a chair trip this sets the velocity
         const moving = this.player.body.velocity.lengthSq() > 0;
         this.updatePlayerAnim(moving);
-        this.playerWork.update(moving);
 
         this.sortByBottom(this.player);
-        this.updateWorkChair();
+        this.npcSeats.update('player');
         this.updateNpc('gloria', this.gloria);
         this.updateNpc('susan', this.susan);
         this.shadows.update();
@@ -381,24 +395,17 @@ export class OfficeScene extends Phaser.Scene {
         sprite.setDepth(sprite.y + sprite.displayHeight / 2);
     }
 
-    // Working with a chair in reach: it slides under the player and they sit; otherwise they work standing
-    private updateWorkChair() {
-        const working = this.playerWork.isWorking() && this.player.body.velocity.lengthSq() === 0;
-        if (working) this.npcSeats.ready('player', this.facing);
-        else this.npcSeats.release('player');
-        this.npcSeats.update('player');
-    }
-
     private updatePlayerAnim(moving: boolean) {
         const { x, y } = this.player.body.velocity;
         if (x !== 0) this.facing = x < 0 ? 'left' : 'right';
         else if (y !== 0) this.facing = y < 0 ? 'up' : 'down';
         if (!moving && this.playerWork.isWorking()) {
             if (this.npcSeats.isSeated('player')) {
+                this.facing = this.player.getData(FACING) ?? this.facing; // the way they sat down, facing the desk
                 this.player.anims.play(typeAnimKey(this.facing), true);
                 return;
             }
-            // Standing work (no chair, or it is still sliding in): hold the idle animation's first frame
+            // Standing work (no chair, or gave up on it): hold the idle animation's first frame
             const key = animKey('idle', this.facing);
             if (this.player.anims.currentAnim?.key !== key || this.player.anims.isPlaying) {
                 this.player.anims.play(key);
