@@ -177,7 +177,7 @@ export class OfficeScene extends Phaser.Scene {
             updateWork: (name) => this.work.update(name),
             isBusy: (name) => this.bubbles.isVisible(name),
             isPushingChair: (npc) => this.chairs.isPushing(npc)
-        });
+        }, this.walkGrid);
 
         // 3. WORLD COLLISION: Enable solid boundaries
         this.player.setCollideWorldBounds(true);

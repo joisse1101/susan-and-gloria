@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run lint` — ESLint
 - `npm run preview` — serve the built bundle
 
-There is no test runner configured.
+- `npm test` — Vitest (`vitest run`); covers the wander grid and pathfinding (`interaction/npc/pathing.test.ts`). Pure logic only: nothing that needs Phaser's runtime is tested.
 
 ## Architecture
 

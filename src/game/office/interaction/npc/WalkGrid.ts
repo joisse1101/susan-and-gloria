@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 
 // Cell edge in px. The coworker's feet body is FEET_HEIGHT * SPRITE_SCALE (8) px tall, so one row of cells matches it
 export const CELL = 8;
