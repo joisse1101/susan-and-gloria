@@ -26,17 +26,17 @@ Everything in this group is done, and every test passing, before any task in gro
 - [x] 4.1 Add the actor adapter (sprite, interrupted, standing still, say, owner id) for Susan, Gloria and the player; verify with unit tests that interruptions match `office-interaction-trigger`
 - [x] 4.2 Claim the plant with one holder at a time; verify with a unit test that a second actor cannot claim it and that every way out releases it
 - [ ] 4.3 Add the praise phrase list beside the work phrases, and have a newcomer who finds the plant being watered say one once per encounter (coworkers by mutter, the player in their bubble); verify with a unit test that the line is said once and not repeated until the newcomer has left reach and come back, and in the game that a coworker passing the watering player says one
-- [ ] 4.4 Route an actor to the nearest open spot beside the plant (shared route, bump-and-replan, give-up) and step flush and face it with the shared approach step; verify in the game that a coworker goes to the open side, never the wall side, and gives up cleanly when blocked
-- [ ] 4.5 Run the watering for the set duration, then free the plant and start the cooldown; verify a coworker waters, stops, and does not restart until the cooldown has passed
+- [x] 4.4 Route an actor to the nearest open spot beside the plant (shared route, bump-and-replan, give-up) and step flush and face it with the shared approach step; verify in the game that a coworker goes to the open side, never the wall side, and gives up cleanly when blocked
+- [x] 4.5 Run the watering for the set duration, then free the plant and start the cooldown; verify a coworker waters, stops, and does not restart until the cooldown has passed
 - [ ] 4.6 Add the player's walk to the plant, cancelled by any movement key, typing or chat with no line said; verify the player is only taken over when standing still, and does not restart after a cancel until they have left reach
-- [ ] 4.6b Add the chat commands `/gloria-water` and `/susan-water` beside the work commands: the named coworker drops what it is doing and goes to the plant now, ignoring the reach, the cooldown and the start conditions but still needing the plant to be free; verify in the game that each sends that coworker to the plant, that they work while it is held, and that nothing happens when the plant is held
-- [ ] 4.7 Register watering with the registry after work; verify a coworker never does both, work wins a same-frame tie, speaking to a watering coworker stops it, and a coworker at the plant cannot be pushed
+- [x] 4.6b Add the chat commands `/gloria-water` and `/susan-water` beside the work commands: the named coworker drops what it is doing and goes to the plant now, ignoring the reach, the cooldown and the start conditions but still needing the plant to be free; verify in the game that each sends that coworker to the plant, that they work while it is held, and that nothing happens when the plant is held
+- [x] 4.7 Register watering with the registry after work; verify a coworker never does both, work wins a same-frame tie, speaking to a watering coworker stops it, and a coworker at the plant cannot be pushed
 
 ## 5. Sprites
 
 No sprite prerequisite: `WorkStanding.png` (all three characters) and `WateringCanStanding.png` already exist; the stream is lifted by `STAND_LIFT` (3px) in code.
 
-- [ ] 5.1 Play the standing pose (`<name>-stand-<facing>` from `WorkStanding.png`) for the facing while watering; verify in the game that each character stands facing the plant in all four directions
+- [x] 5.1 Play the standing pose (`<name>-stand-<facing>` from `WorkStanding.png`) for the facing while watering; verify in the game that each character stands facing the plant in all four directions
 - [ ] 5.2 Load `WateringCanStanding.png` and `WaterStream.png`, draw the can and stream (raised by `STAND_LIFT`) as overlays following the actor (back view behind the character, the rest in front), and hide them when watering ends; verify the can lines up with the standing hands for all three characters in all four directions, with Gloria's front view offset by -1 y
 - [ ] 5.3 Judge all three views in the game, using the debug commands: the side stream from the left and right of the plant, the front stream from below it, and the back stream from the north-wall side. Check for each that the stream lands on the plant and that the can lines up with the hands; verify by running the game and recording a verdict per view in this change
 

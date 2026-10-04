@@ -51,6 +51,17 @@ export const JAM_PHRASES = [
     'leave it as is...',
     'don\'t go out of your way...'
 ];
+// Said (picked at random) by whoever comes near the plant while someone else waters it, once per visit. Add or edit lines freely.
+export const PRAISE_PHRASES = [
+    'good work!',
+    'looking good!',
+    'thanks!',
+    'that\'s beautiful!',
+    'nice, it needed that!',
+    'it looks happy!',
+    'you\'re doing great!',
+    'so green!'
+];
 export const WORK_PHRASES = [
     // Thinking & Processing
     'hmm...',

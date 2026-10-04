@@ -9,6 +9,8 @@ export interface WaterActor {
     // A coworker with a bubble up, or the player pressing a key, typing or with a bubble up: stops it (office-interaction-trigger)
     interrupted(): boolean;
     standingStill(): boolean;
+    // Says one of the lines (picked at random) in this actor's bubble, then takes it down again
+    say(lines: string[]): void;
     // The player must stand still to be taken over; a coworker can walk in
     stillRequired: boolean;
 }

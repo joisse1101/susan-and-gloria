@@ -5,7 +5,8 @@ import { PathFollower } from './npc/PathFollower';
 import { facingFor, spotAgainst } from './npc/deskSpot';
 import { stepOntoSpot } from './npc/approach';
 import { routeToRect } from './npc/route';
-import { shouldStart } from './trigger';
+import { shouldStart, stillBlocked } from './trigger';
+import { PRAISE_PHRASES } from './workPhrases';
 import { containsPx } from './zones';
 import { reachZone, standSide, type Plant } from './plants';
 import type { PlantShared } from './plantShared';
@@ -38,6 +39,8 @@ export interface WaterHost<Id extends string> {
 // player (one instance each, sharing the plants' claims and cooldowns), and reads only the actor adapter.
 export class WaterInteraction<Id extends string> implements Interaction<Id> {
     private trips = new Map<Id, Trip>();
+    // Actors that must stand still to start (the player): set when a trip ends, until they have left the plant's reach
+    private ended = new Map<Id, boolean>();
     private scene: Phaser.Scene;
     private host: WaterHost<Id>;
     private shared: PlantShared;
@@ -74,14 +77,28 @@ export class WaterInteraction<Id extends string> implements Interaction<Id> {
     private maybeStart(id: Id, actor: WaterActor): boolean {
         const now = this.scene.time.now;
         const { x, y } = actor.sprite.body.center;
+        const interrupted = actor.interrupted();
+        const standingStill = actor.standingStill();
+        const inReach = (plant: Plant) => containsPx(reachZone(plant, WATER_REACH_TILES), plant.tileSize, x, y);
+        // Where the player's last watering ended, standing still does not start another until they have left reach
+        if (actor.stillRequired) this.ended.set(id, stillBlocked(this.ended.get(id) ?? false, this.shared.plants.some(inReach), true));
         for (const plant of this.shared.plants) {
+            const near = inReach(plant);
+            const holder = this.shared.slots.holderOf(plant.id);
+            // Finding someone else at the plant: a praise line, once per visit
+            const praise = this.shared.praise.update(id, plant.id, {
+                inReach: near,
+                someoneWaters: holder !== undefined && holder !== id,
+                canSay: !interrupted && (!actor.stillRequired || standingStill)
+            });
+            if (praise) actor.say(PRAISE_PHRASES);
             const go = shouldStart({
-                inReach: containsPx(reachZone(plant, WATER_REACH_TILES), plant.tileSize, x, y),
-                interrupted: actor.interrupted(),
-                onCooldown: this.shared.cooldowns.isCoolingDown(plant.id, now),
+                inReach: near,
+                interrupted,
+                onCooldown: this.shared.cooldowns.isCoolingDown(plant.id, now) || (this.ended.get(id) ?? false),
                 free: this.shared.slots.isFree(plant.id, id),
                 stillRequired: actor.stillRequired,
-                standingStill: actor.standingStill()
+                standingStill
             });
             if (go) return this.begin(id, actor, plant);
         }
@@ -153,6 +170,7 @@ export class WaterInteraction<Id extends string> implements Interaction<Id> {
         const trip = this.trips.get(id);
         if (!trip) return;
         this.trips.delete(id);
+        if (this.host.actor(id).stillRequired) this.ended.set(id, true);
         this.shared.finish(trip.plant.id, id, this.scene.time.now, WATER_COOLDOWN_MS);
     }
 

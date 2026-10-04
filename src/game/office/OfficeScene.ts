@@ -41,7 +41,9 @@ import { scanInteractionTiles } from './interaction/zones';
 import { WATER_REACH_TILES } from './interaction/waterTuning';
 import { WaterInteraction } from './interaction/WaterInteraction';
 import { PlantShared } from './interaction/plantShared';
-import { coworkerInterrupted } from './interaction/waterActor';
+import { coworkerInterrupted, playerInterrupted } from './interaction/waterActor';
+import { SayThenHide } from './interaction/sayThenHide';
+import { WORK_PHRASE_MS } from './interaction/workPhrases';
 import {
     PLAYER_BODY,
     PLAYER_IDLE_KEY,
@@ -81,6 +83,12 @@ export class OfficeScene extends Phaser.Scene {
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private work!: WorkInteraction;
     private coworkerWater!: WaterInteraction<NpcName>;
+    private playerWater!: WaterInteraction<'player'>;
+    private plantShared!: PlantShared;
+    // Praise lines each coworker says, and the line the player's bubble shows (it must not count as chat)
+    private praiseSayers = new Map<NpcName, SayThenHide>();
+    private playerPraiseLine?: string;
+    private playerPraiser?: SayThenHide;
     // What each actor is doing, in priority order (work first); the scene asks these, never the interactions
     private coworkerInteractions = new InteractionRegistry<NpcName>();
     private playerInteractions = new InteractionRegistry<'player'>();
@@ -169,6 +177,7 @@ export class OfficeScene extends Phaser.Scene {
         });
         const plants = mergePlants(waterCells, waterTileSize);
         // Coworkers water after work in priority; the plant's claim and cooldown are shared by every actor
+        this.plantShared = new PlantShared(plants);
         this.coworkerWater = new WaterInteraction<NpcName>(this, {
             actor: (name) => {
                 const sprite = this.npcSprite(name);
@@ -176,11 +185,12 @@ export class OfficeScene extends Phaser.Scene {
                     sprite,
                     interrupted: () => coworkerInterrupted(this.bubbles.isVisible(name)),
                     standingStill: () => sprite.body.velocity.lengthSq() === 0,
+                    say: (lines) => this.praiseSayer(name).say(lines),
                     stillRequired: false
                 };
             },
             walkGrid: () => this.walkGrid
-        }, new PlantShared(plants));
+        }, this.plantShared);
         this.coworkerInteractions.register(this.coworkerWater);
         // Press P to outline each plant (blue) and the zone an actor must be in to water it (white)
         new PlantOverlay(this, plants.map((p) => ({ rect: p.rect, reach: reachZone(p, WATER_REACH_TILES), tileSize: p.tileSize })), SPEECH_DEPTH - 1, 'P', () => this.chat.isTyping);
@@ -225,6 +235,18 @@ export class OfficeScene extends Phaser.Scene {
             gaveUp: () => this.npcSeats.hasGivenUp('player')
         });
         this.playerInteractions.register(this.playerWork);
+        // The player waters after work: standing still near a plant starts the walk, a key, typing or chat stops it
+        this.playerWater = new WaterInteraction<'player'>(this, {
+            actor: () => ({
+                sprite: this.player,
+                interrupted: () => playerInterrupted(this.keyMoving, this.chat.isTyping, this.chat.bubble.visible && this.chat.bubble.text !== this.playerPraiseLine),
+                standingStill: () => !this.keyMoving,
+                say: (lines) => this.playerPraise().say(lines),
+                stillRequired: true
+            }),
+            walkGrid: () => this.walkGrid
+        }, this.plantShared);
+        this.playerInteractions.register(this.playerWater);
 
         this.player.body.pushable = false; // chairs move out of its way, not the other way round
         this.chairs = new Chairs(this, this.shadows);
@@ -345,6 +367,46 @@ export class OfficeScene extends Phaser.Scene {
         this.chairs.gate([{ id: 'player', kind: 'player', sprite: this.player }, { id: 'gloria', kind: 'coworker', sprite: this.gloria, immovable: this.isImmovable('gloria') }, { id: 'susan', kind: 'coworker', sprite: this.susan, immovable: this.isImmovable('susan') }]);
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
         this.chat.bubble.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
+    }
+
+    // A coworker's praise line: a mutter, taken down after a moment
+    private praiseSayer(name: NpcName) {
+        let sayer = this.praiseSayers.get(name);
+        if (!sayer) {
+            sayer = new SayThenHide({
+                say: (text, onDone) => this.bubbles.mutter(name, text, onDone),
+                hide: () => this.bubbles.hideMutter(name),
+                later: (ms, fn) => this.time.delayedCall(ms, fn),
+                pick: (lines) => Phaser.Utils.Array.GetRandom(lines)
+            }, WORK_PHRASE_MS);
+            this.praiseSayers.set(name, sayer);
+        }
+        return sayer;
+    }
+
+    // The player's praise line, in their own bubble (grey italic like their work lines)
+    private playerPraise() {
+        this.playerPraiser ??= new SayThenHide({
+            say: (text, onDone) => {
+                const { bubble } = this.chat;
+                bubble.setStyle({ fontStyle: 'italic', color: '#555555' });
+                bubble.setText(text);
+                bubble.setVisible(true);
+                this.playerPraiseLine = text;
+                onDone?.();
+            },
+            hide: () => {
+                const { bubble } = this.chat;
+                // Typing or a sent message has taken the bubble over since
+                if (bubble.text !== this.playerPraiseLine || this.chat.isTyping) return;
+                bubble.setStyle({ fontStyle: 'normal', color: '#000000' });
+                bubble.setVisible(false);
+                this.playerPraiseLine = undefined;
+            },
+            later: (ms, fn) => this.time.delayedCall(ms, fn),
+            pick: (lines) => Phaser.Utils.Array.GetRandom(lines)
+        }, WORK_PHRASE_MS * 2);
+        return this.playerPraiser;
     }
 
     private npcSprite(name: NpcName) {
