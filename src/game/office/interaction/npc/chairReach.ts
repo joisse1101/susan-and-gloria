@@ -11,14 +11,17 @@ export const MAX_CHAIR_ROUTE_TILES = 15;
 export const PARK_PX = 16;
 // The staging cell can be blocked next to the desk; settle for a reachable one this close (in cells)
 const STAGING_FALLBACK_CELLS = 4;
+// A chair sitting in the fringe next to a wall has no clear cell of its own; it is dragged from one this close (cells)
+const DRAG_START_RADIUS_CELLS = 3;
 const CELLS_PER_TILE = 32 / CELL;
 
 export interface Point { x: number; y: number }
 
-// A chair as seen by the planner: where its body centre is (px) and whether someone else has claimed it
-export interface ChairProbe extends Point { claimed: boolean }
+// A chair as seen by the planner: where its body centre is (px), whether someone else has claimed it and whether it
+// recently jammed someone and is being left alone
+export interface ChairProbe extends Point { claimed: boolean; coolingDown?: boolean }
 
-export type RejectReason = 'claimed' | 'too-far' | 'no-route' | 'route-too-long';
+export type RejectReason = 'claimed' | 'recently-jammed' | 'too-far' | 'no-route' | 'route-too-long' | 'no-drag-route';
 
 // What happened to the chair at `index` of the input: its walking route in tiles, or why it was filtered out
 export interface ChairReach {
@@ -70,6 +73,7 @@ export function chairsInReach(grid: WalkGrid, spot: Point, chairs: ChairProbe[])
     const start = nearestWalkableCell(grid, spotCell.cx, spotCell.cy);
     return chairs.map((chair, index): ChairReach => {
         if (chair.claimed) return { index, reason: 'claimed' };
+        if (chair.coolingDown) return { index, reason: 'recently-jammed' };
         if (Math.hypot(chair.x - spot.x, chair.y - spot.y) > FETCH_RANGE) return { index, reason: 'too-far' };
         const c = cellOf(chair);
         const goal = nearestWalkableCell(grid, c.cx, c.cy);
@@ -89,17 +93,42 @@ export function inReachByRoute(results: ChairReach[]) {
 }
 
 // The two routed legs of a fetch: coworker to the chair, then the chair dragged to the staging point half a tile
-// behind the spot (`back` is the unit vector from the desk side towards the chair side). The last step, from the
-// staging point onto the exact spot, is short and straight, so it isn't planned. Null when either leg has no route.
-export function planChairFetch(grid: WalkGrid, npc: Point, chair: Point, spot: Point, back: Point): ChairPlan | null {
-    const chairCell = nearestWalkableCell(grid, cellOf(chair).cx, cellOf(chair).cy);
+// behind the spot (`back` is the unit vector from the desk side towards the chair side). The walk to the chair only
+// needs room for the coworker (`walkGrid`); the drag needs room for the chair too (`clearGrid`), including the
+// staging cell. The last step, from the staging point onto the exact spot, is short and straight, so it isn't planned.
+// Null when either leg has no route, or the chair has no clear cell to be dragged from.
+export function planChairFetch(walkGrid: WalkGrid, clearGrid: WalkGrid, npc: Point, chair: Point, spot: Point, back: Point): ChairPlan | null {
+    const chairCell = nearestWalkableCell(walkGrid, cellOf(chair).cx, cellOf(chair).cy);
     if (!chairCell) return null;
-    const toChair = planLeg(grid, npc, chairCell);
+    const toChair = planLeg(walkGrid, npc, chairCell);
     if (!toChair) return null;
+    const dragStart = nearestWalkableCell(clearGrid, cellOf(chair).cx, cellOf(chair).cy, DRAG_START_RADIUS_CELLS);
+    if (!dragStart) return null;
     const staging = { x: spot.x + back.x * PARK_PX, y: spot.y + back.y * PARK_PX };
-    const stagingCell = nearestReachableCell(grid, chairCell, cellOf(staging), STAGING_FALLBACK_CELLS);
+    const stagingCell = nearestReachableCell(clearGrid, dragStart, cellOf(staging), STAGING_FALLBACK_CELLS);
     if (!stagingCell) return null;
-    const dragPath = findPath(grid, chairCell, stagingCell);
+    const dragPath = findPath(clearGrid, dragStart, stagingCell);
     if (!dragPath) return null;
-    return { toChair, stagingCell, staging, drag: { start: chairCell, path: dragPath } };
+    return { toChair, stagingCell, staging, drag: { start: dragStart, path: dragPath } };
+}
+
+export interface FetchCandidate { index: number; routeTiles: number; plan: ChairPlan }
+
+// Which chairs a walker at `spot` can fetch, best first (shortest walking route), and why each other one cannot.
+// Used by the fetch and the chair-reach debug view, so they cannot disagree.
+export function fetchCandidates(walkGrid: WalkGrid, clearGrid: WalkGrid, npc: Point, spot: Point, back: Point, chairs: ChairProbe[]) {
+    const results = chairsInReach(walkGrid, spot, chairs);
+    const usable: FetchCandidate[] = [];
+    const rejected: { index: number; reason: RejectReason }[] = [];
+    for (const r of results) {
+        if (r.reason) {
+            rejected.push({ index: r.index, reason: r.reason });
+            continue;
+        }
+        const plan = planChairFetch(walkGrid, clearGrid, npc, chairs[r.index], spot, back);
+        if (plan) usable.push({ index: r.index, routeTiles: r.routeTiles!, plan });
+        else rejected.push({ index: r.index, reason: 'no-drag-route' });
+    }
+    usable.sort((a, b) => a.routeTiles - b.routeTiles);
+    return { usable, rejected };
 }

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { WalkGrid } from './WalkGrid';
-import { chairsInReach, FETCH_RANGE, type ChairProbe, type Point, type RejectReason } from './chairReach';
+import { fetchCandidates, FETCH_RANGE, type ChairProbe, type Point, type RejectReason } from './chairReach';
 
 const IN_REACH = 0x00cc44;
 const REJECTED = 0xee2222;
@@ -8,16 +8,21 @@ const REFRESH_MS = 100;
 const TARGET = 0xffcc00;
 const LABELS: Record<RejectReason, string> = {
     claimed: 'claimed',
+    'recently-jammed': 'recently jammed',
     'too-far': 'too far',
     'no-route': 'no route',
-    'route-too-long': 'route too long'
+    'route-too-long': 'route too long',
+    'no-drag-route': 'no drag route'
 };
 
 // What the overlay reads: where coworkers work, the loose chairs, and the grid routes are planned on
 export interface ChairReachSource {
-    spots(): Point[];
+    // `back` is the unit vector from the desk side towards the chair side (where the chair is parked)
+    spots(): (Point & { back: Point })[];
     chairs(): ChairProbe[];
     grid(): WalkGrid;
+    // The grid with room for a dragged chair
+    clearGrid(): WalkGrid;
     // The desk each coworker is heading for or working at: where it stands now, the work spot, and the work tile (px)
     targets(): { name: string; from: Point; spot: Point; tile: { x0: number; y0: number; x1: number; y1: number } }[];
 }
@@ -26,7 +31,7 @@ export interface ChairReachSource {
 // to each chair that is close enough to be routed. Green = in reach (labelled with the walking route in tiles),
 // red = filtered out (labelled with why). A chair no spot can reach in a straight line, or that is claimed, gets a
 // red ring at the chair instead. Yellow marks the desk each coworker is heading for (tile outlined, a line from the
-// coworker to the spot, labelled with their name). It only reads state, and it uses the same chairsInReach the coworkers fetch with.
+// coworker to the spot, labelled with their name). It only reads state, and it uses the same fetchCandidates the coworkers fetch with.
 export class ChairReachOverlay {
     private readonly graphics: Phaser.GameObjects.Graphics;
     private readonly labels: Phaser.GameObjects.Text[] = [];
@@ -69,12 +74,18 @@ export class ChairReachOverlay {
 
         const chairs = this.source.chairs();
         const grid = this.source.grid();
+        const clearGrid = this.source.clearGrid();
         const reachedByNone = new Set(chairs.keys());
         for (const spot of this.source.spots()) {
             g.lineStyle(1, 0xffffff, 0.4).strokeCircle(spot.x, spot.y, FETCH_RANGE);
             g.fillStyle(0xffffff, 0.8).fillCircle(spot.x, spot.y, 2);
-            for (const r of chairsInReach(grid, spot, chairs)) {
-                if (r.reason === 'claimed' || r.reason === 'too-far') continue;
+            const { usable, rejected } = fetchCandidates(grid, clearGrid, spot, spot, spot.back, chairs);
+            const results = [
+                ...usable.map((u) => ({ index: u.index, routeTiles: u.routeTiles, reason: undefined })),
+                ...rejected.map((r) => ({ index: r.index, routeTiles: undefined, reason: r.reason }))
+            ];
+            for (const r of results) {
+                if (r.reason === 'claimed' || r.reason === 'recently-jammed' || r.reason === 'too-far') continue;
                 reachedByNone.delete(r.index);
                 const chair = chairs[r.index];
                 const color = r.reason ? REJECTED : IN_REACH;
@@ -86,7 +97,7 @@ export class ChairReachOverlay {
         for (const i of reachedByNone) {
             const chair = chairs[i];
             g.lineStyle(1, REJECTED, 0.9).strokeCircle(chair.x, chair.y, 8);
-            label(chair.x, chair.y - 10, chair.claimed ? LABELS.claimed : LABELS['too-far'], REJECTED);
+            label(chair.x, chair.y - 10, chair.claimed ? LABELS.claimed : chair.coolingDown ? LABELS['recently-jammed'] : LABELS['too-far'], REJECTED);
         }
         for (const t of this.source.targets()) {
             g.lineStyle(2, TARGET, 1).strokeRect(t.tile.x0, t.tile.y0, t.tile.x1 - t.tile.x0, t.tile.y1 - t.tile.y0);

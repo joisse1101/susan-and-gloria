@@ -29,6 +29,7 @@ import { NpcBubbles, type NpcName } from './interaction/npc/NpcBubbles';
 import { WALK_SPEED_KEY } from './interaction/npc/PathFollower';
 import { Wander } from './interaction/npc/Wander';
 import { WalkGrid } from './interaction/npc/WalkGrid';
+import { CHAIR_CLEARANCE_CELLS } from './chairTuning';
 import { WalkGridOverlay } from './interaction/npc/WalkGridOverlay';
 import { ChairReachOverlay } from './interaction/npc/ChairReachOverlay';
 import { Chat } from './interaction/player/Chat';
@@ -84,6 +85,8 @@ export class OfficeScene extends Phaser.Scene {
     private npcSeats!: NpcSeats;
     private chairReach!: ChairReachOverlay;
     private walkGrid!: WalkGrid;
+    // Same obstacles, but a cell only counts when a chair fits around it: the pull is planned on this one
+    private clearGrid!: WalkGrid;
 
     // Set by OfficeGame before create() runs, so it lives here rather than on Chat
     public setSayHandler(handler: (text: string) => boolean) {
@@ -143,7 +146,10 @@ export class OfficeScene extends Phaser.Scene {
         // this.work.drawZones(SPEECH_DEPTH - 1); // TODO: some button or env to toggle show
         // Static solids are all in place now, so the walkable grid is built once here. Press G to show it (green = walkable, red = blocked)
         this.walkGrid = new WalkGrid(this.physics.world.bounds, this.obstacles);
+        this.clearGrid = new WalkGrid(this.physics.world.bounds, this.obstacles, CHAIR_CLEARANCE_CELLS);
         new WalkGridOverlay(this, this.walkGrid, SPEECH_DEPTH - 1, 'G', () => this.chat.isTyping);
+        // Press H to show where a dragged chair fits (green), where only a coworker does (yellow) and what is blocked (red)
+        new WalkGridOverlay(this, this.walkGrid, SPEECH_DEPTH - 1, 'H', () => this.chat.isTyping, this.clearGrid);
 
         // Pieces: place(name, centreX, centreY, { solid, flat, atlas }). Names live in interiorAtlas.ts; for officeAtlas.ts names pass atlas: 'office'
         // To add an object: pick a frame name, a position in canvas px (640x416), and solid (collision height in px) if it should block the player.
@@ -182,13 +188,14 @@ export class OfficeScene extends Phaser.Scene {
         this.chairs.add(450, 300, 'chairS');
         this.chairs.add(260, 380, 'chairSE');
         this.chairs.add(330, 380, 'chairW');
-        this.npcSeats = new NpcSeats(this, this.chairs, (name) => (name === 'player' ? this.player : name === 'susan' ? this.susan : this.gloria), () => this.walkGrid);
+        this.npcSeats = new NpcSeats(this, this.chairs, (name) => (name === 'player' ? this.player : name === 'susan' ? this.susan : this.gloria), () => this.walkGrid, () => this.clearGrid);
         // Press C to show which chairs a coworker working at each desk can reach, and why the others are filtered out
         this.chairReach = new ChairReachOverlay(this, {
             spots: () => this.work.workSpots(),
             targets: () => this.work.targets(),
             chairs: () => this.chairs.all().filter((c) => c.active).map((c) => ({ x: c.body.center.x, y: c.body.center.y, claimed: this.chairs.isClaimed(c) })),
-            grid: () => this.walkGrid
+            grid: () => this.walkGrid,
+            clearGrid: () => this.clearGrid
         }, SPEECH_DEPTH - 1, 'C', () => this.chat.isTyping);
 
         this.gloria = this.createSheetCoworker(GLORIA_SPRITE, 170, 150);

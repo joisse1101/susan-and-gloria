@@ -7,7 +7,7 @@ import type { NpcName } from './NpcBubbles';
 import type { WalkGrid } from './WalkGrid';
 import { nearestReachableCell, type Cell } from './pathfinding';
 import { PathFollower, walkSpeedOf } from './PathFollower';
-import { cellOf, chairsInReach, inReachByRoute, PARK_PX, planChairFetch, planLeg } from './chairReach';
+import { cellOf, fetchCandidates, PARK_PX, planLeg } from './chairReach';
 
 type Npc = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 type Chair = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -64,16 +64,19 @@ export class NpcSeats {
     private chairs: Chairs;
     private npc: (name: SeatUser) => Npc;
     private grid: () => WalkGrid;
+    // Room for the chair as well as the walker: used for the whole pull
+    private clearGrid: () => WalkGrid;
     private states = new Map<SeatUser, Seating>();
     private layers = new Map<SeatUser, SeatLayers>();
     // Debug (B key): trips that are to fail as if blocked
     private forcedBlocks = new Set<SeatUser>();
 
-    constructor(scene: Phaser.Scene, chairs: Chairs, npc: (name: SeatUser) => Npc, grid: () => WalkGrid) {
+    constructor(scene: Phaser.Scene, chairs: Chairs, npc: (name: SeatUser) => Npc, grid: () => WalkGrid, clearGrid: () => WalkGrid) {
         this.scene = scene;
         this.chairs = chairs;
         this.npc = npc;
         this.grid = grid;
+        this.clearGrid = clearGrid;
     }
 
     // Call every frame once the coworker is at their work spot, until it returns true (ready to work).
@@ -187,22 +190,19 @@ export class NpcSeats {
     }
 
     // Among the loose chairs in reach (straight-line range, then walking route cap) take the one with the shortest
-    // route that also has a route for dragging it to the desk
+    // route that also has a route clear enough to drag it to the desk
     private pickChairByRoute(npc: Npc, s: Seating) {
-        const grid = this.grid();
         const chairs = this.chairs.all();
         const probes = chairs.map((c) => ({ x: c.body.center.x, y: c.body.center.y, claimed: this.chairs.isClaimed(c) }));
         const npcPos = { x: npc.body.center.x, y: npc.body.center.y };
-        for (const { index } of inReachByRoute(chairsInReach(grid, s.spot, probes))) {
-            const plan = planChairFetch(grid, npcPos, probes[index], s.spot, SEAT_BACK[s.facing]);
-            if (!plan) continue;
-            this.chairs.claim(chairs[index]);
-            s.chair = chairs[index];
-            s.phase = 'go';
-            s.follower = new PathFollower(plan.toChair.start, plan.toChair.path);
-            s.stagingCell = plan.stagingCell;
-            return;
-        }
+        const { usable } = fetchCandidates(this.grid(), this.clearGrid(), npcPos, s.spot, SEAT_BACK[s.facing], probes);
+        const best = usable[0];
+        if (!best) return;
+        this.chairs.claim(chairs[best.index]);
+        s.chair = chairs[best.index];
+        s.phase = 'go';
+        s.follower = new PathFollower(best.plan.toChair.start, best.plan.toChair.path);
+        s.stagingCell = best.plan.stagingCell;
     }
 
     private go(npc: Npc, s: Seating) {
@@ -226,7 +226,7 @@ export class NpcSeats {
     // Take hold: route from here to the staging point half a tile behind the spot
     private startPull(npc: Npc, s: Seating) {
         npc.setVelocity(0);
-        const leg = s.stagingCell ? planLeg(this.grid(), this.centre(npc), s.stagingCell) : null;
+        const leg = s.stagingCell ? planLeg(this.clearGrid(), this.centre(npc), s.stagingCell) : null;
         if (!leg) {
             this.abandon(npc, s);
             return;
@@ -240,7 +240,7 @@ export class NpcSeats {
         const chair = s.chair!;
         if (s.follower) {
             if (this.blocked(npc, s)) {
-                const leg = s.bumps > MAX_BUMPS || !s.stagingCell ? null : planLeg(this.grid(), this.centre(npc), s.stagingCell);
+                const leg = s.bumps > MAX_BUMPS || !s.stagingCell ? null : planLeg(this.clearGrid(), this.centre(npc), s.stagingCell);
                 if (!leg) {
                     this.abandon(npc, s);
                     return;

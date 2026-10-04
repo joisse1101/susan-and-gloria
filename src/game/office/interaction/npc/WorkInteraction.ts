@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { NpcName } from '../../OfficeScene';
+import { SEAT_BACK } from '../../furniture/SeatLayers';
 import { FACING } from './facing';
 import { CELL, type WalkGrid } from './WalkGrid';
 import { findPath, nearestReachableCell, nearestWalkableCell } from './pathfinding';
@@ -397,10 +398,13 @@ export class WorkInteraction {
         return { spot, facing: facingFor(desk.dir) };
     }
 
-    // Where a coworker stands to work at each desk (body centre, px), for the chair reach debug view
+    // Where a coworker stands to work at each desk (body centre, px) and the way its chair is parked behind it, for the chair reach debug view
     workSpots() {
         const { halfWidth, halfHeight } = this.host.npc('susan').body;
-        return this.tiles.map((d) => this.spotFor(d, halfWidth, halfHeight, (d.tx + 0.5) * this.tileSize));
+        return this.tiles.map((d) => ({
+            ...this.spotFor(d, halfWidth, halfHeight, (d.tx + 0.5) * this.tileSize),
+            back: SEAT_BACK[facingFor(d.dir) ?? 'down']
+        }));
     }
 
     // The desk each coworker is heading for, fetching a chair for, or working at (spot and tile in px, and where the

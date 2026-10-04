@@ -10,13 +10,23 @@ export const DESK_TAKEN_PHRASES = [
     'ah, taken. another time...',
     'guess I\'ll wait...'
 ];
-// The player says one of these when they give up fetching a chair, as if they forgot what they were doing
+// The player or a coworker says one of these when a chair trip ends and they can't get back to work (chair taken,
+// blocked, too slow), as if they forgot what they were doing
 export const FORGETFUL_PHRASES = [
     'what was I doing?',
     'hmm?',
     'wait, why did I come over here?',
     'huh, what was I after...',
     'now where was I going?'
+];
+// Said when a dragged chair jams: they let go of it and work standing instead
+export const JAM_PHRASES = [
+    'oh, never mind...',
+    'I\'ll make do...',
+    'good enough...',
+    'forget the chair...',
+    'I\'ll stand, then...',
+    'this will do...'
 ];
 export const WORK_PHRASES = [
     // Thinking & Processing

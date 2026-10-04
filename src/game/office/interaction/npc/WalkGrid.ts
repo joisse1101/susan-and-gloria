@@ -2,18 +2,20 @@ import type Phaser from 'phaser';
 
 // Cell edge in px. The coworker's feet body is FEET_HEIGHT * SPRITE_SCALE (8) px tall, so one row of cells matches it
 export const CELL = 8;
-// Cells either side of a cell that must also be free so the whole body fits (22px body -> 3 cells = 24px)
-const SIDE_CELLS = 1;
+// How many cells around a cell must also be free so a whole body fits: `side` cells left and right, `up` rows above,
+// `down` rows below. The coworker's 22px body is 3 cells wide and one row tall (the default); a towed chair needs more.
+export interface Footprint { side: number; up: number; down: number }
+export const WALKER_FOOTPRINT: Footprint = { side: 1, up: 0, down: 0 };
 
 // Which 8x8 px cells a coworker's feet can stand on. Built once from the static solids; chairs and characters are not in it.
-// A cell is walkable when the cell and its SIDE_CELLS neighbours left and right are free, so a path can be followed by centre point.
+// A cell is walkable when every cell of the footprint around it is free, so a path can be followed by centre point.
 export class WalkGrid {
     readonly cols: number;
     readonly rows: number;
     private readonly blocked: Uint8Array;
     private readonly walkable: Uint8Array;
 
-    constructor(world: Phaser.Geom.Rectangle, obstacles: Phaser.Physics.Arcade.StaticGroup) {
+    constructor(world: Phaser.Geom.Rectangle, obstacles: Phaser.Physics.Arcade.StaticGroup, footprint: Footprint = WALKER_FOOTPRINT) {
         this.cols = Math.ceil(world.right / CELL);
         this.rows = Math.ceil(world.bottom / CELL);
         this.blocked = new Uint8Array(this.cols * this.rows);
@@ -34,7 +36,9 @@ export class WalkGrid {
         for (let cy = 0; cy < this.rows; cy++) {
             for (let cx = 0; cx < this.cols; cx++) {
                 let free = true;
-                for (let dx = -SIDE_CELLS; dx <= SIDE_CELLS && free; dx++) free = !this.isBlocked(cx + dx, cy);
+                for (let dy = -footprint.up; dy <= footprint.down && free; dy++) {
+                    for (let dx = -footprint.side; dx <= footprint.side && free; dx++) free = !this.isBlocked(cx + dx, cy + dy);
+                }
                 this.walkable[cy * this.cols + cx] = free ? 1 : 0;
             }
         }
