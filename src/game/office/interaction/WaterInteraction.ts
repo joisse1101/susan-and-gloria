@@ -115,8 +115,6 @@ export class WaterInteraction<Id extends string> implements Interaction<Id> {
         if (!this.shared.slots.claim(plant.id, id)) return false;
         const side = standSide(plant, actor.sprite.body.center.x, actor.sprite.body.center.y);
         const follower = this.route(actor, plant, side);
-        // TEMP debug: where the trip starts, the side it picked and where the route ends
-        console.info('[water]', id, 'from', Math.round(actor.sprite.body.center.x), Math.round(actor.sprite.body.center.y), 'side', side, 'plant px', plant.rect, 'route ok', !!follower);
         if (!follower) {
             this.shared.finish(plant.id, id, now, WATER_COOLDOWN_MS);
             return false;
