@@ -35,6 +35,10 @@ import { WalkGridOverlay } from './interaction/npc/WalkGridOverlay';
 import { ChairReachOverlay } from './interaction/npc/ChairReachOverlay';
 import { Chat } from './interaction/player/Chat';
 import { PlayerWork } from './interaction/player/PlayerWork';
+import { mergePlants, plantCells, reachZone, type PlantCell } from './interaction/plants';
+import { PlantOverlay } from './interaction/plantOverlay';
+import { scanInteractionTiles } from './interaction/zones';
+import { WATER_REACH_TILES } from './interaction/waterTuning';
 import {
     PLAYER_BODY,
     PLAYER_IDLE_KEY,
@@ -151,7 +155,17 @@ export class OfficeScene extends Phaser.Scene {
             positionBubble: (name) => this.bubbles.position(name),
             styleThought: (bubble) => this.bubbles.styleThought(bubble)
         });
-        this.mapSize = loadOfficeMap(this, this.obstacles, (layer, tileset) => this.work.collectTiles(layer, tileset));
+        const waterCells: PlantCell[] = [];
+        let waterTileSize = 32;
+        this.mapSize = loadOfficeMap(this, this.obstacles, (layer, tileset) => {
+            this.work.collectTiles(layer, tileset);
+            const tiles = scanInteractionTiles(layer, tileset, 'water');
+            if (tiles.length) waterTileSize = tiles[0].tileSize;
+            waterCells.push(...plantCells(tiles));
+        });
+        const plants = mergePlants(waterCells, waterTileSize);
+        // Press P to outline each plant (blue) and the zone an actor must be in to water it (white)
+        new PlantOverlay(this, plants.map((p) => ({ rect: p.rect, reach: reachZone(p, WATER_REACH_TILES), tileSize: p.tileSize })), SPEECH_DEPTH - 1, 'P', () => this.chat.isTyping);
         // this.work.drawZones(SPEECH_DEPTH - 1); // TODO: some button or env to toggle show
         // Static solids are all in place now, so the walkable grid is built once here. Press G to show it (green = walkable, red = blocked)
         this.walkGrid = new WalkGrid(this.physics.world.bounds, this.obstacles);

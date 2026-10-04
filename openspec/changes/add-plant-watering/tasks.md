@@ -14,11 +14,11 @@ Everything in this group is done, and every test passing, before any task in gro
 
 - [x] 2.1 Switch `WorkInteraction` to the shared decision, zone and scan, route, approach step and say helper; verify the existing work tests pass unchanged
 - [x] 2.2 Switch `PlayerWork`/`playerSession` to the shared decision, and register both with the registry; replace the direct `work.cancel` calls in `NpcBubbles` and `showNpcThinking` with `cancelAll`, `isAtDesk`/`isImmovable`/`isWorking` with the registry queries, and `updateWork` in `Wander` with `updateInteractions`; verify `npm test`, `npm run lint` and `npm run build` pass
-- [ ] 2.3 Gate: run the game and check work is unchanged before any water code is written: `/gloria-work` and `/susan-work` send a coworker to a desk and it works; a coworker wandering past a free desk works; the player standing still in a zone fetches a chair, and walking through does not; speaking to a working coworker stops its work; a coworker is not pushable at its desk. Record the result in this change
+- [x] 2.3 Gate: run the game and check work is unchanged before any water code is written: `/gloria-work` and `/susan-work` send a coworker to a desk and it works; a coworker wandering past a free desk works; the player standing still in a zone fetches a chair, and walking through does not; speaking to a working coworker stops its work; a coworker is not pushable at its desk. Record the result in this change (verified by the user in the game: all five checks hold)
 
 ## 3. Plant objects
 
-- [ ] 3.1 Collect `interaction = water` tiles with the shared scan, dedupe cells, merge touching cells into plants with a bounding rectangle and an optional `direction`; verify with a unit test using the real map's tiles (14,3 on two layers and 15,3) that they form one plant
+- [x] 3.1 Collect `interaction = water` tiles with the shared scan, dedupe cells, merge touching cells into plants with a bounding rectangle and an optional `direction`; verify with a unit test using the real map's tiles (14,3 on two layers and 15,3) that they form one plant
 - [ ] 3.2 Add the plant's reach zone (0.5 tile on all sides) and a debug overlay for it; verify the overlay shows one zone around the two plant tiles
 
 ## 4. Watering interaction
