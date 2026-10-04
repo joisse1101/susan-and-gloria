@@ -20,7 +20,7 @@ export const CHAIR_MAX_SPEED = 120;
 
 // Top speed of each coworker, however they are moving (walking, shoved, pulled). One per coworker, so they can differ.
 // Their normal walking speed is this times COWORKER_WALK_FRACTION, so raising a coworker's max also speeds up their walk.
-export const COWORKER_MAX_SPEED = { susan: 80, gloria: 80 };
+export const COWORKER_MAX_SPEED = { susan: 80, gloria: 60 };
 // How much of its max speed a coworker walks at normally (0.5 of 80 is the old walking speed of 40)
 export const COWORKER_WALK_FRACTION = 0.5;
 
