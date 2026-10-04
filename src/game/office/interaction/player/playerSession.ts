@@ -1,3 +1,5 @@
+import { shouldStart } from '../trigger';
+
 // The player's work session: idle, fetching a chair (walking to it, dragging it, sitting), walking back to the
 // spot after a jammed chair, or working
 export type SessionState = 'idle' | 'fetching' | 'walkingBack' | 'working';
@@ -16,7 +18,14 @@ export interface SessionInput {
 export function nextSession(state: SessionState, i: SessionInput): SessionState {
     switch (state) {
         case 'idle':
-            return i.inZone && !i.moving && !i.typing && !i.done && !i.bubble ? 'fetching' : 'idle';
+            return shouldStart({
+                inReach: i.inZone,
+                interrupted: i.moving || i.typing || i.bubble,
+                onCooldown: i.done,
+                free: true, // the player works at a desk regardless of who else claimed it
+                stillRequired: true,
+                standingStill: !i.moving
+            }) ? 'fetching' : 'idle';
         case 'fetching':
             // Leaving the zone is not a stop: the trip itself leaves it
             if (i.moving || i.typing || i.bubble) return 'idle';

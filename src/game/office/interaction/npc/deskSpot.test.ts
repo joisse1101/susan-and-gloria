@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { facingFor, spotFor } from './deskSpot';
+import { facingFor, spotAgainst, spotFor } from './deskSpot';
 
 const TILE = 32;
 const HALF_W = 6;
@@ -30,6 +30,27 @@ describe('spotFor', () => {
 
     it('uses the tile centre when the tile has no direction', () => {
         expect(spotFor({ tx: 5, ty: 7 }, TILE, HALF_W, HALF_H, 0)).toEqual({ x: 5.5 * TILE, y: 7.5 * TILE });
+    });
+});
+
+describe('spotAgainst', () => {
+    // a 2x1 tile rectangle at tiles 5-6, row 7
+    const rect = { x0: 5, y0: 7, x1: 7, y1: 8 };
+
+    it('stands flush on each side of a rectangle', () => {
+        expect(spotAgainst(rect, { dx: -1, dy: 0 }, TILE, HALF_W, HALF_H, 0)).toEqual({ x: 5 * TILE - HALF_W, y: 8 * TILE - HALF_H });
+        expect(spotAgainst(rect, { dx: 1, dy: 0 }, TILE, HALF_W, HALF_H, 0)).toEqual({ x: 7 * TILE + HALF_W, y: 8 * TILE - HALF_H });
+        expect(spotAgainst(rect, { dx: 0, dy: -1 }, TILE, HALF_W, HALF_H, 6 * TILE)).toEqual({ x: 6 * TILE, y: 7 * TILE - HALF_H });
+        expect(spotAgainst(rect, { dx: 0, dy: 1 }, TILE, HALF_W, HALF_H, 6 * TILE)).toEqual({ x: 6 * TILE, y: 8 * TILE + HALF_H });
+    });
+
+    it('clamps the position along the whole width of a wide rectangle', () => {
+        expect(spotAgainst(rect, { dx: 0, dy: 1 }, TILE, HALF_W, HALF_H, 0).x).toBe(5 * TILE);
+        expect(spotAgainst(rect, { dx: 0, dy: 1 }, TILE, HALF_W, HALF_H, 999).x).toBe(7 * TILE);
+    });
+
+    it("uses the rectangle's centre with no side", () => {
+        expect(spotAgainst(rect, undefined, TILE, HALF_W, HALF_H, 0)).toEqual({ x: 6 * TILE, y: 7.5 * TILE });
     });
 });
 

@@ -14,7 +14,7 @@ export interface NpcBubblesHost {
     npc(name: NpcName): Phaser.GameObjects.Sprite;
     mapWidth(): number;
     // Another activity takes over the bubble: stop the NPC's work walk / thinking dots
-    cancelWork(name: NpcName): void;
+    cancelAll(name: NpcName): void;
     stopThinking(name: NpcName): void;
 }
 
@@ -72,7 +72,7 @@ export class NpcBubbles {
     notice(name: NpcName) {
         const bubble = this.bubbles.get(name);
         if (!bubble) return;
-        this.host.cancelWork(name);
+        this.host.cancelAll(name);
         this.host.stopThinking(name);
         this.clearHideTimer(name);
 
@@ -132,7 +132,7 @@ export class NpcBubbles {
     setSpeech(name: NpcName, text: string) {
         const bubble = this.bubbles.get(name);
         if (!bubble) return;
-        this.host.cancelWork(name);
+        this.host.cancelAll(name);
         this.host.stopThinking(name);
         this.clearHideTimer(name);
 

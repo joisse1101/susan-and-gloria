@@ -16,8 +16,8 @@ const MAX_BUMPS = 3;
 const BUMP_PAUSE_MS = 2000;
 
 export interface WanderHost {
-    // Runs the work interaction; true while the coworker is walking to a work zone (it set the velocity)
-    updateWork(name: NpcName): boolean;
+    // Runs the coworker's interactions (work, ...); true while it is walking to a spot (they set the velocity)
+    updateInteractions(name: NpcName): boolean;
     // A bubble is up (noticed, thinking or talking)
     isBusy(name: NpcName): boolean;
 }
@@ -45,15 +45,15 @@ export class Wander {
     update(name: NpcName, npc: Sprite) {
         // Pulled by the player: its steering is suspended, and it replans once it is let go
         if (npc.getData(PUSH_HELD) === true) return;
-        const heading = this.host.updateWork(name);
-        const busy = this.host.isBusy(name); // after the work update: starting work puts a bubble up
+        const heading = this.host.updateInteractions(name);
+        const busy = this.host.isBusy(name); // after the update: starting an interaction can put a bubble up
         if (busy) {
             this.trips.delete(name);
             npc.setVelocity(0);
             return;
         }
         if (heading) {
-            // walking to a work zone: the work interaction set the velocity
+            // walking to a spot: the interaction set the velocity
             this.trips.delete(name);
             return;
         }

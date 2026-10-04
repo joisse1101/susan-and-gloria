@@ -2,18 +2,18 @@
 
 Everything in this group is done, and every test passing, before any task in group 3.
 
-- [ ] 1.1 Add the pure start decision and the cooldown helper (keyed by what rests: a plant, shared by every actor, or a coworker for work, as before), with unit tests for each condition (reach, interrupted, cooldown, free, standing still), for "player must leave reach after a cancel", and for one plant's cooldown blocking every actor but not another plant; verify `npm test` passes
-- [ ] 1.2 Add the rectangle zone type, contains test, tile-to-pixel conversion and the `interaction` tile scan with the Phaser/Tiled property reader; verify with unit tests, including a tile property in both formats
-- [ ] 1.3 Generalise the route to a rectangle (nearest start, goal, A*, `PathFollower`); verify with unit tests on the test grid, including a blocked goal and a fallback goal
-- [ ] 1.4 Generalise the flush approach step and `spotFor` to a rectangle and a side, keeping the desk case; verify the existing `deskSpot` tests pass and add tests for a rectangle on each side
-- [ ] 1.5 Add the say-then-hide helper; verify with a unit test that it says one random line, hides after the delay, and does not hide a newer line
-- [ ] 1.6 Add the interaction registry (priority order, one per actor, `cancelAll`, `isEngaged`, `pose`, `updateInteractions`); verify with unit tests for exclusion, work winning a tie, and cancel fan-out
+- [x] 1.1 Add the pure start decision and the cooldown helper (keyed by what rests: a plant, shared by every actor, or a coworker for work, as before), with unit tests for each condition (reach, interrupted, cooldown, free, standing still), for "player must leave reach after a cancel", and for one plant's cooldown blocking every actor but not another plant; verify `npm test` passes
+- [x] 1.2 Add the rectangle zone type, contains test, tile-to-pixel conversion and the `interaction` tile scan with the Phaser/Tiled property reader; verify with unit tests, including a tile property in both formats
+- [x] 1.3 Generalise the route to a rectangle (nearest start, goal, A*, `PathFollower`); verify with unit tests on the test grid, including a blocked goal and a fallback goal
+- [x] 1.4 Generalise the flush approach step and `spotFor` to a rectangle and a side, keeping the desk case; verify the existing `deskSpot` tests pass and add tests for a rectangle on each side
+- [x] 1.5 Add the say-then-hide helper; verify with a unit test that it says one random line, hides after the delay, and does not hide a newer line
+- [x] 1.6 Add the interaction registry (priority order, one per actor, `cancelAll`, `isEngaged`, `pose`, `updateInteractions`); verify with unit tests for exclusion, work winning a tie, and cancel fan-out
 - [ ] 1.7 Tune values (reach, cooldown, watering duration) in one commented tuning file; verify each is read from there and nowhere else
 
 ## 2. Work moved onto the shared pieces
 
-- [ ] 2.1 Switch `WorkInteraction` to the shared decision, zone and scan, route, approach step and say helper; verify the existing work tests pass unchanged
-- [ ] 2.2 Switch `PlayerWork`/`playerSession` to the shared decision, and register both with the registry; replace the direct `work.cancel` calls in `NpcBubbles` and `showNpcThinking` with `cancelAll`, `isAtDesk`/`isImmovable`/`isWorking` with the registry queries, and `updateWork` in `Wander` with `updateInteractions`; verify `npm test`, `npm run lint` and `npm run build` pass
+- [x] 2.1 Switch `WorkInteraction` to the shared decision, zone and scan, route, approach step and say helper; verify the existing work tests pass unchanged
+- [x] 2.2 Switch `PlayerWork`/`playerSession` to the shared decision, and register both with the registry; replace the direct `work.cancel` calls in `NpcBubbles` and `showNpcThinking` with `cancelAll`, `isAtDesk`/`isImmovable`/`isWorking` with the registry queries, and `updateWork` in `Wander` with `updateInteractions`; verify `npm test`, `npm run lint` and `npm run build` pass
 - [ ] 2.3 Gate: run the game and check work is unchanged before any water code is written: `/gloria-work` and `/susan-work` send a coworker to a desk and it works; a coworker wandering past a free desk works; the player standing still in a zone fetches a chair, and walking through does not; speaking to a working coworker stops its work; a coworker is not pushable at its desk. Record the result in this change
 
 ## 3. Plant objects

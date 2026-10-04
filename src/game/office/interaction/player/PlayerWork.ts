@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import type { GiveUpSignal } from '../npc/giveUp';
 import { FORGETFUL_PHRASES, JAM_PHRASES, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
+import type { Interaction, Pose } from '../registry';
+import { stillBlocked } from '../trigger';
 import { nextSession, type SessionState } from './playerSession';
 
 type Sprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -14,6 +16,8 @@ export interface PlayerWorkHost {
     claimDesk(): void;
     releaseDesk(): void;
     isTyping(): boolean;
+    // A movement key is down (the trip's own walking is not the player moving)
+    keyMoving(): boolean;
     // Called every frame of the chair trip: walks, drags and seats the player. True once they can work (seated, or no
     // chair in reach); until then it has set the player's velocity.
     fetchChair(): boolean;
@@ -26,7 +30,7 @@ export interface PlayerWorkHost {
 
 // The player works like the coworkers: standing still in a work zone starts it (a chair trip first, when one is in
 // reach); a movement key or typing stops it. The trip may leave the zone without ending the session.
-export class PlayerWork {
+export class PlayerWork implements Interaction<'player'> {
     private state: SessionState = 'idle';
     private timer?: Phaser.Time.TimerEvent;
     // Set after a full work period, so standing still in the zone doesn't restart it
@@ -40,14 +44,14 @@ export class PlayerWork {
         this.host = host;
     }
 
-    // Call every frame. `keyMoving`: a movement key is down (the trip's own walking is not the player moving).
-    update(keyMoving: boolean) {
+    // Call every frame. True while a session runs (during a chair trip it sets the velocity).
+    update() {
         const { host } = this;
         const inZone = host.isInWorkZone(host.player);
-        if (!inZone && this.state === 'idle') this.done = false;
+        this.done = stillBlocked(this.done, inZone, this.state === 'idle');
         const input = {
             inZone,
-            moving: keyMoving,
+            moving: host.keyMoving(),
             typing: host.isTyping(),
             bubble: host.bubble.visible,
             done: this.done,
@@ -71,6 +75,7 @@ export class PlayerWork {
         else if (prev !== 'working' && next === 'working') this.startWork(gaveUp === 'jam');
         if (gaveUp === 'lost') this.say(FORGETFUL_PHRASES, true);
         else if (gaveUp === 'jam') this.say(JAM_PHRASES, next !== 'working');
+        return this.state !== 'idle';
     }
 
     // A line in the player's bubble. `hideAfter`: take it down again after a moment (when no work will replace it).
@@ -112,9 +117,23 @@ export class PlayerWork {
         });
     }
 
+    // Ends the session, whatever stage it is at
+    cancel() {
+        if (this.state !== 'idle') this.stop();
+    }
+
+    isActive() {
+        return this.state !== 'idle';
+    }
+
+    // Past starting: fetching a chair, or working
+    isEngaged() {
+        return this.state !== 'idle';
+    }
+
     // Working, not just fetching a chair
-    isWorking() {
-        return this.state === 'working';
+    pose(): Pose | undefined {
+        return this.state === 'working' ? { kind: 'work', working: true } : undefined;
     }
 
     isFetching() {

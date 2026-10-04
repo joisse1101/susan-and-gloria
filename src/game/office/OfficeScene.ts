@@ -24,6 +24,7 @@ import { COWORKER_DRAG, COWORKER_MASS, COWORKER_MAX_SPEED, COWORKER_WALK_FRACTIO
 import { NpcSeats } from './interaction/npc/NpcSeats';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
+import { InteractionRegistry } from './interaction/registry';
 import { ThinkingInteraction } from './interaction/npc/ThinkingInteraction';
 import { NpcBubbles, type NpcName } from './interaction/npc/NpcBubbles';
 import { WALK_SPEED_KEY } from './interaction/npc/PathFollower';
@@ -72,6 +73,10 @@ export class OfficeScene extends Phaser.Scene {
     private gloria!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private work!: WorkInteraction;
+    // What each actor is doing, in priority order (work first); the scene asks these, never the interactions
+    private coworkerInteractions = new InteractionRegistry<NpcName>();
+    private playerInteractions = new InteractionRegistry<'player'>();
+    private keyMoving = false;
     private thinking!: ThinkingInteraction;
     private bubbles!: NpcBubbles;
     private mapSize = { width: 0, height: 0 };
@@ -140,6 +145,7 @@ export class OfficeScene extends Phaser.Scene {
             },
             chairBumped: (name) => this.npcSeats.hasBumped(name)
         });
+        this.coworkerInteractions.register(this.work);
         this.thinking = new ThinkingInteraction(this, {
             bubble: (name) => this.bubbles.get(name),
             positionBubble: (name) => this.bubbles.position(name),
@@ -177,6 +183,7 @@ export class OfficeScene extends Phaser.Scene {
             claimDesk: () => this.work.claimFor('player', this.player),
             releaseDesk: () => this.work.releaseFor('player'),
             isTyping: () => this.chat.isTyping,
+            keyMoving: () => this.keyMoving,
             fetchChair: () => {
                 // The spot and facing are only read when the trip starts, while the player is still in the zone
                 const target = this.work.spotAndFacing(this.player);
@@ -185,6 +192,7 @@ export class OfficeScene extends Phaser.Scene {
             releaseChair: () => this.npcSeats.release('player'),
             gaveUp: () => this.npcSeats.hasGivenUp('player')
         });
+        this.playerInteractions.register(this.playerWork);
 
         this.player.body.pushable = false; // chairs move out of its way, not the other way round
         this.chairs = new Chairs(this, this.shadows);
@@ -206,12 +214,12 @@ export class OfficeScene extends Phaser.Scene {
         this.bubbles = new NpcBubbles(this, {
             npc: (name) => (name === 'susan' ? this.susan : this.gloria),
             mapWidth: () => this.mapSize.width,
-            cancelWork: (name) => this.work.cancel(name),
+            cancelAll: (name) => this.coworkerInteractions.cancelAll(name),
             stopThinking: (name) => this.thinking.stop(name)
         });
 
         this.wander = new Wander(this, {
-            updateWork: (name) => this.work.update(name),
+            updateInteractions: (name) => this.coworkerInteractions.updateInteractions(name),
             isBusy: (name) => this.bubbles.isVisible(name)
         }, this.walkGrid);
 
@@ -272,7 +280,7 @@ export class OfficeScene extends Phaser.Scene {
         this.player.setVelocity(0);
 
         // A movement key is the player taking control: it cancels the chair trip, whose own walking is not "moving"
-        const keyMoving = !this.chat.isTyping && (this.cursors.left.isDown || this.cursors.right.isDown || this.cursors.up.isDown || this.cursors.down.isDown);
+        this.keyMoving = !this.chat.isTyping && (this.cursors.left.isDown || this.cursors.right.isDown || this.cursors.up.isDown || this.cursors.down.isDown);
         if (!this.chat.isTyping) {
             if (this.cursors.left.isDown) this.player.setVelocityX(-speed);
             else if (this.cursors.right.isDown) this.player.setVelocityX(speed);
@@ -284,7 +292,7 @@ export class OfficeScene extends Phaser.Scene {
         this.player.body.velocity.normalize().scale(speed);
         if (pulling) this.chairs.drag(this.player);
 
-        this.playerWork.update(keyMoving); // during a chair trip this sets the velocity
+        this.playerInteractions.updateInteractions('player'); // during a chair trip this sets the velocity
         const moving = this.player.body.velocity.lengthSq() > 0;
         this.updatePlayerAnim(moving);
 
@@ -311,10 +319,10 @@ export class OfficeScene extends Phaser.Scene {
         return name === 'susan' ? this.susan : this.gloria;
     }
 
-    // In an interaction: a bubble is up (noticed, thinking, talking), or it has reached its desk (fetching a chair,
-    // seated, working). Derived each frame, so it cannot go stale. Walking to a desk is still pushable.
+    // In an interaction: a bubble is up (noticed, thinking, talking), or it has reached its spot (fetching a chair,
+    // seated, working). Derived each frame, so it cannot go stale. Walking to a spot is still pushable.
     private isImmovable(name: NpcName) {
-        return this.bubbles.isVisible(name) || this.work.isAtDesk(name) || this.npcSeats.isSeated(name);
+        return this.bubbles.isVisible(name) || this.coworkerInteractions.isEngaged(name) || this.npcSeats.isSeated(name);
     }
 
     // Chat commands, handled here instead of being sent to the coworkers: "/gloria-work" and "/susan-work"
@@ -345,7 +353,7 @@ export class OfficeScene extends Phaser.Scene {
 
     // Thought bubble: animated dots above the coworker until the first token arrives
     public showNpcThinking(name: NpcName) {
-        this.work.cancel(name);
+        this.coworkerInteractions.cancelAll(name);
         this.thinking.start(name);
     }
 
@@ -422,7 +430,7 @@ export class OfficeScene extends Phaser.Scene {
         const moving = x !== 0 || y !== 0;
         const facing = facingFromVelocity(x, y, npc.getData(FACING) ?? 'down');
         if (moving) npc.setData(FACING, facing);
-        if (!moving && this.work.isWorking(character.name as NpcName)) {
+        if (!moving && this.coworkerInteractions.pose(character.name as NpcName)?.working) {
             // Seated with a chair, otherwise working on their feet
             const seated = this.npcSeats.isSeated(character.name as NpcName);
             npc.anims.play(seated ? typeAnimKey(facing, character.name) : standAnimKey(facing, character.name), true);
@@ -437,7 +445,7 @@ export class OfficeScene extends Phaser.Scene {
 
     private updatePlayerAnim(moving: boolean) {
         const { x, y } = this.player.body.velocity;
-        const working = !moving && this.playerWork.isWorking();
+        const working = !moving && !!this.playerInteractions.pose('player')?.working;
         // Working, they face the desk: the way they sat down, or the way the chair trip left them on the spot
         this.facing = playerFacing(x, y, this.facing, working, this.player.getData(FACING));
         if (working) {
