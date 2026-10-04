@@ -16,6 +16,9 @@ import { WATER_COOLDOWN_MS, WATER_DURATION_MS, WATER_GIVE_UP_MS, WATER_REACH_TIL
 
 // The goal beside a plant can sit on a cell the grid keeps clear; settle for a reachable cell this close (in cells)
 const GOAL_FALLBACK_CELLS = 4;
+// The spot is this far (px) off the plant's solid, not exactly on it: a body pressed against the plant keeps being pushed
+// back by the collision and never settles on the spot, so it would run against the plant until the step times out
+const SPOT_GAP_PX = 1;
 // Bumps on the way before giving up the trip
 const MAX_BUMPS = 3;
 
@@ -23,6 +26,8 @@ type Stage = 'walking' | 'approach' | 'watering';
 
 interface Trip {
     plant: Plant;
+    // The side of the plant it comes in on: the side it was on when it set off, or the plant's own direction
+    side: { dx: number; dy: number };
     stage: Stage;
     follower?: PathFollower;
     startedAt: number; // the trip, then the step onto the spot, then the watering
@@ -108,12 +113,15 @@ export class WaterInteraction<Id extends string> implements Interaction<Id> {
     private begin(id: Id, actor: WaterActor, plant: Plant): boolean {
         const now = this.scene.time.now;
         if (!this.shared.slots.claim(plant.id, id)) return false;
-        const follower = routeToRect(this.host.walkGrid(), actor.sprite.body.center, plant.rect, plant.tileSize, GOAL_FALLBACK_CELLS);
+        const side = standSide(plant, actor.sprite.body.center.x, actor.sprite.body.center.y);
+        const follower = this.route(actor, plant, side);
+        // TEMP debug: where the trip starts, the side it picked and where the route ends
+        console.info('[water]', id, 'from', Math.round(actor.sprite.body.center.x), Math.round(actor.sprite.body.center.y), 'side', side, 'plant px', plant.rect, 'route ok', !!follower);
         if (!follower) {
             this.shared.finish(plant.id, id, now, WATER_COOLDOWN_MS);
             return false;
         }
-        this.trips.set(id, { plant, stage: 'walking', follower, startedAt: now, giveUpAt: now + WATER_GIVE_UP_MS, bumps: 0 });
+        this.trips.set(id, { plant, side, stage: 'walking', follower, startedAt: now, giveUpAt: now + WATER_GIVE_UP_MS, bumps: 0 });
         return true;
     }
 
@@ -126,13 +134,26 @@ export class WaterInteraction<Id extends string> implements Interaction<Id> {
         return !!plant && this.begin(id, actor, plant);
     }
 
+    // To the spot flush against the plant on `side`, so someone beside it is not sent round to the front
+    private route(actor: WaterActor, plant: Plant, side: { dx: number; dy: number }) {
+        const aim = this.spot(plant, side, actor.sprite);
+        return routeToRect(this.host.walkGrid(), actor.sprite.body.center, plant.rect, plant.tileSize, GOAL_FALLBACK_CELLS, aim);
+    }
+
+    // Flush against the plant's solid part (not its whole tile area), level with the middle of it, so the water lands on it
+    private spot(plant: Plant, side: { dx: number; dy: number }, sprite: WaterActor['sprite']) {
+        const { body } = sprite;
+        const r = plant.solid ?? plant.rect;
+        return spotAgainst(r, side, plant.tileSize, body.halfWidth + SPOT_GAP_PX, body.halfHeight + SPOT_GAP_PX, body.center.x, ((r.y0 + r.y1) / 2) * plant.tileSize);
+    }
+
     private walk(id: Id, trip: Trip, actor: WaterActor): boolean {
         const npc = actor.sprite;
         if (PathFollower.isBlocked(npc)) {
             // Something got in the way: route again from where it stands
             npc.setVelocity(0);
             const follower = ++trip.bumps >= MAX_BUMPS ? null
-                : routeToRect(this.host.walkGrid(), npc.body.center, trip.plant.rect, trip.plant.tileSize, GOAL_FALLBACK_CELLS);
+                : this.route(actor, trip.plant, trip.side);
             if (!follower) return this.giveUp(id, npc);
             trip.follower = follower;
         }
@@ -147,8 +168,8 @@ export class WaterInteraction<Id extends string> implements Interaction<Id> {
     private approach(id: Id, trip: Trip, actor: WaterActor): boolean {
         const npc = actor.sprite;
         const { plant } = trip;
-        const dir = standSide(plant, npc.body.center.x, npc.body.center.y);
-        const spot = spotAgainst(plant.rect, dir, plant.tileSize, npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x);
+        const dir = trip.side;
+        const spot = this.spot(plant, dir, npc);
         const step = stepOntoSpot(npc, spot, trip.startedAt, this.scene.time.now);
         if (step === 'failed') return this.giveUp(id, npc);
         if (step === 'moving') return true;

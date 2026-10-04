@@ -11,14 +11,17 @@ export interface DeskGeometry {
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
 // Body centre (px) of the spot flush against a rectangle (tile units) on the side `dir` of it, level with it along the
-// edge (`alongX` picks where on an up/down edge). With no side, the rectangle's centre is the spot.
-export function spotAgainst(rect: Rect, dir: { dx: number; dy: number } | undefined, tileSize: number, halfWidth: number, halfHeight: number, alongX: number) {
+// edge (`alongX` picks where on an up/down edge). A side edge is levelled with the rectangle's bottom (a desk), unless
+// `alongY` is given: then the spot is where on the edge that is nearest to it (a plant, where nothing needs lining up).
+// With no side, the rectangle's centre is the spot.
+export function spotAgainst(rect: Rect, dir: { dx: number; dy: number } | undefined, tileSize: number, halfWidth: number, halfHeight: number, alongX: number, alongY?: number) {
     if (!dir) return { x: ((rect.x0 + rect.x1) / 2) * tileSize, y: ((rect.y0 + rect.y1) / 2) * tileSize };
     const { dx, dy } = dir;
     const x = dx < 0 ? rect.x0 * tileSize - halfWidth : dx > 0 ? rect.x1 * tileSize + halfWidth
         : clamp(alongX, rect.x0 * tileSize, rect.x1 * tileSize);
     const y = dy < 0 ? rect.y0 * tileSize - halfHeight : dy > 0 ? rect.y1 * tileSize + halfHeight
-        : rect.y1 * tileSize - halfHeight; // side edges: body's bottom edge level with the rectangle's bottom edge
+        : alongY === undefined ? rect.y1 * tileSize - halfHeight // side edges: body's bottom edge level with the rectangle's bottom edge
+            : clamp(alongY, Math.min(rect.y0 * tileSize + halfHeight, rect.y1 * tileSize - halfHeight), rect.y1 * tileSize - halfHeight);
     return { x, y };
 }
 

@@ -35,7 +35,7 @@ import { WalkGridOverlay } from './interaction/npc/WalkGridOverlay';
 import { ChairReachOverlay } from './interaction/npc/ChairReachOverlay';
 import { Chat } from './interaction/player/Chat';
 import { PlayerWork } from './interaction/player/PlayerWork';
-import { mergePlants, plantCells, reachZone, type PlantCell } from './interaction/plants';
+import { mergePlants, solidBounds, plantCells, reachZone, type PlantCell } from './interaction/plants';
 import { PlantOverlay } from './interaction/plantOverlay';
 import { scanInteractionTiles } from './interaction/zones';
 import { WATER_REACH_TILES } from './interaction/waterTuning';
@@ -43,6 +43,7 @@ import { WaterInteraction } from './interaction/WaterInteraction';
 import { PlantShared } from './interaction/plantShared';
 import { coworkerInterrupted, playerInterrupted } from './interaction/waterActor';
 import { SayThenHide } from './interaction/sayThenHide';
+import { WaterProps } from './interaction/WaterProps';
 import { WORK_PHRASE_MS } from './interaction/workPhrases';
 import {
     PLAYER_BODY,
@@ -89,6 +90,8 @@ export class OfficeScene extends Phaser.Scene {
     private praiseSayers = new Map<NpcName, SayThenHide>();
     private playerPraiseLine?: string;
     private playerPraiser?: SayThenHide;
+    // The can and stream over whoever is watering
+    private waterProps = new Map<string, WaterProps>();
     // What each actor is doing, in priority order (work first); the scene asks these, never the interactions
     private coworkerInteractions = new InteractionRegistry<NpcName>();
     private playerInteractions = new InteractionRegistry<'player'>();
@@ -127,6 +130,7 @@ export class OfficeScene extends Phaser.Scene {
         this.load.image(HANDLE_ATLAS_KEY, HANDLE_ATLAS_URL);
         preloadPlayerSprite(this);
         Shadows.preload(this);
+        WaterProps.preload(this);
         preloadCharacterSprite(this, SUSAN_SPRITE);
         preloadCharacterSprite(this, GLORIA_SPRITE);
         preloadOfficeMap(this);
@@ -176,6 +180,9 @@ export class OfficeScene extends Phaser.Scene {
             waterCells.push(...plantCells(tiles));
         });
         const plants = mergePlants(waterCells, waterTileSize);
+        // Actors stand against the plant's solid part (the pots), which is smaller than its tiles
+        const bodies = this.obstacles.getChildren().map((c) => (c as Phaser.GameObjects.GameObject).body as Phaser.Physics.Arcade.StaticBody).filter(Boolean);
+        for (const plant of plants) plant.solid = solidBounds(plant.rect, plant.tileSize, bodies);
         // Coworkers water after work in priority; the plant's claim and cooldown are shared by every actor
         this.plantShared = new PlantShared(plants);
         this.coworkerWater = new WaterInteraction<NpcName>(this, {
@@ -351,6 +358,7 @@ export class OfficeScene extends Phaser.Scene {
         this.updatePlayerAnim(moving);
 
         this.sortByBottom(this.player);
+        this.updateWaterProps('player', this.player, this.facing, this.playerInteractions.pose('player'));
         this.npcSeats.update('player');
         this.updateNpc('gloria', this.gloria);
         this.updateNpc('susan', this.susan);
@@ -409,6 +417,13 @@ export class OfficeScene extends Phaser.Scene {
         return this.playerPraiser;
     }
 
+    // The can and stream follow whoever is watering (after the actor is depth-sorted) and are hidden otherwise
+    private updateWaterProps(name: string, sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody, facing: Facing, pose?: { kind: string; working: boolean }) {
+        let props = this.waterProps.get(name);
+        if (!props) this.waterProps.set(name, (props = new WaterProps(this)));
+        props.update(sprite, name, facing, pose?.kind === 'water' && pose.working);
+    }
+
     private npcSprite(name: NpcName) {
         return name === 'susan' ? this.susan : this.gloria;
     }
@@ -440,6 +455,7 @@ export class OfficeScene extends Phaser.Scene {
         this.wander.update(name, npc);
         this.updateSheetAnim(npc, name === 'susan' ? SUSAN_SPRITE : GLORIA_SPRITE);
         this.sortByBottom(npc);
+        this.updateWaterProps(name, npc, npc.getData(FACING) ?? 'down', this.coworkerInteractions.pose(name));
         this.npcSeats.update(name);
         this.bubbles.position(name);
     }

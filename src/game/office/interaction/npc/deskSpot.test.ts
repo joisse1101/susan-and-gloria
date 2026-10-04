@@ -54,6 +54,19 @@ describe('spotAgainst', () => {
     });
 });
 
+describe('spotAgainst along a side edge', () => {
+    const rect = { x0: 5, y0: 6, x1: 7, y1: 9 }; // three tiles tall
+    it('follows the given height instead of the bottom edge', () => {
+        const y = 7.5 * TILE;
+        expect(spotAgainst(rect, { dx: -1, dy: 0 }, TILE, HALF_W, HALF_H, 0, y)).toEqual({ x: 5 * TILE - HALF_W, y });
+    });
+
+    it('clamps to the edge', () => {
+        expect(spotAgainst(rect, { dx: 1, dy: 0 }, TILE, HALF_W, HALF_H, 0, 0).y).toBe(6 * TILE + HALF_H);
+        expect(spotAgainst(rect, { dx: 1, dy: 0 }, TILE, HALF_W, HALF_H, 0, 99 * TILE).y).toBe(9 * TILE - HALF_H);
+    });
+});
+
 describe('facingFor', () => {
     it('faces the desk from each side', () => {
         expect(facingFor({ dx: 0, dy: -1 })).toBe('down');

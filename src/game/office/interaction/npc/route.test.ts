@@ -14,6 +14,13 @@ describe('routeCells', () => {
         expect(route.path[route.path.length - 1]).toEqual({ cx: Math.floor(9 * TILE / 8), cy: Math.floor(4.5 * TILE / 8) });
     });
 
+    it('aims at a given point instead of the centre, to come in on a chosen side', () => {
+        const grid = makeGrid(50, 20);
+        // just left of the rectangle (px 256), level with it
+        const route = routeCells(grid, { x: 20, y: 140 }, rect, TILE, 4, { x: 248, y: 140 })!;
+        expect(route.path[route.path.length - 1]).toEqual({ cx: Math.floor(248 / 8), cy: Math.floor(140 / 8) });
+    });
+
     it('settles for a reachable cell near a blocked goal', () => {
         // a solid under the centre blocks the goal cell and the ones around it
         const grid = makeGrid(50, 20, [{ x: 272, y: 136, w: 32, h: 16 }]);

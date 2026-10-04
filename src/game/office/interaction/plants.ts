@@ -9,6 +9,25 @@ export interface Plant {
     // Optional fixed side to water from (the tiles' `direction` property); absent: the nearest open side
     direction?: string;
     tileSize: number;
+    // The part of the rectangle that is actually solid (the pots), in tile units, from the map's collision bodies.
+    // A plant's solid can be smaller than its tiles; actors stand against this, so the water lands on the plant.
+    solid?: Rect;
+}
+
+// The union of the collision bodies (px) that overlap the plant's rectangle, clipped to it, in tile units. Undefined
+// when nothing overlaps (the plant has no collision).
+export function solidBounds(rect: Rect, tileSize: number, bodies: { left: number; top: number; right: number; bottom: number }[]): Rect | undefined {
+    const box = { x0: rect.x0 * tileSize, y0: rect.y0 * tileSize, x1: rect.x1 * tileSize, y1: rect.y1 * tileSize };
+    let found: Rect | undefined;
+    for (const b of bodies) {
+        const x0 = Math.max(b.left, box.x0), y0 = Math.max(b.top, box.y0);
+        const x1 = Math.min(b.right, box.x1), y1 = Math.min(b.bottom, box.y1);
+        if (x1 <= x0 || y1 <= y0) continue; // touching or apart, not overlapping
+        found = found
+            ? { x0: Math.min(found.x0, x0), y0: Math.min(found.y0, y0), x1: Math.max(found.x1, x1), y1: Math.max(found.y1, y1) }
+            : { x0, y0, x1, y1 };
+    }
+    return found && { x0: found.x0 / tileSize, y0: found.y0 / tileSize, x1: found.x1 / tileSize, y1: found.y1 / tileSize };
 }
 
 export interface PlantCell { tx: number; ty: number; direction?: string }
@@ -70,18 +89,27 @@ const DIRECTIONS: Record<string, { dx: number; dy: number }> = {
 };
 
 // The side of the plant an actor at (x, y) px stands on, as for a desk (`dir` is the side of the tile they stand on):
-// the plant's own `direction` when it has one, else the side the point is furthest outside of
+// the plant's own `direction` when it has one. Otherwise a point beside the plant (past its left or right edge) takes
+// that side, even when it is also a little below it, so coming in from the corner of the reach zone does not send
+// the actor round to the front; a point in line with the plant takes the side it is outside of.
 export function standSide(plant: Plant, x: number, y: number): { dx: number; dy: number } {
     const fixed = plant.direction ? DIRECTIONS[plant.direction] : undefined;
     if (fixed) return fixed;
     const s = plant.tileSize;
-    const left = plant.rect.x0 * s - x;
-    const right = x - plant.rect.x1 * s;
-    const above = plant.rect.y0 * s - y;
-    const below = y - plant.rect.y1 * s;
-    const out = Math.max(left, right, above, below);
-    if (out <= 0) return { dx: 0, dy: 1 };
-    if (out === below) return { dx: 0, dy: 1 };
-    if (out === above) return { dx: 0, dy: -1 };
-    return out === left ? { dx: -1, dy: 0 } : { dx: 1, dy: 0 };
+    const r = plant.solid ?? plant.rect;
+    const left = r.x0 * s - x;
+    const right = x - r.x1 * s;
+    const above = r.y0 * s - y;
+    const below = y - r.y1 * s;
+    if (left > 0 || right > 0) return left > right ? { dx: -1, dy: 0 } : { dx: 1, dy: 0 };
+    if (above > 0 && above > below) return { dx: 0, dy: -1 };
+    if (below > 0) return { dx: 0, dy: 1 };
+    // Inside the plant's tile area (a plant's solid body can be narrower than its tile, so an actor can stand there):
+    // the nearest edge it can be on, the wall side excluded
+    const toLeft = x - r.x0 * s;
+    const toRight = r.x1 * s - x;
+    const toBelow = r.y1 * s - y;
+    const nearest = Math.min(toLeft, toRight, toBelow);
+    if (nearest === toBelow) return { dx: 0, dy: 1 };
+    return nearest === toLeft ? { dx: -1, dy: 0 } : { dx: 1, dy: 0 };
 }

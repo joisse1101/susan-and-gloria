@@ -7,7 +7,7 @@ export const WATER_REACH_TILES = 0.5;
 export const WATER_DURATION_MS = 8000;
 
 // How long (ms) the plant rests after anyone finished, was interrupted from, or gave up watering it. Shared by every actor.
-export const WATER_COOLDOWN_MS = 20000;
+export const WATER_COOLDOWN_MS = 5000;
 
 // A trip to the plant that takes longer than this (ms) is given up
 export const WATER_GIVE_UP_MS = 20000;
