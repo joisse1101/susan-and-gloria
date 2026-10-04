@@ -29,5 +29,5 @@
 
 ## 5. Docs and final check
 
-- [ ] 5.1 Update the Office section of `CLAUDE.md` for pushables, drivers, the resolver and `pushTuning.ts` (what each value does)
+- [x] 5.1 Update the Office section of `CLAUDE.md` for pushables, drivers, the resolver and `pushTuning.ts` (what each value does)
 - [ ] 5.2 Manual pass against `office-pushables` scenarios (wall, chain, corner, talking, working, walking to a desk, coasting chair) with `G` and `C` debug views, then run `npm test`, `npm run lint` and `npm run build`
