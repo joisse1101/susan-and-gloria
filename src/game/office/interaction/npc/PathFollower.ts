@@ -6,7 +6,13 @@ import { toWaypoints, type Cell } from './pathfinding';
 
 type Sprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 
+// Fallback walking speed (the player on a chair trip). Coworkers carry their own, set from pushTuning.ts.
 export const WALK_SPEED = 40;
+export const WALK_SPEED_KEY = 'walkSpeed';
+
+export function walkSpeedOf(npc: Sprite) {
+    return (npc.getData(WALK_SPEED_KEY) as number | undefined) ?? WALK_SPEED;
+}
 // Within this many px of a waypoint the coworker snaps onto it and heads for the next
 const ARRIVE_PX = 2;
 
@@ -48,7 +54,8 @@ export class PathFollower {
             }
             return 'moving';
         }
-        npc.setVelocity((dx / dist) * WALK_SPEED, (dy / dist) * WALK_SPEED);
+        const speed = walkSpeedOf(npc);
+        npc.setVelocity((dx / dist) * speed, (dy / dist) * speed);
         if (Math.abs(dx) > 0.01) faceHorizontal(npc, dx < 0);
         return 'moving';
     }

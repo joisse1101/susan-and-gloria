@@ -6,7 +6,7 @@ import { FACING } from './facing';
 import type { NpcName } from './NpcBubbles';
 import type { WalkGrid } from './WalkGrid';
 import { nearestReachableCell, type Cell } from './pathfinding';
-import { PathFollower, WALK_SPEED } from './PathFollower';
+import { PathFollower, walkSpeedOf } from './PathFollower';
 import { cellOf, chairsInReach, inReachByRoute, PARK_PX, planChairFetch, planLeg } from './chairReach';
 
 type Npc = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -18,7 +18,7 @@ const SLIDE_SPEED = 50;
 // Touching distance (px between bodies) at which they take hold of the chair
 const GRAB_GAP = 4;
 // The whole fetch, walking to the chair and dragging it back, over routes of up to MAX_CHAIR_ROUTE_TILES each way
-// at WALK_SPEED, so it needs well over the straight-line time
+// at walking speed, so it needs well over the straight-line time
 const GIVE_UP_MS = 30000;
 // How far (px) the chair rolls when they get up: half a tile
 const PUSH_BACK = 16;
@@ -380,6 +380,7 @@ export class NpcSeats {
 
     private walk(npc: Npc, x: number, y: number) {
         const v = new Phaser.Math.Vector2(x - npc.body.center.x, y - npc.body.center.y).normalize();
-        npc.setVelocity(v.x * WALK_SPEED, v.y * WALK_SPEED);
+        const speed = walkSpeedOf(npc);
+        npc.setVelocity(v.x * speed, v.y * speed);
     }
 }

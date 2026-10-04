@@ -20,12 +20,13 @@ import {
     type FurnitureFrameName
 } from './atlases/furnitureAtlas';
 import { Chairs } from './furniture/Chairs';
-import { COWORKER_DRAG, COWORKER_MASS, PLAYER_WALK_SPEED, PULL_CHAIR_SPEED, PULL_COWORKER_SPEED, PUSH_CHAIR_SPEED, PUSH_COWORKER_SPEED } from './pushTuning';
+import { COWORKER_DRAG, COWORKER_MASS, COWORKER_MAX_SPEED, COWORKER_WALK_FRACTION, PLAYER_WALK_SPEED, PULL_CHAIR_SPEED, PULL_COWORKER_SPEED, PUSH_CHAIR_SPEED, PUSH_COWORKER_SPEED } from './pushTuning';
 import { NpcSeats } from './interaction/npc/NpcSeats';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
 import { ThinkingInteraction } from './interaction/npc/ThinkingInteraction';
 import { NpcBubbles, type NpcName } from './interaction/npc/NpcBubbles';
+import { WALK_SPEED_KEY } from './interaction/npc/PathFollower';
 import { Wander } from './interaction/npc/Wander';
 import { WalkGrid } from './interaction/npc/WalkGrid';
 import { WalkGridOverlay } from './interaction/npc/WalkGridOverlay';
@@ -250,11 +251,12 @@ export class OfficeScene extends Phaser.Scene {
         }
         const pulling = !this.chat.isTyping && !this.playerWork.isFetching() && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true, coworkers);
         if (!pulling) this.chairs.grab(this.player, false);
-        const pushed = this.chairs.playerPushKinds();
+        // Each thing being pushed or pulled sets a speed (its kind's, held to the coworker's own max); the slowest wins
+        const coworkerCap = (id: string) => (id in COWORKER_MAX_SPEED ? COWORKER_MAX_SPEED[id as NpcName] : Infinity);
+        const held = this.chairs.heldName();
         const speeds = [
-            ...(pulling ? [this.chairs.heldKind() === 'coworker' ? PULL_COWORKER_SPEED : PULL_CHAIR_SPEED] : []),
-            ...(pushed.has('chair') ? [PUSH_CHAIR_SPEED] : []),
-            ...(pushed.has('coworker') ? [PUSH_COWORKER_SPEED] : [])
+            ...(pulling ? [held === 'chair' ? PULL_CHAIR_SPEED : Math.min(PULL_COWORKER_SPEED, coworkerCap(held ?? ''))] : []),
+            ...[...this.chairs.playerPushedIds()].map((id) => (id.startsWith('chair') ? PUSH_CHAIR_SPEED : Math.min(PUSH_COWORKER_SPEED, coworkerCap(id))))
         ];
         const speed = speeds.length > 0 ? Math.min(...speeds) : PLAYER_WALK_SPEED;
         this.player.setVelocity(0);
@@ -396,6 +398,9 @@ export class OfficeScene extends Phaser.Scene {
         sprite.setScale(SPRITE_SCALE);
         this.shadows.add(sprite, { hideWhen: () => this.npcSeats.isSeated(character.name as NpcName) });
         sprite.setMass(COWORKER_MASS);
+        const max = COWORKER_MAX_SPEED[character.name as NpcName];
+        sprite.body.setMaxVelocity(max);
+        sprite.setData(WALK_SPEED_KEY, max * COWORKER_WALK_FRACTION);
         sprite.body.setSize(PLAYER_BODY.width, FEET_HEIGHT);
         sprite.body.setOffset(PLAYER_BODY.offsetX, sprite.height - FEET_HEIGHT - FEET_LIFT);
         this.sortByBottom(sprite);

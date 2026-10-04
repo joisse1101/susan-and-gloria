@@ -34,7 +34,7 @@ export class Chairs {
     private held?: DynamicSprite;
     private heldId?: string;
     private shoved = new Set<string>();
-    private playerPushed = new Set<'chair' | 'coworker'>();
+    private playerPushed = new Set<string>();
     // Coworkers let go of after a pull: flagged as shoved at the next gate
     private pendingShove = new Set<string>();
     private claimed = new Set<DynamicSprite>();
@@ -90,14 +90,15 @@ export class Chairs {
     // step and zeroes the velocity of any whose push would be blocked: the root of a blocked chain stops, and a pulled
     // body that is blocked is let go of instead. Coworkers get a data flag the frame they are stopped (PUSH_STOPPED),
     // first displaced (PUSH_SHOVED) or let go of after a pull (PUSH_SHOVED), so their route follower replans once.
-    // What the player's push displaced in the last gate, so they walk at that push speed
-    playerPushKinds() {
+    // Ids of what the player's push displaced in the last gate (chairs are 'chair<n>'), so they walk at that push speed
+    playerPushedIds() {
         return this.playerPushed;
     }
 
     // What the player is pulling, if anything
-    heldKind(): 'chair' | 'coworker' | undefined {
-        return this.held ? (this.heldId === undefined ? 'chair' : 'coworker') : undefined;
+    // (a coworker's name, or 'chair')
+    heldName(): string | undefined {
+        return this.held ? (this.heldId ?? 'chair') : undefined;
     }
 
     // True if the resolver displaced this coworker in the last gate
@@ -160,9 +161,7 @@ export class Chairs {
         for (const id of this.pendingShove) sprites.get(id)?.setData(PUSH_SHOVED, true);
         this.pendingShove.clear();
         this.shoved = nowShoved;
-        this.playerPushed = new Set(
-            [...result.pushedBy].filter(([, root]) => root === 'player').map(([id]) => (id.startsWith('chair') ? 'chair' : 'coworker') as 'chair' | 'coworker')
-        );
+        this.playerPushed = new Set([...result.pushedBy].filter(([, root]) => root === 'player').map(([id]) => id));
 
         if (this.held) {
             const id = this.heldId ?? chairIds.get(this.held);

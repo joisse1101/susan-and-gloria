@@ -3,7 +3,7 @@ import type { NpcName } from '../../OfficeScene';
 import { FACING } from './facing';
 import { CELL, type WalkGrid } from './WalkGrid';
 import { findPath, nearestReachableCell, nearestWalkableCell } from './pathfinding';
-import { PathFollower, WALK_SPEED } from './PathFollower';
+import { PathFollower, walkSpeedOf } from './PathFollower';
 import { WorkSlots } from './WorkSlots';
 import { facingFor, spotFor } from './deskSpot';
 import { DESK_TAKEN_PHRASES, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
@@ -371,7 +371,8 @@ export class WorkInteraction {
         const timedOut = now - (this.approach.get(name) ?? now) >= APPROACH_MS;
         if (dist > 2 && !timedOut) {
             const v = new Phaser.Math.Vector2(x - npc.body.center.x, y - npc.body.center.y).normalize();
-            npc.setVelocity(v.x * WALK_SPEED, v.y * WALK_SPEED);
+            const speed = walkSpeedOf(npc);
+            npc.setVelocity(v.x * speed, v.y * speed);
             return 'moving';
         }
         if (dist > SPOT_TOLERANCE_PX) return 'failed';
