@@ -29,10 +29,16 @@
 
 ## 5. Chair reach debug view
 
-- [ ] 5.1 Add the debug overlay (range circle per work position, in-reach chairs green with route length, rejected chairs red with reason) driven by `chairsInReach`, toggled by a key ignored while typing; verify it is off by default and toggling it does not change coworker behavior
-- [ ] 5.2 Document the toggle key next to the other debug overlays in `CLAUDE.md`; verify the entry is present
+- [x] 5.1 Add the debug overlay (range circle per work position, in-reach chairs green with route length, rejected chairs red with reason) driven by `chairsInReach`, toggled by a key ignored while typing; verify it is off by default and toggling it does not change coworker behavior
+- [x] 5.2 Document the toggle key next to the other debug overlays in `CLAUDE.md`; verify the entry is present
 
 ## 6. Verification
 
-- [ ] 6.1 Run `npm test`, `npm run lint` and `npm run build` and verify all pass
-- [ ] 6.2 Play-test in `npm run dev`: both coworkers visit different desks, one turned away by the player says a phrase, a coworker fetches and sits in a chair around furniture
+- [x] 6.1 Run `npm test`, `npm run lint` and `npm run build` and verify all pass
+- [x] 6.2 Play-test in `npm run dev`: both coworkers visit different desks, one turned away by the player says a phrase, a coworker fetches and sits in a chair around furniture
+
+## 7. Occupied desks while fetching
+
+- [x] 7.1 Add `WorkSlots.take` and make `PlayerWork`'s claim take a desk a coworker has claimed but is not working at; verify unit tests cover take from a holder, dropping the taker's other desk, and that a working coworker keeps its desk
+- [x] 7.2 Flag bumps in `NpcSeats` (`hasBumped`) and have `WorkInteraction` turn a coworker away, releasing the chair, when the desk is occupied and it is within one tile of the spot or has bumped; verify a free desk only reroutes
+- [x] 7.3 Apply the same occupied check to the walk to the zone; verify by playing: start `/gloria-work`, start working at her desk while she fetches the chair, and she says a phrase when she gets near

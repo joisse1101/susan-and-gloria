@@ -56,7 +56,7 @@ Loose chairs SHALL NOT be treated as obstacles when a coworker plans a route, an
 - **THEN** the coworker walks the route and moves the chair rather than detouring around it
 
 ### Requirement: Other coworker behaviour is unchanged
-Walking to a work zone, fetching a chair, and standing still while a speech bubble is up SHALL continue to behave as before.
+Standing still while a speech bubble is up SHALL continue to behave as before. Walking to a work zone and fetching a chair are specified by the `office-npc-work` capability.
 
 #### Scenario: Speech bubble
 - **WHEN** a coworker has a speech bubble up

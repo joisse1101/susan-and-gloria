@@ -66,10 +66,12 @@ export interface WorkHost {
     releaseChair(name: NpcName): void;
     // The grid the work trips are routed over (it is built after the interaction, so it is looked up on use)
     walkGrid(): WalkGrid;
-    // True when the player's feet (body centre) are inside the rectangle, in px
-    isPlayerIn(zone: Zone): boolean;
+    // True when the player is standing still with their feet (body centre) inside the rectangle, in px
+    isPlayerStillIn(zone: Zone): boolean;
     // True while the coworker is sliding a loose chair out of its way, which isn't a dead end for a route
     isPushingChair(npc: Npc): boolean;
+    // True once if the coworker bumped into something and so had to reroute since it was last asked
+    chairBumped(name: NpcName): boolean;
 }
 
 export class WorkInteraction {
@@ -79,7 +81,9 @@ export class WorkInteraction {
     private slots = new WorkSlots();
     // Stepping from the zone onto the exact spot against the desk
     private approach = new Map<NpcName, number>();
+    // Coworkers fetching a chair, and the desk they are fetching it for
     private fetching = new Set<NpcName>();
+    private fetchDesk = new Map<NpcName, Desk>();
     private tileSize = 32;
     private working = new Map<NpcName, { timers: Phaser.Time.TimerEvent[] }>();
     private turnedAway = new Map<NpcName, Phaser.Time.TimerEvent[]>();
@@ -142,7 +146,19 @@ export class WorkInteraction {
             return false;
         }
         if (this.working.has(name)) return false;
-        if (this.fetching.has(name)) return this.fetch(name);
+        if (this.fetching.has(name)) {
+            // Back near the desk, or bumped into something and rerouting, and the desk was taken meanwhile: give up
+            // the chair and say so. Bumping with the desk still free is just a reroute, done by the seat code.
+            const desk = this.fetchDesk.get(name)!;
+            const bumped = this.host.chairBumped(name);
+            if (this.occupied(name, desk) && (bumped || this.nearSpot(name, desk))) {
+                this.endFetch(name);
+                this.host.releaseChair(name);
+                this.turnAway(name);
+                return false;
+            }
+            return this.fetch(name);
+        }
 
         const desk = this.deskAt(name);
         if (desk) {
@@ -154,6 +170,7 @@ export class WorkInteraction {
             }
             if (step === 'moving') return true;
             this.fetching.add(name);
+            this.fetchDesk.set(name, desk);
             return this.fetch(name);
         }
         if (this.approach.delete(name) && !this.visit.has(name)) this.slots.release(name); // pushed out of the zone
@@ -162,15 +179,35 @@ export class WorkInteraction {
 
     private fetch(name: NpcName) {
         if (!this.host.fetchChair(name)) return true;
-        this.fetching.delete(name);
+        this.endFetch(name);
         this.startWork(name);
         return false;
+    }
+
+    private endFetch(name: NpcName) {
+        this.fetching.delete(name);
+        this.fetchDesk.delete(name);
+    }
+
+    // The desk isn't this coworker's to use: someone else holds it (or took its claim), or the player is standing
+    // at it, working yet or not
+    private occupied(name: NpcName, desk: Desk) {
+        return this.slots.holderOf(desk.id) !== name || this.host.isPlayerStillIn(this.zonePx(desk));
+    }
+
+    // Within a tile of the work spot
+    private nearSpot(name: NpcName, desk: Desk) {
+        const npc = this.host.npc(name);
+        const spot = this.spotFor(desk, npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x);
+        return Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, spot.x, spot.y) <= this.tileSize;
     }
 
     // Stops working without touching the bubble (chat takes the bubble over when it interrupts).
     // Lets go of the desk and drops any trip to it, so it is free for anyone else.
     cancel(name: NpcName) {
-        if (this.fetching.delete(name) || this.working.has(name)) this.host.releaseChair(name);
+        const fetching = this.fetching.has(name);
+        this.endFetch(name);
+        if (fetching || this.working.has(name)) this.host.releaseChair(name);
         this.turnedAway.get(name)?.forEach((t) => t.remove());
         this.turnedAway.delete(name);
         this.approach.delete(name);
@@ -194,11 +231,21 @@ export class WorkInteraction {
         return this.working.has(name);
     }
 
-    // The player takes the desk whose zone they stand in, if nobody holds it. Never refused work: if a coworker got
-    // there first the player just works too, and the coworker is turned away when it arrives.
+    // The player marks the desk whose zone they stand in as occupied: a free one if there is one, else one a coworker
+    // has claimed but isn't working at yet, which that coworker then finds occupied (and is turned away from when it
+    // gets near). A coworker already working keeps its desk, and the player works regardless.
     claimFor(owner: string, sprite: Npc) {
-        const desk = this.tiles.find((d) => this.contains(d, sprite) && this.slots.isFree(d.id, owner));
-        if (desk) this.slots.claim(desk.id, owner);
+        const here = this.tiles.filter((d) => this.contains(d, sprite));
+        const free = here.find((d) => this.slots.isFree(d.id, owner));
+        if (free) {
+            this.slots.claim(free.id, owner);
+            return;
+        }
+        const taken = here.find((d) => {
+            const holder = this.slots.holderOf(d.id);
+            return holder !== undefined && !this.working.has(holder as NpcName);
+        });
+        if (taken) this.slots.take(taken.id, owner);
     }
 
     releaseFor(owner: string) {
@@ -260,7 +307,13 @@ export class WorkInteraction {
         }
         const npc = this.host.npc(name);
         if (now > visit.giveUpAt) return this.giveUp(name, npc);
-        if (PathFollower.isBlocked(npc, this.host.isPushingChair(npc))) {
+        // The desk was taken on the way: near it, or after a bump, give it up and say so
+        const blocked = PathFollower.isBlocked(npc, this.host.isPushingChair(npc));
+        if (this.occupied(name, visit.desk) && (blocked || this.nearSpot(name, visit.desk))) {
+            this.turnAway(name);
+            return false;
+        }
+        if (blocked) {
             // Something got in the way: route again from where they stand
             npc.setVelocity(0);
             const follower = ++visit.bumps >= MAX_BUMPS ? undefined : this.routeTo(name, visit.desk);
@@ -302,20 +355,15 @@ export class WorkInteraction {
     // after turning them to face the tile, 'failed' when they can't get onto it (the player is in the way).
     private approachWorkTile(name: NpcName, desk: Desk): 'moving' | 'ready' | 'failed' {
         const npc = this.host.npc(name);
-        const size = this.tileSize;
         const now = this.scene.time.now;
         if (!this.approach.has(name)) {
-            if (!this.slots.claim(desk.id, name) || this.host.isPlayerIn(this.zonePx(desk))) return 'failed';
+            if (!this.slots.claim(desk.id, name) || this.host.isPlayerStillIn(this.zonePx(desk))) return 'failed';
             this.approach.set(name, now);
             this.visit.delete(name); // arrived: the route is done
         }
         if (!desk.dir) return this.arrive(name);
         const { dx, dy } = desk.dir;
-        // Target body centre (px): flush with the tile edge, level with it along the edge
-        const x = dx < 0 ? desk.tx * size - npc.body.halfWidth : dx > 0 ? (desk.tx + 1) * size + npc.body.halfWidth
-            : Phaser.Math.Clamp(npc.body.center.x, desk.tx * size, (desk.tx + 1) * size);
-        const y = dy < 0 ? desk.ty * size - npc.body.halfHeight : dy > 0 ? (desk.ty + 1) * size + npc.body.halfHeight
-            : (desk.ty + 1) * size - npc.body.halfHeight; // side tiles: body's bottom edge level with the tile's bottom edge
+        const { x, y } = this.spotFor(desk, npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x);
         const dist = Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, x, y);
         const timedOut = now - (this.approach.get(name) ?? now) >= APPROACH_MS;
         if (dist > 2 && !timedOut) {
@@ -328,6 +376,45 @@ export class WorkInteraction {
         // The facing also decides which side of them the chair is parked on.
         npc.setData(FACING, dx > 0 ? 'left' : dx < 0 ? 'right' : dy > 0 ? 'up' : 'down');
         return this.arrive(name);
+    }
+
+    // Body centre (px) of the spot flush against the work tile, level with it along the edge (`alongX` picks where on
+    // an up/down tile's edge). A tile with no direction has its centre as the spot.
+    private spotFor(desk: Desk, halfWidth: number, halfHeight: number, alongX: number) {
+        const size = this.tileSize;
+        if (!desk.dir) return { x: (desk.tx + 0.5) * size, y: (desk.ty + 0.5) * size };
+        const { dx, dy } = desk.dir;
+        const x = dx < 0 ? desk.tx * size - halfWidth : dx > 0 ? (desk.tx + 1) * size + halfWidth
+            : Phaser.Math.Clamp(alongX, desk.tx * size, (desk.tx + 1) * size);
+        const y = dy < 0 ? desk.ty * size - halfHeight : dy > 0 ? (desk.ty + 1) * size + halfHeight
+            : (desk.ty + 1) * size - halfHeight; // side tiles: body's bottom edge level with the tile's bottom edge
+        return { x, y };
+    }
+
+    // Where a coworker stands to work at each desk (body centre, px), for the chair reach debug view
+    workSpots() {
+        const { halfWidth, halfHeight } = this.host.npc('susan').body;
+        return this.tiles.map((d) => this.spotFor(d, halfWidth, halfHeight, (d.tx + 0.5) * this.tileSize));
+    }
+
+    // The desk each coworker is heading for, fetching a chair for, or working at (spot and tile in px, and where the
+    // coworker is now), for the chair reach debug view
+    targets() {
+        const found: { name: NpcName; from: { x: number; y: number }; spot: { x: number; y: number }; tile: Zone }[] = [];
+        for (const name of ['susan', 'gloria'] as const) {
+            const held = this.slots.heldBy(name);
+            const desk = this.visit.get(name)?.desk ?? this.fetchDesk.get(name) ?? this.tiles.find((d) => d.id === held);
+            if (!desk) continue;
+            const npc = this.host.npc(name);
+            const size = this.tileSize;
+            found.push({
+                name,
+                from: { x: npc.body.center.x, y: npc.body.center.y },
+                spot: this.spotFor(desk, npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x),
+                tile: { x0: desk.tx * size, y0: desk.ty * size, x1: (desk.tx + 1) * size, y1: (desk.ty + 1) * size }
+            });
+        }
+        return found;
     }
 
     private arrive(name: NpcName) {

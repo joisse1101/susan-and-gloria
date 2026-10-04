@@ -46,6 +46,8 @@ interface Seating {
     follower: PathFollower | null;
     stagingCell?: Cell;
     bumps: number;
+    // Set on every bump into something unplanned (and so a reroute); read and cleared by hasBumped
+    bumped?: boolean;
     finalSince?: number;
 }
 
@@ -146,6 +148,14 @@ export class NpcSeats {
         const layers = this.layers.get(name) ?? this.layers.set(name, new SeatLayers(this.scene)).get(name)!;
         if (s?.phase === 'seated') layers.show(this.npc(name), s.facing);
         else layers.hide();
+    }
+
+    // True once if the coworker bumped into something (and so had to reroute) since this was last asked
+    hasBumped(name: SeatUser) {
+        const s = this.states.get(name);
+        const bumped = s?.bumped === true;
+        if (s) s.bumped = false;
+        return bumped;
     }
 
     isSeated(name: SeatUser) {
@@ -323,6 +333,7 @@ export class NpcSeats {
     private blocked(npc: Npc, s: Seating) {
         if (!PathFollower.isBlocked(npc, this.chairs.isPushing(npc))) return false;
         s.bumps++;
+        s.bumped = true;
         npc.setVelocity(0);
         return true;
     }

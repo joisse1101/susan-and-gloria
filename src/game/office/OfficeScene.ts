@@ -28,6 +28,7 @@ import { NpcBubbles, type NpcName } from './interaction/npc/NpcBubbles';
 import { Wander } from './interaction/npc/Wander';
 import { WalkGrid } from './interaction/npc/WalkGrid';
 import { WalkGridOverlay } from './interaction/npc/WalkGridOverlay';
+import { ChairReachOverlay } from './interaction/npc/ChairReachOverlay';
 import { Chat } from './interaction/player/Chat';
 import { PlayerWork } from './interaction/player/PlayerWork';
 import {
@@ -79,6 +80,7 @@ export class OfficeScene extends Phaser.Scene {
     private wander!: Wander;
     private playerWork!: PlayerWork;
     private npcSeats!: NpcSeats;
+    private chairReach!: ChairReachOverlay;
     private walkGrid!: WalkGrid;
 
     // Set by OfficeGame before create() runs, so it lives here rather than on Chat
@@ -123,11 +125,13 @@ export class OfficeScene extends Phaser.Scene {
             fetchChair: (name) => this.npcSeats.ready(name),
             releaseChair: (name) => this.npcSeats.release(name),
             walkGrid: () => this.walkGrid,
-            isPlayerIn: (z) => {
+            isPlayerStillIn: (z) => {
                 const { x, y } = this.player.body.center;
-                return x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1;
+                const idle = this.player.body.velocity.lengthSq() === 0; // walking through doesn't occupy a desk
+                return idle && x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1;
             },
-            isPushingChair: (npc) => this.chairs.isPushing(npc)
+            isPushingChair: (npc) => this.chairs.isPushing(npc),
+            chairBumped: (name) => this.npcSeats.hasBumped(name)
         });
         this.thinking = new ThinkingInteraction(this, {
             bubble: (name) => this.bubbles.get(name),
@@ -171,6 +175,13 @@ export class OfficeScene extends Phaser.Scene {
         this.chairs.add(260, 380, 'chairSE');
         this.chairs.add(330, 380, 'chairW');
         this.npcSeats = new NpcSeats(this, this.chairs, (name) => (name === 'player' ? this.player : name === 'susan' ? this.susan : this.gloria), () => this.walkGrid);
+        // Press C to show which chairs a coworker working at each desk can reach, and why the others are filtered out
+        this.chairReach = new ChairReachOverlay(this, {
+            spots: () => this.work.workSpots(),
+            targets: () => this.work.targets(),
+            chairs: () => this.chairs.all().filter((c) => c.active).map((c) => ({ x: c.body.center.x, y: c.body.center.y, claimed: this.chairs.isClaimed(c) })),
+            grid: () => this.walkGrid
+        }, SPEECH_DEPTH - 1, 'C', () => this.chat.isTyping);
 
         this.gloria = this.createSheetCoworker(GLORIA_SPRITE, 170, 150);
         this.susan = this.createSheetCoworker(SUSAN_SPRITE, 475, 151);
@@ -240,6 +251,7 @@ export class OfficeScene extends Phaser.Scene {
         this.updateNpc('gloria', this.gloria);
         this.updateNpc('susan', this.susan);
         this.shadows.update();
+        this.chairReach.update();
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
         this.chat.bubble.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
     }

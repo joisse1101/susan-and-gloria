@@ -78,4 +78,21 @@ describe('WorkSlots', () => {
         const slots = new WorkSlots();
         expect(slots.claimRandom(['a', 'b'], 'susan', () => 1)).toBe('b');
     });
+
+    it('lets an owner take a held desk, leaving the previous holder with nothing', () => {
+        const slots = new WorkSlots();
+        slots.claim('a', 'susan');
+        expect(slots.take('a', 'player')).toBe('susan');
+        expect(slots.holderOf('a')).toBe('player');
+        expect(slots.heldBy('susan')).toBeUndefined();
+        expect(slots.isFree('a', 'susan')).toBe(false);
+    });
+
+    it('drops the other desk the taker held when it takes one', () => {
+        const slots = new WorkSlots();
+        slots.claim('b', 'player');
+        expect(slots.take('a', 'player')).toBeUndefined();
+        expect(slots.heldBy('player')).toBe('a');
+        expect(slots.isFree('b')).toBe(true);
+    });
 });

@@ -12,6 +12,15 @@ export class WorkSlots {
         return true;
     }
 
+    // The owner takes the desk whoever held it, dropping whatever else the owner held. Returns who it was taken from,
+    // if anyone, who then holds nothing and finds the desk occupied.
+    take(id: string, owner: string): string | undefined {
+        const previous = this.holders.get(id);
+        this.release(owner);
+        this.holders.set(id, owner);
+        return previous === owner ? undefined : previous;
+    }
+
     // Frees whatever the owner holds; safe to call when it holds nothing, so every exit path can call it
     release(owner: string) {
         for (const [id, holder] of this.holders) {
