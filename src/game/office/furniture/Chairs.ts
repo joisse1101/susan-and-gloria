@@ -3,6 +3,8 @@ import { CHAIR_DIRECTIONS, FURNITURE_ATLAS_KEY, type FurnitureFrameName } from '
 import { SPRITE_SCALE } from '../constants';
 import { CHAIR_SHADOW_OFFSET_Y, OBJECT_SHADOW_KEY, type Shadows } from '../interaction/Shadows';
 import { PUSH_HELD, PUSH_SHOVED, PUSH_STOPPED, resolvePush, type PushBody, type Rect } from '../interaction/pushChain';
+import { JamCooldowns } from '../interaction/npc/jamCooldown';
+import { JAMMED_CHAIR_COOLDOWN_MS } from '../chairTuning';
 import { CHAIR_DRAG, CHAIR_MASS, CHAIR_MAX_SPEED, ROLL_MS } from '../pushTuning';
 
 type DynamicSprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -38,6 +40,8 @@ export class Chairs {
     // Coworkers let go of after a pull: flagged as shoved at the next gate
     private pendingShove = new Set<string>();
     private claimed = new Set<DynamicSprite>();
+    // Chairs that jammed someone and are left alone for a while
+    private jams = new JamCooldowns<DynamicSprite>();
     // Chairs being pushed away by whoever got up: they roll backwards without turning to face the way they move
     private rolling = new Set<DynamicSprite>();
 
@@ -263,6 +267,20 @@ export class Chairs {
 
     isClaimed(chair: DynamicSprite) {
         return this.claimed.has(chair);
+    }
+
+    // True while the player is pulling this very chair (so a chair someone claimed has been taken from them)
+    isHeld(chair: DynamicSprite) {
+        return this.held === chair && this.heldId === undefined;
+    }
+
+    // The chair jammed someone: chair trips leave it alone for JAMMED_CHAIR_COOLDOWN_MS, wherever it is moved to
+    markJammed(chair: DynamicSprite) {
+        this.jams.mark(chair, this.scene.time.now, JAMMED_CHAIR_COOLDOWN_MS);
+    }
+
+    isCoolingDown(chair: DynamicSprite) {
+        return this.jams.isCoolingDown(chair, this.scene.time.now);
     }
 
     // A claimed chair is being taken to a seat, so nobody else goes for it

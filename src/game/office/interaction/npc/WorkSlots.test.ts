@@ -95,4 +95,13 @@ describe('WorkSlots', () => {
         expect(slots.heldBy('player')).toBe('a');
         expect(slots.isFree('b')).toBe(true);
     });
+
+    it('lets another walker choose a desk that was released after a lost trip', () => {
+        const slots = new WorkSlots();
+        slots.claim('a', 'susan');
+        expect(slots.claim('a', 'gloria')).toBe(false);
+        slots.release('susan');
+        expect(slots.isFree('a', 'gloria')).toBe(true);
+        expect(slots.claimRandom(['a'], 'gloria', () => 0)).toBe('a');
+    });
 });

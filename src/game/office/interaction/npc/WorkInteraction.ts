@@ -7,7 +7,8 @@ import { findPath, nearestReachableCell, nearestWalkableCell } from './pathfindi
 import { PathFollower, walkSpeedOf } from './PathFollower';
 import { WorkSlots } from './WorkSlots';
 import { facingFor, spotFor } from './deskSpot';
-import { DESK_TAKEN_PHRASES, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
+import type { GiveUpSignal } from './giveUp';
+import { DESK_TAKEN_PHRASES, FORGETFUL_PHRASES, JAM_PHRASES, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
 
 // Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one
 // (in the tile's "direction" property: left, right, up or down) stops and works
@@ -66,6 +67,9 @@ export interface WorkHost {
     fetchChair(name: NpcName): boolean;
     // They're done or interrupted: the chair, if any, is left where it is
     releaseChair(name: NpcName): void;
+    // Once per give-up of the chair trip: 'jam' = they let a jammed chair go and are walking back to work standing;
+    // 'lost' = they cannot get back to work and have stopped
+    gaveUp(name: NpcName): GiveUpSignal | undefined;
     // The grid the work trips are routed over (it is built after the interaction, so it is looked up on use)
     walkGrid(): WalkGrid;
     // True when the player is standing still with their feet (body centre) inside the rectangle, in px
@@ -90,6 +94,9 @@ export class WorkInteraction {
     private cooldownUntil = new Map<NpcName, number>();
     private nextVisitAt = new Map<NpcName, number>();
     private visit = new Map<NpcName, Visit>();
+    // Coworkers showing the make-do line after a jam: they keep walking back with the bubble up, and wait for it to
+    // finish before they start working
+    private makingDo = new Set<NpcName>();
 
     private scene: Phaser.Scene;
     private host: WorkHost;
@@ -141,7 +148,7 @@ export class WorkInteraction {
     // Call every frame for each coworker. Returns true while the coworker is walking to a work zone,
     // in which case this has set their velocity and they shouldn't wander.
     update(name: NpcName): boolean {
-        if (this.host.isBusy(name)) {
+        if (this.host.isBusy(name) && !this.makingDo.has(name)) {
             if (this.fetching.has(name)) this.cancel(name); // interrupted on the way to a chair: let go of it
             return false;
         }
@@ -178,10 +185,35 @@ export class WorkInteraction {
     }
 
     private fetch(name: NpcName) {
-        if (!this.host.fetchChair(name)) return true;
+        const ready = this.host.fetchChair(name);
+        const gaveUp = this.host.gaveUp(name);
+        if (gaveUp) {
+            const desk = this.fetchDesk.get(name)!;
+            // An occupied desk comes first: the usual turned-away line
+            if (gaveUp === 'lost' || this.occupied(name, desk)) {
+                this.endFetch(name);
+                this.host.releaseChair(name);
+                this.turnAway(name, this.occupied(name, desk) ? DESK_TAKEN_PHRASES : FORGETFUL_PHRASES);
+                return false;
+            }
+            this.makeDo(name);
+            return true;
+        }
+        if (!ready || this.makingDo.has(name)) return true;
         this.endFetch(name);
         this.startWork(name);
         return false;
+    }
+
+    // The chair jammed: say so, and carry on back to the spot to work standing
+    private makeDo(name: NpcName) {
+        this.makingDo.add(name);
+        this.host.say(name, Phaser.Utils.Array.GetRandom(JAM_PHRASES), () => {
+            this.scene.time.delayedCall(WORK_PHRASE_MS, () => {
+                // Work may have started meanwhile and replaced the line
+                if (this.makingDo.delete(name) && !this.working.has(name)) this.host.hideBubble(name);
+            });
+        });
     }
 
     private endFetch(name: NpcName) {
@@ -206,6 +238,7 @@ export class WorkInteraction {
     // Lets go of the desk and drops any trip to it, so it is free for anyone else.
     cancel(name: NpcName) {
         const fetching = this.fetching.has(name);
+        this.makingDo.delete(name);
         this.endFetch(name);
         if (fetching || this.working.has(name)) this.host.releaseChair(name);
         this.turnedAway.get(name)?.forEach((t) => t.remove());
@@ -438,15 +471,15 @@ export class WorkInteraction {
         return { x0: z.x0 * s, y0: z.y0 * s, x1: z.x1 * s, y1: z.y1 * s };
     }
 
-    // The desk is unusable: say a random "taken" line, then give it up and try again later. The coworker
-    // stays put while the bubble is up. The desk is released once the line is shown.
-    private turnAway(name: NpcName) {
+    // The desk is unusable, or the chair trip was lost: say a random line from `phrases`, then give it up and try
+    // again later. The coworker stays put while the bubble is up. The desk is released once the line is shown.
+    private turnAway(name: NpcName, phrases: string[] = DESK_TAKEN_PHRASES) {
         this.approach.delete(name);
         this.host.npc(name).setVelocity(0);
         console.log(`[office] ${name} turned away from its desk`);
         const timers: Phaser.Time.TimerEvent[] = [];
         this.turnedAway.set(name, timers);
-        this.host.say(name, Phaser.Utils.Array.GetRandom(DESK_TAKEN_PHRASES), () => {
+        this.host.say(name, Phaser.Utils.Array.GetRandom(phrases), () => {
             this.slots.release(name);
             this.scheduleVisit(name);
             this.cooldownUntil.set(name, this.scene.time.now + WORK_COOLDOWN_MS);

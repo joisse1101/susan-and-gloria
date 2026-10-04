@@ -129,6 +129,7 @@ export class OfficeScene extends Phaser.Scene {
             isBusy: (name) => this.bubbles.isVisible(name),
             fetchChair: (name) => this.npcSeats.ready(name),
             releaseChair: (name) => this.npcSeats.release(name),
+            gaveUp: (name) => this.npcSeats.hasGivenUp(name),
             walkGrid: () => this.walkGrid,
             isPlayerStillIn: (z) => {
                 const { x, y } = this.player.body.center;
@@ -193,7 +194,7 @@ export class OfficeScene extends Phaser.Scene {
         this.chairReach = new ChairReachOverlay(this, {
             spots: () => this.work.workSpots(),
             targets: () => this.work.targets(),
-            chairs: () => this.chairs.all().filter((c) => c.active).map((c) => ({ x: c.body.center.x, y: c.body.center.y, claimed: this.chairs.isClaimed(c) })),
+            chairs: () => this.chairs.all().filter((c) => c.active).map((c) => ({ x: c.body.center.x, y: c.body.center.y, claimed: this.chairs.isClaimed(c), coolingDown: this.chairs.isCoolingDown(c) })),
             grid: () => this.walkGrid,
             clearGrid: () => this.clearGrid
         }, SPEECH_DEPTH - 1, 'C', () => this.chat.isTyping);

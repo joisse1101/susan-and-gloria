@@ -8,6 +8,9 @@ import type { WalkGrid } from './WalkGrid';
 import { nearestReachableCell, type Cell } from './pathfinding';
 import { PathFollower, walkSpeedOf } from './PathFollower';
 import { cellOf, fetchCandidates, PARK_PX, planLeg } from './chairReach';
+import { chairLag, checkJam, ropeLength, type JamState } from './chairJam';
+import { giveUpOutcome, ReadOnce, signalOf, type GiveUpReason, type GiveUpSignal } from './giveUp';
+import { JAM_MARGIN_PX, JAM_TIME_MS } from '../../chairTuning';
 
 type Npc = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 type Chair = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -29,6 +32,8 @@ const DRAG_CHASE_MAX = 120;
 // Bumps into something unplanned (the player, the other coworker) before a leg is given up
 const MAX_BUMPS = 2;
 const RETURN_FALLBACK_CELLS = 4;
+// A jam this close to the spot (px) needs no walk back, only the last step
+const NEAR_SPOT_PX = 32;
 // The B key debug command makes the trip fail this long after it began, so the walk can be seen first
 const FORCED_BLOCK_AFTER_MS = 1000;
 
@@ -51,9 +56,10 @@ interface Seating {
     // Set on every bump into something unplanned (and so a reroute); read and cleared by hasBumped
     bumped?: boolean;
     finalSince?: number;
+    name: SeatUser;
     player: boolean;
-    // Set when the player gave up on the chair; read and cleared by hasGivenUp
-    gaveUp?: boolean;
+    // Reset on every new leg and phase
+    jam: JamState;
     // Debug: the next check for being blocked says yes, beyond the bump limit
     forcedBlock?: boolean;
 }
@@ -67,6 +73,8 @@ export class NpcSeats {
     // Room for the chair as well as the walker: used for the whole pull
     private clearGrid: () => WalkGrid;
     private states = new Map<SeatUser, Seating>();
+    // Set when a trip is given up; read once by the host through hasGivenUp
+    private giveUps = new ReadOnce<SeatUser, GiveUpSignal>();
     private layers = new Map<SeatUser, SeatLayers>();
     // Debug (B key): trips that are to fail as if blocked
     private forcedBlocks = new Set<SeatUser>();
@@ -94,6 +102,8 @@ export class NpcSeats {
                 since: this.scene.time.now,
                 follower: null,
                 bumps: 0,
+                jam: {},
+                name,
                 player: name === 'player'
             };
             this.pickChairByRoute(npc, s);
@@ -103,8 +113,10 @@ export class NpcSeats {
 
         const chair = s.chair;
         if (chair && (s.phase === 'go' || s.phase === 'pull') && this.scene.time.now - s.since > GIVE_UP_MS) {
-            this.abandon(npc, s);
+            this.abandon(npc, s, 'slow');
         }
+        // The player took hold of the chair this trip claimed
+        if (chair && (s.phase === 'go' || s.phase === 'pull') && this.chairs.isHeld(chair)) this.abandon(npc, s, 'taken');
 
         switch (s.phase) {
             case 'go':
@@ -137,6 +149,7 @@ export class NpcSeats {
 
     // They stop working (or were interrupted): the chair stays where they sat
     release(name: SeatUser) {
+        this.giveUps.clear(name);
         const s = this.states.get(name);
         if (!s) return;
         this.states.delete(name);
@@ -172,12 +185,10 @@ export class NpcSeats {
         return bumped;
     }
 
-    // True once if the player gave up on the chair (blocked, or too slow) since this was last asked
+    // Once per give-up: 'jam' = the chair jammed and they let it go (they walk back to the spot and work standing);
+    // 'lost' = they cannot get back to work (chair taken, blocked, too slow, no way back) and have stopped
     hasGivenUp(name: SeatUser) {
-        const s = this.states.get(name);
-        const gaveUp = s?.gaveUp === true;
-        if (s) s.gaveUp = false;
-        return gaveUp;
+        return this.giveUps.take(name);
     }
 
     // Debug: the user's current or next chair trip fails as if it were blocked beyond the bump limit
@@ -193,7 +204,7 @@ export class NpcSeats {
     // route that also has a route clear enough to drag it to the desk
     private pickChairByRoute(npc: Npc, s: Seating) {
         const chairs = this.chairs.all();
-        const probes = chairs.map((c) => ({ x: c.body.center.x, y: c.body.center.y, claimed: this.chairs.isClaimed(c) }));
+        const probes = chairs.map((c) => ({ x: c.body.center.x, y: c.body.center.y, claimed: this.chairs.isClaimed(c), coolingDown: this.chairs.isCoolingDown(c) }));
         const npcPos = { x: npc.body.center.x, y: npc.body.center.y };
         const { usable } = fetchCandidates(this.grid(), this.clearGrid(), npcPos, s.spot, SEAT_BACK[s.facing], probes);
         const best = usable[0];
@@ -215,7 +226,7 @@ export class NpcSeats {
             // Re-route to the chair from where they stand, once; otherwise give up
             const leg = s.bumps > MAX_BUMPS ? null : planLeg(this.grid(), this.centre(npc), cellOf(this.centre(chair)));
             if (!leg) {
-                this.abandon(npc, s);
+                this.abandon(npc, s, 'blocked');
                 return;
             }
             s.follower = new PathFollower(leg.start, leg.path);
@@ -228,11 +239,12 @@ export class NpcSeats {
         npc.setVelocity(0);
         const leg = s.stagingCell ? planLeg(this.clearGrid(), this.centre(npc), s.stagingCell) : null;
         if (!leg) {
-            this.abandon(npc, s);
+            this.abandon(npc, s, 'blocked');
             return;
         }
         s.follower = new PathFollower(leg.start, leg.path);
         s.bumps = 0;
+        s.jam = {};
         s.phase = 'pull';
     }
 
@@ -242,10 +254,11 @@ export class NpcSeats {
             if (this.blocked(npc, s)) {
                 const leg = s.bumps > MAX_BUMPS || !s.stagingCell ? null : planLeg(this.clearGrid(), this.centre(npc), s.stagingCell);
                 if (!leg) {
-                    this.abandon(npc, s);
+                    this.abandon(npc, s, 'blocked');
                     return;
                 }
                 s.follower = new PathFollower(leg.start, leg.path);
+                s.jam = {};
             }
             if (s.follower.step(npc) === 'arrived') {
                 s.follower = null;
@@ -258,6 +271,10 @@ export class NpcSeats {
             return;
         }
         this.dragChair(npc, chair, s);
+        const lag = chairLag(this.box(npc), this.box(chair), GRAB_GAP, PARK_PX);
+        const jam = checkJam(s.jam, lag, this.scene.time.now, JAM_MARGIN_PX, JAM_TIME_MS);
+        s.jam = jam.state;
+        if (jam.jammed) this.abandon(npc, s, 'jam');
     }
 
     // The chair is towed like on a short rope: it only moves once it is further than the rope from the coworker, and
@@ -294,8 +311,12 @@ export class NpcSeats {
 
     // Centre-to-centre distance the chair is held at along (ux, uy): touching, but at least half a tile
     private rope(npc: Npc, chair: Chair, ux: number, uy: number) {
-        const reach = (b: Phaser.Physics.Arcade.Body) => Math.abs(ux) * b.halfWidth + Math.abs(uy) * b.halfHeight;
-        return Math.max(PARK_PX, reach(npc.body) + reach(chair.body) + GRAB_GAP);
+        return ropeLength(ux, uy, this.box(npc), this.box(chair), GRAB_GAP, PARK_PX);
+    }
+
+    private box(sprite: { body: Phaser.Physics.Arcade.Body }) {
+        const { center, halfWidth, halfHeight } = sprite.body;
+        return { x: center.x, y: center.y, halfWidth, halfHeight };
     }
 
     // The short straight step from the staging point onto the exact spot. True once there (or it is taking too long).
@@ -316,27 +337,35 @@ export class NpcSeats {
         s.phase = 'slide';
     }
 
-    // Gave up on the chair (too slow, or blocked): let go of it and walk back to the spot to work standing.
-    // The player doesn't walk back: they decide where to go, so they just stand and work where they are.
-    private abandon(npc: Npc, s: Seating) {
+    // The trip ends early. A jam lets go of the chair and walks back to the spot to work standing; every other reason
+    // (and a jam with no way back) leaves them where they are, for the host to deal with (see hasGivenUp).
+    // Whether the desk is still free is the host's to say: it checks before acting on the signal.
+    private abandon(npc: Npc, s: Seating, reason: GiveUpReason) {
         if (s.chair) {
             this.chairs.unclaim(s.chair);
             s.chair.body.setVelocity(0, 0);
+            if (reason === 'jam') this.chairs.markJammed(s.chair);
         }
         s.chair = undefined;
-        if (s.player) {
-            npc.setVelocity(0);
+        npc.setVelocity(0);
+        const atSpot = Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, s.spot.x, s.spot.y) <= NEAR_SPOT_PX;
+        let leg = null;
+        if (reason === 'jam' && !atSpot) {
+            const goal = nearestReachableCell(this.grid(), this.cellFor(npc), cellOf(s.spot), RETURN_FALLBACK_CELLS);
+            leg = goal ? planLeg(this.grid(), this.centre(npc), goal) : null;
+        }
+        const outcome = giveUpOutcome(reason, atSpot, leg !== null, false);
+        this.giveUps.set(s.name, signalOf(outcome));
+        s.jam = {};
+        if (outcome === 'forget') {
             s.follower = null;
             s.phase = 'none';
-            s.gaveUp = true;
             return;
         }
+        // Walk back (routed), then the short straight step onto the spot; on the spot that step is all there is
         s.phase = 'return';
-        s.finalSince = undefined;
-        const goal = nearestReachableCell(this.grid(), this.cellFor(npc), cellOf(s.spot), RETURN_FALLBACK_CELLS);
-        const leg = goal ? planLeg(this.grid(), this.centre(npc), goal) : null;
         s.follower = leg ? new PathFollower(leg.start, leg.path) : null;
-        if (!s.follower) s.finalSince = this.scene.time.now;
+        s.finalSince = s.follower ? undefined : this.scene.time.now;
     }
 
     // Routed walk back to the spot, then the short straight step onto it. True once there.

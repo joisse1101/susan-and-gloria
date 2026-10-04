@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { FORGETFUL_PHRASES, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
+import type { GiveUpSignal } from '../npc/giveUp';
+import { FORGETFUL_PHRASES, JAM_PHRASES, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
 import { nextSession, type SessionState } from './playerSession';
 
 type Sprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -18,8 +19,9 @@ export interface PlayerWorkHost {
     fetchChair(): boolean;
     // Stopped: the chair, if any, is left where it is
     releaseChair(): void;
-    // True once if the trip was given up (blocked, or too slow) since this was last asked
-    gaveUp(): boolean;
+    // Once per give-up: 'jam' = the chair jammed and was let go (they walk back to work standing); 'lost' = they
+    // cannot get back to work and have stopped
+    gaveUp(): GiveUpSignal | undefined;
 }
 
 // The player works like the coworkers: standing still in a work zone starts it (a chair trip first, when one is in
@@ -49,26 +51,48 @@ export class PlayerWork {
             typing: host.isTyping(),
             bubble: host.bubble.visible,
             done: this.done,
-            fetched: false
+            fetched: false,
+            lost: false,
+            jammed: false
         };
         const prev = this.state;
         let next = nextSession(prev, input);
         if (prev === 'idle' && next === 'fetching') host.claimDesk();
-        if (next === 'fetching' && host.fetchChair()) next = nextSession('fetching', { ...input, fetched: true });
+        let gaveUp: GiveUpSignal | undefined;
+        if (next === 'fetching' || next === 'walkingBack') {
+            const arrived = host.fetchChair();
+            gaveUp = host.gaveUp();
+            next = nextSession(next, { ...input, fetched: arrived, lost: gaveUp === 'lost', jammed: gaveUp === 'jam' });
+        }
         this.state = next;
+        if (gaveUp === 'lost') this.done = true; // no work: standing still here must not start another trip at once
         if (prev !== 'idle' && next === 'idle') this.stop();
-        else if (prev !== 'working' && next === 'working') this.startWork();
+        else if (prev !== 'working' && next === 'working') this.startWork(gaveUp === 'jam');
+        if (gaveUp === 'lost') this.say(FORGETFUL_PHRASES, true);
+        else if (gaveUp === 'jam') this.say(JAM_PHRASES, next !== 'working');
     }
 
-    private startWork() {
+    // A line in the player's bubble. `hideAfter`: take it down again after a moment (when no work will replace it).
+    private say(lines: string[], hideAfter: boolean) {
         const { bubble } = this.host;
-        const forgot = this.host.gaveUp();
-        if (forgot) {
-            // Gave up on the chair: a forgetful line first, so the sudden stop reads as natural
-            bubble.setStyle({ fontStyle: 'italic', color: '#555555' });
-            bubble.setText(Phaser.Utils.Array.GetRandom(FORGETFUL_PHRASES));
-            bubble.setVisible(true);
-        }
+        const line = Phaser.Utils.Array.GetRandom(lines);
+        bubble.setStyle({ fontStyle: 'italic', color: '#555555' });
+        bubble.setText(line);
+        bubble.setVisible(true);
+        // Walking back and working keep the bubble for their own lines
+        if (!hideAfter || this.state === 'walkingBack') return;
+        this.scene.time.delayedCall(WORK_PHRASE_MS * 2, () => {
+            if (bubble.text === line && this.state === 'idle' && !this.host.isTyping()) {
+                bubble.setStyle({ fontStyle: 'normal', color: '#000000' });
+                bubble.setVisible(false);
+            }
+        });
+    }
+
+    // `spoke`: the make-do line is up, so the first work phrase waits for it
+    private startWork(spoke: boolean) {
+        const { bubble } = this.host;
+        const forgot = spoke;
         const endAt = this.scene.time.now + WORK_DURATION_MS;
         this.timer = this.scene.time.addEvent({
             delay: WORK_PHRASE_MS * 2,
@@ -93,7 +117,7 @@ export class PlayerWork {
     }
 
     isFetching() {
-        return this.state === 'fetching';
+        return this.state === 'fetching' || this.state === 'walkingBack';
     }
 
     private stop() {
