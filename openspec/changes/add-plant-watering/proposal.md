@@ -13,7 +13,7 @@ The map now marks the office plant with `interaction = water` tiles, and the wat
 - Treat adjacent `water` tiles as one plant (one claim, one watering at a time).
 - Load and draw `WateringCan.png` and `WaterStream.png` while someone is watering. The back-view stream is used as it is first and judged in the game.
 
-Not in this change: drawing the standing watering pose sheets. They will be drawn separately, before the sprite wiring task is started, with the hands on the same pixels as the seated `Type.png` so the existing can and stream sheets line up unchanged.
+Not in this change: drawing the standing watering pose sheets. They will be drawn separately, before the sprite wiring task is started, with the hands on the same pixels as the seated `WorkSitting.png` so the existing can and stream sheets line up unchanged.
 
 ## Capabilities
 

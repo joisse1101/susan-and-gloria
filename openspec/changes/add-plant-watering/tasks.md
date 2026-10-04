@@ -34,7 +34,7 @@ Everything in this group is done, and every test passing, before any task in gro
 
 ## 5. Sprites
 
-Prerequisite: the standing watering sheets for the player, Susan and Gloria are drawn separately, with the hands on the same pixels as the seated `Type.png`, and are in `public/assets/sprites/<name>/`.
+Prerequisite: the standing watering sheets for the player, Susan and Gloria are drawn separately, with the hands on the same pixels as the seated `WorkSitting.png`, and are in `public/assets/sprites/<name>/`.
 
 - [ ] 5.1 Load the standing sheets and play the right frame for the facing while watering; verify in the game that each character holds the can at its hands in all four directions
 - [ ] 5.2 Load `WateringCan.png` and `WaterStream.png`, draw the can and stream as overlays following the actor (back view behind the character, the rest in front), and hide them when watering ends; verify the can lines up with the hands for all three characters, with Gloria's front view offset by -1 y

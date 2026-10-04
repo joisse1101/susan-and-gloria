@@ -2,7 +2,7 @@
 
 See proposal.md for the motivation. Today the "should I start" decision for work is written twice: `WorkInteraction` (coworkers: scheduled visits, `deskAt`/`contains`, `isBusy`, `cooldownUntil`) and `PlayerWork` with the pure `playerSession` (player: `inZone`, `moving`, `typing`, `bubble`, `done`). The parts that are already shared are keyed by an actor id: `WorkSlots` claims, `NpcSeats` (`'player'` or a coworker name), `PathFollower`, and the A* helpers (`findPath`, `nearestReachableCell`, `nearestWalkableCell`). The plant is on collider layers, so the walk grid blocks it and an actor can never stand on it. The water tiles have no `direction` property.
 
-Sprite constraints: `WateringCan.png` is aligned cell for cell with the seated `Type.png` (hands at side x22-23, y20/22; front x14-17, y22-24). `WaterStream.png` is 48x16 (side, front, back), anchored to the can's rose. Standing watering sheets are drawn separately and put the hands on the same pixels, so neither sheet needs an offset.
+Sprite constraints: `WateringCan.png` is aligned cell for cell with the seated `WorkSitting.png` (hands at side x22-23, y20/22; front x14-17, y22-24). `WaterStream.png` is 48x16 (side, front, back), anchored to the can's rose. Standing watering sheets are drawn separately and put the hands on the same pixels, so neither sheet needs an offset.
 
 ## Goals / Non-Goals
 
