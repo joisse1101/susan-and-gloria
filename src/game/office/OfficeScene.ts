@@ -20,7 +20,7 @@ import {
     type FurnitureFrameName
 } from './atlases/furnitureAtlas';
 import { Chairs } from './furniture/Chairs';
-import { COWORKER_DRAG, COWORKER_MASS, PLAYER_PUSH_SPEED, PLAYER_WALK_SPEED, PULL_SPEED } from './pushTuning';
+import { COWORKER_DRAG, COWORKER_MASS, PLAYER_WALK_SPEED, PULL_CHAIR_SPEED, PULL_COWORKER_SPEED, PUSH_CHAIR_SPEED, PUSH_COWORKER_SPEED } from './pushTuning';
 import { NpcSeats } from './interaction/npc/NpcSeats';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
@@ -250,7 +250,13 @@ export class OfficeScene extends Phaser.Scene {
         }
         const pulling = !this.chat.isTyping && !this.playerWork.isFetching() && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true, coworkers);
         if (!pulling) this.chairs.grab(this.player, false);
-        const speed = pulling ? PULL_SPEED : this.chairs.isPlayerPushing() ? PLAYER_PUSH_SPEED : PLAYER_WALK_SPEED;
+        const pushed = this.chairs.playerPushKinds();
+        const speeds = [
+            ...(pulling ? [this.chairs.heldKind() === 'coworker' ? PULL_COWORKER_SPEED : PULL_CHAIR_SPEED] : []),
+            ...(pushed.has('chair') ? [PUSH_CHAIR_SPEED] : []),
+            ...(pushed.has('coworker') ? [PUSH_COWORKER_SPEED] : [])
+        ];
+        const speed = speeds.length > 0 ? Math.min(...speeds) : PLAYER_WALK_SPEED;
         this.player.setVelocity(0);
 
         // A movement key is the player taking control: it cancels the chair trip, whose own walking is not "moving"

@@ -34,7 +34,7 @@ export class Chairs {
     private held?: DynamicSprite;
     private heldId?: string;
     private shoved = new Set<string>();
-    private playerPushing = false;
+    private playerPushed = new Set<'chair' | 'coworker'>();
     // Coworkers let go of after a pull: flagged as shoved at the next gate
     private pendingShove = new Set<string>();
     private claimed = new Set<DynamicSprite>();
@@ -90,9 +90,14 @@ export class Chairs {
     // step and zeroes the velocity of any whose push would be blocked: the root of a blocked chain stops, and a pulled
     // body that is blocked is let go of instead. Coworkers get a data flag the frame they are stopped (PUSH_STOPPED),
     // first displaced (PUSH_SHOVED) or let go of after a pull (PUSH_SHOVED), so their route follower replans once.
-    // True if the player's push displaced something in the last gate, so they should walk at push speed
-    isPlayerPushing() {
-        return this.playerPushing;
+    // What the player's push displaced in the last gate, so they walk at that push speed
+    playerPushKinds() {
+        return this.playerPushed;
+    }
+
+    // What the player is pulling, if anything
+    heldKind(): 'chair' | 'coworker' | undefined {
+        return this.held ? (this.heldId === undefined ? 'chair' : 'coworker') : undefined;
     }
 
     // True if the resolver displaced this coworker in the last gate
@@ -155,7 +160,9 @@ export class Chairs {
         for (const id of this.pendingShove) sprites.get(id)?.setData(PUSH_SHOVED, true);
         this.pendingShove.clear();
         this.shoved = nowShoved;
-        this.playerPushing = [...result.pushedBy.values()].includes('player');
+        this.playerPushed = new Set(
+            [...result.pushedBy].filter(([, root]) => root === 'player').map(([id]) => (id.startsWith('chair') ? 'chair' : 'coworker') as 'chair' | 'coworker')
+        );
 
         if (this.held) {
             const id = this.heldId ?? chairIds.get(this.held);
