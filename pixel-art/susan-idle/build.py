@@ -18,13 +18,13 @@ def mirror(half): return half + half[::-1]
 # head rows: y -> 8-char left half (x8..15), mirrored to x8..23
 HEAD = {
  5:"....AAA", 6:"..AAHHL", 7:".AHHLLL", 8:".AHLLWW", 9:"AHHLLLL",
- 10:"AHHLLLL", 11:"AHHLLLL", 12:"AHHLLSS", 13:"AHHLSSS", 14:"AHHseSS",
- 15:"AHHbeSS", 16:"..AsSSS", 17:"...AAsS",
+ 10:"AHHLLLL", 11:"AHHLLLL", 12:"AHHLSSS", 13:"AHHSSSS", 14:"AHsSeSS",
+ 15:"AHsbeSS", 16:"..AsSSS", 17:"...AAsS",
 }
 # body rows (static)
 BODY = {
  17:"...AAJJJ", 18:"...AJJJJ", 19:"...AJKJJ", 20:"..AJJKJJ", 21:"..AJJKJJ",
- 22:".AJKAJJJ", 23:".AsSAJJJ", 24:"..AAAjpp", 25:"....ApPA", 26:"....ApPA",
+ 22:".AJKAJJJ", 23:".AsSAJJJ", 24:"..AAAppp", 25:"....ApPA", 26:"....ApPA",
  27:"....AppA", 28:"....AooA", 29:"...AOooA",
 }
 # ponytail on viewer's right: y -> (x0, string)
@@ -105,7 +105,7 @@ def draw_back(s, dy):
 HEAD34 = {
  5:(13,"AAAAAA"), 6:(11,"AAHHLLLLAA"), 7:(10,"AHHLLLLLLHHA"), 8:(9,"AHHLLWLLLLLLHA"),
  9:(9,"AHHLLLLLLLLLHA"), 10:(9,"AHHLLLLLLLLLHA"), 11:(9,"AHHLLLLLLLLLHA"),
- 12:(9,"AHHhLLLSSSSSHA"), 13:(9,"AHHhLLLSSSSSsA"), 14:(9,"AHHhHSeSSSeSsA"),
+ 12:(9,"AHHhLLSSSSSSHA"), 13:(9,"AHHhLSSSSSSSsA"), 14:(9,"AHHhHSeSSSeSsA"),
  15:(9,"AHHhHbeSSSeSbA"), 16:(13,"AsSSSSsA"), 17:(13,"AAsSSA"),
 }
 def draw_right(s, dy):                      # 3/4 view, facing down-right

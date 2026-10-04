@@ -19,8 +19,8 @@ def mirror(half): return half + half[::-1]
 
 HEAD = {
  5:"....AAA", 6:"..AAHHL", 7:".AHHLLL", 8:".AHLLWW", 9:"AHHLLLL",
- 10:"AHHLLLL", 11:"AHHLLLL", 12:"AHHLLSS", 13:"AHHLSSS", 14:"AHHSSSS",
- 15:"AHHSSSS", 16:"..AsSSS", 17:"...AAsS",
+ 10:"AHHLLLL", 11:"AHHLLLL", 12:"AHHLSSS", 13:"AHHLSSS", 14:"AHHSSSS",
+ 15:"AAHSSSS", 16:"..AsSSS", 17:"...AAsS",
 }
 # cardigan (rows 17-24), skirt (25-27); mirrored around x15/16
 BODY = {
@@ -89,8 +89,8 @@ def draw_back(s, dy):
 HEAD34 = {
  5:(13,"AAAAAA"), 6:(11,"AAHHLLLLAA"), 7:(10,"AHHLLLLLLHHA"), 8:(9,"AHHLLWLLLLLLHA"),
  9:(9,"AHHLLLLLLLLLHA"), 10:(9,"AHHLLLLLLLLLHA"), 11:(9,"AHHLLLLLLLLLHA"),
- 12:(9,"AHHhLLSSSSSSHA"), 13:(9,"AHHhLSSSSSSSsA"), 14:(9,"AHHhHSSSSSSSsA"),
- 15:(9,"AHHhHSSSSSSSsA"), 16:(13,"AsSSSSsA"), 17:(13,"AAsSSA"),
+ 12:(9,"AHhLLSSSSSSSHA"), 13:(9,"AAhLSSSSSSSSsA"), 14:(10,"AAHSSSSSSSSsA"),
+ 15:(11,"AASSSSSSSSAA"), 16:(12,"AAsSSSSsAA"), 17:(13,"AAsSSA"),
 }
 def draw_right(s, dy):                       # 3/4 view facing down-right
     base(s, dy, BODY, 2)

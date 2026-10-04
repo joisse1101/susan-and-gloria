@@ -1,8 +1,8 @@
-"""Draws the watering can as a held-item overlay on the player's seated typing sheet (Type.png).
+"""Draws the watering can as a held-item overlay on the player's seated typing sheet (WorkSitting.png).
 
-Layout matches Type.png: 32px cells, one row per direction (down, up, right, left), 2 frames per row, so
+Layout matches WorkSitting.png: 32px cells, one row per direction (down, up, right, left), 2 frames per row, so
 the sheet can be drawn at the character's origin and bobs with the hand. Positions are measured from the
-player's Type.png hands: side views hold it at the extended hand (x 22-23, y 20 on frame 0, 22 on frame 1),
+player's WorkSitting.png hands: side views hold it at the extended hand (x 22-23, y 20 on frame 0, 22 on frame 1),
 the front view at the belly hands (x 15-17, y 23-24). The left view is the right one mirrored (31 - x).
 The back view only shows the can's edges peeking past the body: draw that row BEHIND the character, the
 other rows in front (the preview does the same).
@@ -126,7 +126,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 sheet.save(OUT)
 
 # Preview: can on each character's seated sheet, back row behind the character, the rest in front.
-chars = [Image.open(os.path.join(SPRITES, n, "Type.png")).convert("RGBA") for n in ("player", "susan", "gloria")]
+chars = [Image.open(os.path.join(SPRITES, n, "WorkSitting.png")).convert("RGBA") for n in ("player", "susan", "gloria")]
 bg = Image.new("RGBA", (sheet.width * 3 + 16, sheet.height), (200, 200, 200, 255))
 for i, body_sheet in enumerate(chars):
     # Gloria's belly hands sit one row higher in the front view

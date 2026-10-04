@@ -1,4 +1,5 @@
-"""Derives the player's seated typing sheet (Type.png) from the asset-pack Idle.png and Shoot.png.
+"""Derives the player's work sheets from the asset-pack Idle.png and Shoot.png: WorkSitting.png (seated, built from
+Idle's short frame 0) and WorkStanding.png (at the desk without a chair, built from Idle's tall frame 1).
 
 Layout matches the other player sheets: 32px cells, one row per direction (down, up, right, left),
 2 frames per row. Head and torso come from Shoot.png frame 0 (arms already in front of the body, gun
@@ -10,12 +11,17 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLAYER = os.path.join(HERE, "../../public/assets/sprites/player")
-OUT = os.path.abspath(os.path.join(PLAYER, "Type.png"))
+OUT = os.path.abspath(os.path.join(PLAYER, "WorkSitting.png"))
+OUT_STAND = os.path.abspath(os.path.join(PLAYER, "WorkStanding.png"))
 
 CELL = 32
 SIT_DROP = 2                  # px the upper body sinks onto the chair
 UPPER_END = 23                # last row of head + torso in both source sheets
 LEG_ROWS = range(26, CELL)    # lower legs, feet and shadow, taken from Idle and left planted
+# Standing: Idle's tall frame 1 is frame 0 with everything above the feet (rows 4-24) one px higher, so the
+# upper body rises STAND_RISE px, the head comes from frame 1 and the hem/legs from STAND_LEG_ROW down.
+STAND_RISE = 1
+STAND_LEG_ROW = 24            # Idle's row 23 is the top of the pants but also the bottom of its hanging hands, so it is copied by hand (see build)
 OUTLINE = (0x0c, 0x0a, 0x07, 255)
 SKIN = (0xd2, 0xa3, 0x94, 255)
 SKIN_FAR = (0xb0, 0x84, 0x78, 255)   # the far hand is shaded, as if behind the near one
@@ -33,8 +39,8 @@ shoot = Image.open(os.path.join(PLAYER, "Shoot.png")).convert("RGBA")
 sheet = Image.new("RGBA", (CELL * 2, CELL * 4), (0, 0, 0, 0))
 
 
-def cell(img, row, flip=False):
-    c = img.crop((0, row * CELL, CELL, (row + 1) * CELL))
+def cell(img, row, flip=False, col=0):
+    c = img.crop((col * CELL, row * CELL, (col + 1) * CELL, (row + 1) * CELL))
     return c.transpose(Image.FLIP_LEFT_RIGHT) if flip else c
 
 
@@ -104,29 +110,45 @@ def lift_columns(img, columns, rows):
             px[x, y] = col[i + 1]
 
 
-for frame in range(2):
-    for row in range(4):
-        # Rows: 0 down, 1 up, 2 right, 3 left
-        if row == 0:
-            upper = front_upper(row, frame)
-        elif row == 1:
-            upper = back_upper(row, frame)
-        else:
-            upper = side_upper(row, flip=(row == 3), frame=frame)
-            if row == 3:
-                upper = upper.transpose(Image.FLIP_LEFT_RIGHT)
-        head = cell(idle, row).crop((0, 0, CELL, HEAD_END + 1))
-        for y in range(5, HEAD_END + 1):
-            for x in range(CELL):
-                upper.putpixel((x, y), head.getpixel((x, y)))
-        out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
-        out.alpha_composite(upper, (0, SIT_DROP))
-        legs = cell(idle, row).crop((0, LEG_ROWS.start, CELL, CELL))
-        out.alpha_composite(legs, (0, LEG_ROWS.start))
-        sheet.paste(out, (frame * CELL, row * CELL))
+def build(standing):
+    sheet = Image.new("RGBA", (CELL * 2, CELL * 4), (0, 0, 0, 0))
+    for frame in range(2):
+        for row in range(4):
+            # Rows: 0 down, 1 up, 2 right, 3 left
+            if row == 0:
+                upper = front_upper(row, frame)
+            elif row == 1:
+                upper = back_upper(row, frame)
+            else:
+                upper = side_upper(row, flip=(row == 3), frame=frame)
+                if row == 3:
+                    upper = upper.transpose(Image.FLIP_LEFT_RIGHT)
+            head_end = HEAD_END - STAND_RISE if standing else HEAD_END
+            head_top = 5 - STAND_RISE if standing else 5
+            head = cell(idle, row, col=1 if standing else 0).crop((0, 0, CELL, head_end + 1))
+            out = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
+            out.alpha_composite(upper, (0, -STAND_RISE if standing else SIT_DROP))
+            head_shift = 0 if standing else SIT_DROP   # frame 1's head is already at its standing height
+            for y in range(head_top, head_end + 1):
+                for x in range(CELL):
+                    out.putpixel((x, y + head_shift), head.getpixel((x, y)))
+            leg_row = STAND_LEG_ROW if standing else LEG_ROWS.start
+            legs = cell(idle, row, col=1 if standing else 0).crop((0, leg_row, CELL, CELL))
+            if standing:
+                # Row 23 is Idle's own (pants top), clipped to the torso columns so its hanging hands stay out
+                idle_row = cell(idle, row, col=1).load()
+                for x in range(CELL):
+                    if legs.getpixel((x, 0))[3]:
+                        out.putpixel((x, leg_row - 1), idle_row[x, leg_row - 1])
+            out.alpha_composite(legs, (0, leg_row))
+            sheet.paste(out, (frame * CELL, row * CELL))
+    return sheet
 
-sheet.save(OUT)
-bg = Image.new("RGBA", sheet.size, (200, 200, 200, 255))
-bg.alpha_composite(sheet)
-bg.resize((sheet.width * 8, sheet.height * 8), Image.NEAREST).save(os.path.join(HERE, "preview.png"))
-print("wrote", OUT)
+
+for standing, path, preview in ((False, OUT, "preview.png"), (True, OUT_STAND, "preview-standing.png")):
+    sheet = build(standing)
+    sheet.save(path)
+    bg = Image.new("RGBA", sheet.size, (200, 200, 200, 255))
+    bg.alpha_composite(sheet)
+    bg.resize((sheet.width * 8, sheet.height * 8), Image.NEAREST).save(os.path.join(HERE, preview))
+    print("wrote", path)

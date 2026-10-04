@@ -80,7 +80,7 @@ alone.resize((alone.width * 12, alone.height * 12), Image.Resampling.NEAREST).sa
 
 # Preview 2: on the player holding the can, frame 0 of the right / down / up views
 can = Image.open(os.path.join(SPRITES, "items", "WateringCan.png")).convert("RGBA")
-body = Image.open(os.path.join(SPRITES, "player", "Type.png")).convert("RGBA")
+body = Image.open(os.path.join(SPRITES, "player", "WorkSitting.png")).convert("RGBA")
 PW, PH = 48, 48               # panel: the 32px cell plus room for the water leaving it
 # (sheet row of the character, water cell, where the water's top-left lands, behind the character?)
 panels = ((2, 0, (32, 21), False),

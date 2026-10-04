@@ -45,6 +45,7 @@ import {
     preloadCharacterSprite,
     preloadPlayerSprite,
     typeAnimKey,
+    standAnimKey,
     type CharacterSprite,
     type Facing
 } from './interaction/player/playerSprite';
@@ -422,15 +423,9 @@ export class OfficeScene extends Phaser.Scene {
         const facing = facingFromVelocity(x, y, npc.getData(FACING) ?? 'down');
         if (moving) npc.setData(FACING, facing);
         if (!moving && this.work.isWorking(character.name as NpcName)) {
-            if (character.type) {
-                npc.anims.play(typeAnimKey(facing, character.name), true);
-                return;
-            }
-            // Working: hold the idle animation's first frame instead of looping it
-            if (npc.anims.isPlaying || !npc.anims.currentAnim?.key.includes('-idle-')) {
-                npc.anims.play(animKey('idle', facing, character.name));
-                npc.anims.stop();
-            }
+            // Seated with a chair, otherwise working on their feet
+            const seated = this.npcSeats.isSeated(character.name as NpcName);
+            npc.anims.play(seated ? typeAnimKey(facing, character.name) : standAnimKey(facing, character.name), true);
             return;
         }
         npc.anims.play(animKey(moving ? 'walk' : 'idle', facing, character.name), true);
@@ -450,12 +445,8 @@ export class OfficeScene extends Phaser.Scene {
                 this.player.anims.play(typeAnimKey(this.facing), true);
                 return;
             }
-            // Standing work (no chair, or gave up on it): hold the idle animation's first frame
-            const key = animKey('idle', this.facing);
-            if (this.player.anims.currentAnim?.key !== key || this.player.anims.isPlaying) {
-                this.player.anims.play(key);
-                this.player.anims.stop();
-            }
+            // Standing work (no chair, or gave up on it)
+            this.player.anims.play(standAnimKey(this.facing), true);
             return;
         }
         this.player.anims.play(animKey(moving ? 'walk' : 'idle', this.facing), true);
