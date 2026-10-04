@@ -170,7 +170,7 @@ export class OfficeScene extends Phaser.Scene {
         this.chairs.add(450, 300, 'chairS');
         this.chairs.add(260, 380, 'chairSE');
         this.chairs.add(330, 380, 'chairW');
-        this.npcSeats = new NpcSeats(this, this.chairs, (name) => (name === 'player' ? this.player : name === 'susan' ? this.susan : this.gloria));
+        this.npcSeats = new NpcSeats(this, this.chairs, (name) => (name === 'player' ? this.player : name === 'susan' ? this.susan : this.gloria), () => this.walkGrid);
 
         this.gloria = this.createSheetCoworker(GLORIA_SPRITE, 170, 150);
         this.susan = this.createSheetCoworker(SUSAN_SPRITE, 475, 151);

@@ -20,12 +20,12 @@
 
 ## 4. Routed chair fetch
 
-- [ ] 4.0 Add the pure `chairsInReach` (5-tile straight-line filter, then routed length capped at 15 tiles, with a rejection reason per chair) and verify unit tests cover claimed, too-far, no-route, route-too-long, in-reach, and the nearest-by-route chair winning over the nearest-by-straight-line one
-- [ ] 4.1 Add the pure `planChairFetch` (leg 1 to the chair, leg 2 drag to the staging point half a tile behind the spot, leg 3 to the spot) and verify unit tests against a real `WalkGrid` cover each facing, a blocked staging cell, and no reachable chair
-- [ ] 4.2 Rework `NpcSeats` `go` and `return` to follow routed legs; verify a coworker reaches a chair around furniture
-- [ ] 4.3 Rework `pull` to drag the chair kinematically along the routed leg to the staging point, then step to the spot and slide; verify the chair ends half a tile behind the work position and the coworker sits
-- [ ] 4.4 Release chair and claim on give-up or interruption at every leg; verify no chair stays claimed afterwards
-- [ ] 4.5 Keep `NpcSeats` keyed by `SeatUser` so the player can reuse it; verify the player's existing slide-to-feet seating still works
+- [x] 4.0 Add the pure `chairsInReach` (5-tile straight-line filter, then routed length capped at 15 tiles, with a rejection reason per chair) and verify unit tests cover claimed, too-far, no-route, route-too-long, in-reach, and the nearest-by-route chair winning over the nearest-by-straight-line one
+- [x] 4.1 Add the pure `planChairFetch` (leg 1 to the chair, leg 2 drag to the staging point half a tile behind the spot, leg 3 to the spot) and verify unit tests against a real `WalkGrid` cover each facing, a blocked staging cell, and no reachable chair
+- [x] 4.2 Rework `NpcSeats` `go` and `return` to follow routed legs; verify a coworker reaches a chair around furniture
+- [x] 4.3 Rework `pull` to drag the chair kinematically along the routed leg to the staging point, then step to the spot and slide; verify the chair ends half a tile behind the work position and the coworker sits
+- [x] 4.4 Release chair and claim on give-up or interruption at every leg; verify no chair stays claimed afterwards
+- [x] 4.5 Keep `NpcSeats` keyed by `SeatUser` so the player can reuse it; verify the player's existing slide-to-feet seating still works
 
 ## 5. Chair reach debug view
 

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { NpcName } from '../../OfficeScene';
-import { faceHorizontal } from './facing';
+import { FACING } from './facing';
 import { CELL, type WalkGrid } from './WalkGrid';
 import { findPath, nearestReachableCell, nearestWalkableCell } from './pathfinding';
 import { PathFollower, WALK_SPEED } from './PathFollower';
@@ -300,7 +300,6 @@ export class WorkInteraction {
 
     // Walks a coworker standing in a work zone to the spot flush against the work tile: 'ready' once they're there,
     // after turning them to face the tile, 'failed' when they can't get onto it (the player is in the way).
-    // The sprites are side-on, so up/down tiles get no flip.
     private approachWorkTile(name: NpcName, desk: Desk): 'moving' | 'ready' | 'failed' {
         const npc = this.host.npc(name);
         const size = this.tileSize;
@@ -325,9 +324,9 @@ export class WorkInteraction {
             return 'moving';
         }
         if (dist > SPOT_TOLERANCE_PX) return 'failed';
-        // dir is the side of the tile they stand on, so the tile is the opposite way. Sprites face right
-        // by default, so flip when they stand to the right of the tile (tile on their left)
-        if (dx !== 0) faceHorizontal(npc, dx > 0);
+        // dir is the side of the tile they stand on, so they face the opposite way: left of the tile means facing right, and so on.
+        // The facing also decides which side of them the chair is parked on.
+        npc.setData(FACING, dx > 0 ? 'left' : dx < 0 ? 'right' : dy > 0 ? 'up' : 'down');
         return this.arrive(name);
     }
 

@@ -4,24 +4,35 @@ import { SeatLayers, SEAT_BACK, seatFrame, seatPosition } from '../../furniture/
 import type { Facing } from '../player/playerSprite';
 import { FACING } from './facing';
 import type { NpcName } from './NpcBubbles';
+import type { WalkGrid } from './WalkGrid';
+import { nearestReachableCell, type Cell } from './pathfinding';
+import { PathFollower, WALK_SPEED } from './PathFollower';
+import { cellOf, chairsInReach, FETCH_RANGE, inReachByRoute, PARK_PX, planChairFetch, planLeg } from './chairReach';
 
 type Npc = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 type Chair = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 // The player gets a chair too, but they don't walk for it: it slides to them where they stand
 export type SeatUser = NpcName | 'player';
 
-// A coworker about to work looks for a loose chair this close (px, body centre to body centre): 5 tiles
-const FETCH_RANGE = 5 * 32;
-const WALK_SPEED = 40;
 const SLIDE_SPEED = 50;
 // Touching distance (px between bodies) at which they take hold of the chair
 const GRAB_GAP = 4;
-const GIVE_UP_MS = 10000;
+// The whole fetch, walking to the chair and dragging it back, over routes of up to MAX_CHAIR_ROUTE_TILES each way
+// at WALK_SPEED, so it needs well over the straight-line time
+const GIVE_UP_MS = 30000;
 // How far (px) the chair rolls when they get up: half a tile
 const PUSH_BACK = 16;
+// The last straight step onto the exact spot (and back, when giving up) is abandoned after this long
+const FINAL_STEP_MS = 2000;
+// Fastest the dragged chair is moved towards its place behind the coworker
+const DRAG_CHASE_MAX = 120;
+// Bumps into something unplanned (the player, the other coworker) before a leg is given up
+const MAX_BUMPS = 2;
+const RETURN_FALLBACK_CELLS = 4;
 
-// go: walk to the chair; pull: walk back to the work spot dragging it; slide: it rolls under them;
-// seated: working in it; return: gave up, walking back; none: no chair, work standing as usual
+// go: walk the routed path to the chair; pull: drag it along the routed path to half a tile behind the spot, then step
+// onto the spot (the chair is towed behind them); slide: it rolls under them; seated: working in it;
+// return: gave up, walking back to the spot; none: no chair, work standing as usual
 type Phase = 'go' | 'pull' | 'slide' | 'seated' | 'return' | 'none';
 
 interface Seating {
@@ -31,20 +42,27 @@ interface Seating {
     facing: Facing;
     since: number;
     seat?: { x: number; y: number };
+    // The routed leg being walked, and what it is heading for; null once only the straight last step remains
+    follower: PathFollower | null;
+    stagingCell?: Cell;
+    bumps: number;
+    finalSince?: number;
 }
 
-// Coworkers fetch the nearest loose chair, pull it into place and work sitting in it. No chair in reach: they work standing.
+// Coworkers fetch the nearest loose chair by walking route, drag it into place and work sitting in it. No chair in reach: they work standing.
 export class NpcSeats {
     private scene: Phaser.Scene;
     private chairs: Chairs;
     private npc: (name: SeatUser) => Npc;
+    private grid: () => WalkGrid;
     private states = new Map<SeatUser, Seating>();
     private layers = new Map<SeatUser, SeatLayers>();
 
-    constructor(scene: Phaser.Scene, chairs: Chairs, npc: (name: SeatUser) => Npc) {
+    constructor(scene: Phaser.Scene, chairs: Chairs, npc: (name: SeatUser) => Npc, grid: () => WalkGrid) {
         this.scene = scene;
         this.chairs = chairs;
         this.npc = npc;
+        this.grid = grid;
     }
 
     // Call every frame once the coworker is at their work spot, until it returns true (ready to work).
@@ -58,36 +76,26 @@ export class NpcSeats {
                 phase: 'none',
                 spot: new Phaser.Math.Vector2(npc.body.center.x, npc.body.center.y),
                 facing: facing ?? (npc.getData(FACING) as Facing | undefined) ?? 'down',
-                since: this.scene.time.now
+                since: this.scene.time.now,
+                follower: null,
+                bumps: 0
             };
-            const chair = this.chairs.nearest(s.spot.x, s.spot.y, FETCH_RANGE);
-            if (chair) {
-                this.chairs.claim(chair);
-                s.chair = chair;
-                s.phase = 'go';
-                if (name === 'player') this.beginSlide(npc, s);
-            }
+            if (name === 'player') this.pickNearestChair(npc, s);
+            else this.pickChairByRoute(npc, s);
             this.states.set(name, s);
         }
 
         const chair = s.chair;
         if (chair && (s.phase === 'go' || s.phase === 'pull') && this.scene.time.now - s.since > GIVE_UP_MS) {
-            this.abandon(s);
+            this.abandon(npc, s);
         }
 
         switch (s.phase) {
             case 'go':
-                if (this.chairs.gap(npc, chair!) <= GRAB_GAP) s.phase = 'pull';
-                else this.walk(npc, chair!.body.center.x, chair!.body.center.y);
+                this.go(npc, s);
                 return false;
             case 'pull':
-                if (this.arrived(npc, s.spot)) {
-                    npc.setVelocity(0);
-                    this.beginSlide(npc, s);
-                } else {
-                    this.walk(npc, s.spot.x, s.spot.y);
-                    chair!.body.setVelocity(npc.body.velocity.x, npc.body.velocity.y);
-                }
+                this.pull(npc, s);
                 return false;
             case 'slide': {
                 const step = (SLIDE_SPEED * this.scene.game.loop.delta) / 1000;
@@ -102,10 +110,7 @@ export class NpcSeats {
                 return false;
             }
             case 'return':
-                if (!this.arrived(npc, s.spot)) {
-                    this.walk(npc, s.spot.x, s.spot.y);
-                    return false;
-                }
+                if (!this.returnToSpot(npc, s)) return false;
                 npc.setVelocity(0);
                 s.phase = 'none';
                 return true;
@@ -147,6 +152,135 @@ export class NpcSeats {
         return this.states.get(name)?.phase === 'seated';
     }
 
+    // The player doesn't walk for a chair: the nearest loose one within range slides to where they stand
+    private pickNearestChair(npc: Npc, s: Seating) {
+        const chair = this.chairs.nearest(s.spot.x, s.spot.y, FETCH_RANGE);
+        if (!chair) return;
+        this.chairs.claim(chair);
+        s.chair = chair;
+        s.phase = 'go';
+        this.beginSlide(npc, s);
+    }
+
+    // Among the loose chairs in reach (straight-line range, then walking route cap) take the one with the shortest
+    // route that also has a route for dragging it to the desk
+    private pickChairByRoute(npc: Npc, s: Seating) {
+        const grid = this.grid();
+        const chairs = this.chairs.all();
+        const probes = chairs.map((c) => ({ x: c.body.center.x, y: c.body.center.y, claimed: this.chairs.isClaimed(c) }));
+        const npcPos = { x: npc.body.center.x, y: npc.body.center.y };
+        for (const { index } of inReachByRoute(chairsInReach(grid, s.spot, probes))) {
+            const plan = planChairFetch(grid, npcPos, probes[index], s.spot, SEAT_BACK[s.facing]);
+            if (!plan) continue;
+            this.chairs.claim(chairs[index]);
+            s.chair = chairs[index];
+            s.phase = 'go';
+            s.follower = new PathFollower(plan.toChair.start, plan.toChair.path);
+            s.stagingCell = plan.stagingCell;
+            return;
+        }
+    }
+
+    private go(npc: Npc, s: Seating) {
+        const chair = s.chair!;
+        if (this.chairs.gap(npc, chair) <= GRAB_GAP) {
+            this.startPull(npc, s);
+            return;
+        }
+        if (this.blocked(npc, s)) {
+            // Re-route to the chair from where they stand, once; otherwise give up
+            const leg = s.bumps > MAX_BUMPS ? null : planLeg(this.grid(), this.centre(npc), cellOf(this.centre(chair)));
+            if (!leg) {
+                this.abandon(npc, s);
+                return;
+            }
+            s.follower = new PathFollower(leg.start, leg.path);
+        }
+        if (s.follower?.step(npc) === 'arrived') this.startPull(npc, s);
+    }
+
+    // Take hold: route from here to the staging point half a tile behind the spot
+    private startPull(npc: Npc, s: Seating) {
+        npc.setVelocity(0);
+        const leg = s.stagingCell ? planLeg(this.grid(), this.centre(npc), s.stagingCell) : null;
+        if (!leg) {
+            this.abandon(npc, s);
+            return;
+        }
+        s.follower = new PathFollower(leg.start, leg.path);
+        s.bumps = 0;
+        s.phase = 'pull';
+    }
+
+    private pull(npc: Npc, s: Seating) {
+        const chair = s.chair!;
+        if (s.follower) {
+            if (this.blocked(npc, s)) {
+                const leg = s.bumps > MAX_BUMPS || !s.stagingCell ? null : planLeg(this.grid(), this.centre(npc), s.stagingCell);
+                if (!leg) {
+                    this.abandon(npc, s);
+                    return;
+                }
+                s.follower = new PathFollower(leg.start, leg.path);
+            }
+            if (s.follower.step(npc) === 'arrived') {
+                s.follower = null;
+                s.finalSince = this.scene.time.now;
+            }
+        } else if (this.stepOntoSpot(npc, s)) {
+            // On the spot with the chair half a tile behind: it rolls under them from here
+            npc.setVelocity(0);
+            this.beginSlide(npc, s);
+            return;
+        }
+        this.dragChair(npc, chair, s);
+    }
+
+    // The chair is towed like on a short rope: it only moves once it is further than the rope from the coworker, and
+    // is then pulled straight towards them, so it follows their path instead of swinging around them at corners.
+    // On the last step onto the spot it is eased to directly behind the desk instead. It is chased with a velocity,
+    // not teleported, so walls and furniture still stop it.
+    private dragChair(npc: Npc, chair: Chair, s: Seating) {
+        const nx = npc.body.center.x;
+        const ny = npc.body.center.y;
+        let ux: number;
+        let uy: number;
+        if (s.follower) {
+            const dx = chair.body.center.x - nx;
+            const dy = chair.body.center.y - ny;
+            const dist = Math.hypot(dx, dy) || 1;
+            ux = dx / dist;
+            uy = dy / dist;
+            if (dist <= this.rope(npc, chair, ux, uy)) {
+                chair.body.setVelocity(0, 0);
+                return;
+            }
+        } else {
+            ({ x: ux, y: uy } = SEAT_BACK[s.facing]);
+        }
+        const rope = this.rope(npc, chair, ux, uy);
+        const dt = Math.max(this.scene.game.loop.delta, 1) / 1000;
+        const chase = new Phaser.Math.Vector2(
+            (nx + ux * rope - chair.body.center.x) / dt,
+            (ny + uy * rope - chair.body.center.y) / dt
+        );
+        if (chase.length() > DRAG_CHASE_MAX) chase.normalize().scale(DRAG_CHASE_MAX);
+        chair.body.setVelocity(chase.x, chase.y);
+    }
+
+    // Centre-to-centre distance the chair is held at along (ux, uy): touching, but at least half a tile
+    private rope(npc: Npc, chair: Chair, ux: number, uy: number) {
+        const reach = (b: Phaser.Physics.Arcade.Body) => Math.abs(ux) * b.halfWidth + Math.abs(uy) * b.halfHeight;
+        return Math.max(PARK_PX, reach(npc.body) + reach(chair.body) + GRAB_GAP);
+    }
+
+    // The short straight step from the staging point onto the exact spot. True once there (or it is taking too long).
+    private stepOntoSpot(npc: Npc, s: Seating) {
+        const done = this.arrived(npc, s.spot) || this.scene.time.now - (s.finalSince ?? 0) > FINAL_STEP_MS;
+        if (!done) this.walk(npc, s.spot.x, s.spot.y);
+        return done;
+    }
+
     // Chair at the sitter's feet: from here it is slid by hand, so it can pass through them
     private beginSlide(npc: Npc, s: Seating) {
         const chair = s.chair!;
@@ -158,13 +292,47 @@ export class NpcSeats {
         s.phase = 'slide';
     }
 
-    private abandon(s: Seating) {
+    // Gave up on the chair (too slow, or blocked): let go of it and walk back to the spot to work standing
+    private abandon(npc: Npc, s: Seating) {
         if (s.chair) {
             this.chairs.unclaim(s.chair);
             s.chair.body.setVelocity(0, 0);
         }
         s.chair = undefined;
         s.phase = 'return';
+        s.finalSince = undefined;
+        const goal = nearestReachableCell(this.grid(), this.cellFor(npc), cellOf(s.spot), RETURN_FALLBACK_CELLS);
+        const leg = goal ? planLeg(this.grid(), this.centre(npc), goal) : null;
+        s.follower = leg ? new PathFollower(leg.start, leg.path) : null;
+        if (!s.follower) s.finalSince = this.scene.time.now;
+    }
+
+    // Routed walk back to the spot, then the short straight step onto it. True once there.
+    private returnToSpot(npc: Npc, s: Seating) {
+        if (s.follower) {
+            if (s.follower.step(npc) === 'arrived') {
+                s.follower = null;
+                s.finalSince = this.scene.time.now;
+            }
+            return false;
+        }
+        return this.stepOntoSpot(npc, s);
+    }
+
+    // Stopped by something the route did not account for. Counts the bump; sliding a loose chair does not count.
+    private blocked(npc: Npc, s: Seating) {
+        if (!PathFollower.isBlocked(npc, this.chairs.isPushing(npc))) return false;
+        s.bumps++;
+        npc.setVelocity(0);
+        return true;
+    }
+
+    private centre(sprite: { body: Phaser.Physics.Arcade.Body }) {
+        return { x: sprite.body.center.x, y: sprite.body.center.y };
+    }
+
+    private cellFor(npc: Npc) {
+        return cellOf(this.centre(npc));
     }
 
     private arrived(npc: Npc, spot: Phaser.Math.Vector2) {

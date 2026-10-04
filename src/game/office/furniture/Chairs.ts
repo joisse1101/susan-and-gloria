@@ -142,6 +142,14 @@ export class Chairs {
         return best;
     }
 
+    all() {
+        return this.group.getChildren() as DynamicSprite[];
+    }
+
+    isClaimed(chair: DynamicSprite) {
+        return this.claimed.has(chair);
+    }
+
     // A claimed chair is being taken to a seat, so nobody else goes for it
     claim(chair: DynamicSprite) {
         this.claimed.add(chair);
