@@ -19,7 +19,8 @@ import {
     FURNITURE_FRAMES,
     type FurnitureFrameName
 } from './atlases/furnitureAtlas';
-import { Chairs, PULL_SPEED } from './furniture/Chairs';
+import { Chairs } from './furniture/Chairs';
+import { PLAYER_WALK_SPEED, PULL_SPEED } from './pushTuning';
 import { NpcSeats } from './interaction/npc/NpcSeats';
 import type { AtlasFrame } from './atlases/types';
 import { WorkInteraction } from './interaction/npc/WorkInteraction';
@@ -240,7 +241,7 @@ export class OfficeScene extends Phaser.Scene {
     override update() {
         const pulling = !this.chat.isTyping && !this.playerWork.isFetching() && this.cursors.shift.isDown && !!this.chairs.grab(this.player, true);
         if (!pulling) this.chairs.grab(this.player, false);
-        const speed = pulling ? PULL_SPEED : 160;
+        const speed = pulling ? PULL_SPEED : PLAYER_WALK_SPEED;
         this.player.setVelocity(0);
 
         // A movement key is the player taking control: it cancels the chair trip, whose own walking is not "moving"
@@ -266,6 +267,8 @@ export class OfficeScene extends Phaser.Scene {
         this.updateNpc('susan', this.susan);
         this.shadows.update();
         this.chairReach.update();
+        // Last, once every velocity is set: stop any push that would end up in a wall or furniture
+        this.chairs.gate([{ id: 'player', kind: 'player', sprite: this.player }, { id: 'gloria', kind: 'coworker', sprite: this.gloria }, { id: 'susan', kind: 'coworker', sprite: this.susan }]);
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
         this.chat.bubble.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
     }

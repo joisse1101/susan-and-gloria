@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { PUSH_STOPPED } from '../pushChain';
 import { faceHorizontal } from './facing';
 import { CELL } from './WalkGrid';
 import { toWaypoints, type Cell } from './pathfinding';
@@ -20,7 +21,7 @@ export class PathFollower {
 
     // Stopped by something the path did not account for (the player or the other coworker), not just sliding a loose chair
     static isBlocked(npc: Sprite, pushingChair: boolean) {
-        return npc.body.blocked.none === false || (npc.body.touching.none === false && !pushingChair);
+        return npc.body.blocked.none === false || (npc.body.touching.none === false && !pushingChair) || npc.getData(PUSH_STOPPED) === true;
     }
 
     // Sets the velocity towards the next waypoint. 'arrived' once the last one is reached, with the coworker stopped.

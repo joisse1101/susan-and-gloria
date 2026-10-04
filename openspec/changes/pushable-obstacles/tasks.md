@@ -1,8 +1,8 @@
 ## 1. Pure chain resolver
 
-- [ ] 1.1 Add `interaction/pushChain.ts` (no Phaser import): given body rects, push direction, drivers, immovable set and solid rects, return which bodies may move; verify with a new `pushChain.test.ts` that `npm test` passes
-- [ ] 1.2 Cover chains in tests: single chair, chair into chair, chair into wall (whole chain and driver blocked), diagonal into a corner, and coworker against a desk
-- [ ] 1.3 Cover driver rules in tests: coasting chair does not push a coworker, player-driven chair pushes a coworker, coworker-driven chain pushes chairs and one coworker but not a coworker through a chair, immovable coworker blocks like a wall, and a blocked trailing (pulled) chair is released without blocking its driver
+- [x] 1.1 Add `interaction/pushChain.ts` (no Phaser import): given body rects, push direction, drivers, immovable set and solid rects, return which bodies may move; verify with a new `pushChain.test.ts` that `npm test` passes
+- [x] 1.2 Cover chains in tests: single chair, chair into chair, chair into wall (whole chain and driver blocked), diagonal into a corner, and coworker against a desk
+- [x] 1.3 Cover driver rules in tests: coasting chair does not push a coworker, player-driven chair pushes a coworker, coworker-driven chain pushes chairs and one coworker but not a coworker through a chair, immovable coworker blocks like a wall, and a blocked trailing (pulled) chair is released without blocking its driver
 
 ## 2. Immovable predicate
 
@@ -11,8 +11,8 @@
 
 ## 3. Wire the resolver into physics
 
-- [ ] 3.0 Add `pushTuning.ts` exporting chair/coworker mass, chair/coworker drag, `ROLL_MS`, pull/max speed and player push speed, each commented; move the existing `Chairs.ts` constants into it and make chairs, coworkers and the player read from it; verify `npm run build` passes, chairs move as before, and changing a value then reloading changes the feel
-- [ ] 3.1 Replace `yieldIfJammed`, `isJammed` and the double solid collider in `Chairs.ts` with resolver-driven process callbacks; verify chairs still slide and pull as before and cannot be pushed into walls or desks
+- [x] 3.0 Add `pushTuning.ts` exporting chair/coworker mass, chair/coworker drag, `ROLL_MS`, pull/max speed and player push speed, each commented; move the existing `Chairs.ts` constants into it and make chairs, coworkers and the player read from it; verify `npm run build` passes, chairs move as before, and changing a value then reloading changes the feel
+- [x] 3.1 Replace `yieldIfJammed`, `isJammed` and the double solid collider in `Chairs.ts` with resolver-driven process callbacks; verify chairs still slide and pull as before and cannot be pushed into walls or desks
 - [ ] 3.2 Make Susan and Gloria pushable in `OfficeScene.ts` (drop `body.pushable = false` for coworkers, keep it for the player); verify the player can shove a free coworker and cannot shove one with a bubble up or working
 - [ ] 3.3 Collect drivers each frame (player velocity, coworker walking velocity) and leave coasting chairs out; verify a rolled chair stops against a coworker while a player-pushed chair moves them
 - [ ] 3.4 Generalise pull to coworkers: grab the nearest loose chair or non-immovable coworker, hold one at a time, suspend a held coworker's steering, release when blocked, lagging, key up or it becomes immovable; verify the player can pull a free coworker around, cannot grab a working or talking one, and a bubble coming up frees a held one

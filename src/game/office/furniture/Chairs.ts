@@ -2,29 +2,33 @@ import Phaser from 'phaser';
 import { CHAIR_DIRECTIONS, FURNITURE_ATLAS_KEY, type FurnitureFrameName } from '../atlases/furnitureAtlas';
 import { SPRITE_SCALE } from '../constants';
 import { CHAIR_SHADOW_OFFSET_Y, OBJECT_SHADOW_KEY, type Shadows } from '../interaction/Shadows';
+import { PUSH_STOPPED, resolvePush, type PushBody, type Rect } from '../interaction/pushChain';
+import { CHAIR_DRAG, CHAIR_MASS, CHAIR_MAX_SPEED, ROLL_MS } from '../pushTuning';
 
 type DynamicSprite = Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
 
-const DRAG = 600;
-const MAX_SPEED = 120;
 const MIN_TURN_SPEED = 20;
-// Time for a rolled chair to stop (it needs MAX_SPEED / drag, about 0.27s for the usual distances), then normal drag returns
-const ROLL_MS = 500;
 // Pull mode: how close (px between bodies) a chair must be to grab it, and how far it can lag before it lets go
 const GRAB_GAP = 8;
 const RELEASE_GAP = 16;
-// The mover slows to this while pulling so the chair (capped at MAX_SPEED) keeps up
-export const PULL_SPEED = MAX_SPEED;
 // Feet-only body around the wheels (unscaled px, offset from the frame's top-left)
 const BODY = { w: 14, h: 8, offsetX: 9, offsetY: 20 };
+
+export interface GateMover {
+    id: string;
+    kind: 'player' | 'coworker';
+    sprite: DynamicSprite;
+}
+
+const rectOf = (body: Phaser.Physics.Arcade.Body): Rect => ({ left: body.left, top: body.top, right: body.right, bottom: body.bottom });
 
 // Loose chairs: slid around by whoever walks into them, stopped by walls, furniture and each other.
 export class Chairs {
     private scene: Phaser.Scene;
     private shadows: Shadows;
     private group: Phaser.Physics.Arcade.Group;
-    private movers: DynamicSprite[] = [];
     private pushing = new Set<DynamicSprite>();
+    private solidRects: Rect[] = [];
     private held?: DynamicSprite;
     private claimed = new Set<DynamicSprite>();
     // Chairs being pushed away by whoever got up: they roll backwards without turning to face the way they move
@@ -40,8 +44,9 @@ export class Chairs {
         const chair = this.group.create(x, y, FURNITURE_ATLAS_KEY, frame) as DynamicSprite;
         chair.setScale(SPRITE_SCALE);
         chair.setCollideWorldBounds(true);
-        chair.setDrag(DRAG);
-        chair.setMaxVelocity(MAX_SPEED);
+        chair.setDrag(CHAIR_DRAG);
+        chair.setMaxVelocity(CHAIR_MAX_SPEED);
+        chair.setMass(CHAIR_MASS);
         chair.body.setSize(BODY.w, BODY.h);
         chair.body.setOffset(BODY.offsetX, BODY.offsetY);
         this.sortByBottom(chair);
@@ -50,36 +55,88 @@ export class Chairs {
     }
 
     // `movers` push chairs (they must start with body.pushable = false); `solids` are walls and furniture.
-    // A chair jammed against something solid can't be pushed any further: the mover is stopped instead,
-    // otherwise walking into it would shove it through the wall.
+    // The Arcade colliders only separate bodies; whether a push is allowed at all is decided each frame in `gate`,
+    // which stops any chain that would end up in a wall or furniture before the physics step moves it.
     collide(movers: DynamicSprite[], solids: Phaser.Physics.Arcade.StaticGroup) {
         const physics = this.scene.physics;
-        this.movers = movers;
-        // Solids first so a jammed chair is flagged (body.blocked) before the movers are resolved
-        physics.add.collider(this.group, solids);
-        for (const mover of movers) {
-            physics.add.collider(mover, this.group, undefined, (m, c) => this.yieldIfJammed(m as DynamicSprite, c as DynamicSprite));
-        }
-        physics.add.collider(this.group, this.group, undefined, (a, b) => {
-            // A chair pinned against something can't be pushed by another chair either
-            const [first, second] = [a as DynamicSprite, b as DynamicSprite];
-            first.body.immovable = this.isJammed(second);
-            second.body.immovable = this.isJammed(first);
-            return true;
+        this.solidRects = solids.getChildren().flatMap((child) => {
+            const body = (child as Phaser.GameObjects.GameObject).body as Phaser.Physics.Arcade.StaticBody | null;
+            if (!body) return [];
+            return [{ left: body.position.x, top: body.position.y, right: body.position.x + body.width, bottom: body.position.y + body.height }];
         });
-        // Again, last: chair-vs-chair pushing may have moved a chair into a wall
+        for (const mover of movers) {
+            physics.add.collider(mover, this.group, undefined, (m) => {
+                this.pushing.add(m as DynamicSprite);
+                return true;
+            });
+        }
+        physics.add.collider(this.group, this.group);
+        // Safety net only: the gate has already kept pushed chairs out of the solids
         physics.add.collider(this.group, solids);
     }
 
     update() {
-        // yieldIfJammed only makes a mover pushable for one physics step; otherwise it would stay shoveable
-        // (into a table) by the player or by other chairs
-        for (const mover of this.movers) mover.body.pushable = false;
         this.pushing.clear();
         this.group.getChildren().forEach((chair) => {
             this.faceVelocity(chair as DynamicSprite);
             this.sortByBottom(chair as DynamicSprite);
         });
+    }
+
+    // Call last in the frame, after every velocity is set. Asks the push resolver which bodies may move this physics
+    // step and zeroes the velocity of any whose push would be blocked: the root of a blocked chain stops, and a pulled
+    // chair that is blocked is let go of instead. Blocked coworkers are flagged so their route follower replans.
+    gate(movers: GateMover[]) {
+        const dt = 1 / this.scene.physics.world.fps;
+        const bodies: PushBody[] = [];
+        const sprites = new Map<string, DynamicSprite>();
+        for (const m of movers) {
+            m.sprite.setData(PUSH_STOPPED, false);
+            if (!m.sprite.body.enable) continue;
+            const { velocity } = m.sprite.body;
+            bodies.push({ id: m.id, kind: m.kind, rect: rectOf(m.sprite.body), dx: velocity.x * dt, dy: velocity.y * dt, role: 'driver', immovable: m.kind === 'coworker' });
+            sprites.set(m.id, m.sprite);
+        }
+        const chairIds = new Map<DynamicSprite, string>();
+        this.all().forEach((chair, index) => {
+            if (!chair.body.enable) return;
+            const id = `chair${index}`;
+            const isHeld = chair === this.held;
+            chairIds.set(chair, id);
+            sprites.set(id, chair);
+            const { velocity } = chair.body;
+            bodies.push({ id, kind: 'chair', rect: rectOf(chair.body), dx: velocity.x * dt, dy: velocity.y * dt, role: isHeld ? 'trailing' : 'coasting', playerDriven: isHeld });
+        });
+
+        const result = resolvePush(bodies, [...this.solidRects, ...this.worldEdges()]);
+        for (const id of result.blockedX) sprites.get(id)?.body.setVelocityX(0);
+        for (const id of result.blockedY) sprites.get(id)?.body.setVelocityY(0);
+        for (const id of [...result.blockedX, ...result.blockedY]) {
+            const sprite = sprites.get(id);
+            if (sprite && !chairIds.has(sprite)) sprite.setData(PUSH_STOPPED, true);
+        }
+        if (this.held) {
+            const id = chairIds.get(this.held);
+            if (id && result.released.has(id)) {
+                this.held.body.setVelocity(0, 0);
+                this.held = undefined;
+            }
+        }
+        // A held chair that is still held keeps pace with the player, including when the player was stopped
+        const player = movers.find((m) => m.kind === 'player');
+        if (this.held && player) this.held.body.setVelocity(player.sprite.body.velocity.x, player.sprite.body.velocity.y);
+    }
+
+    // The edges of the world as thick slabs, so pushing a chair into the edge blocks the chain like a wall
+    private worldEdges(): Rect[] {
+        const b = this.scene.physics.world.bounds;
+        const T = 1000;
+        return [
+            { left: b.x - T, right: b.x, top: b.y - T, bottom: b.bottom + T },
+            { left: b.right, right: b.right + T, top: b.y - T, bottom: b.bottom + T },
+            { left: b.x, right: b.right, top: b.y - T, bottom: b.y },
+            { left: b.x, right: b.right, top: b.bottom, bottom: b.bottom + T }
+        ];
     }
 
     // Turn toward the push direction; while it coasts to a stop it keeps its last facing
@@ -91,10 +148,6 @@ export class Chairs {
         const degrees = Phaser.Math.RadToDeg(Math.atan2(y, x));
         const index = (((Math.round((90 - degrees) / 45) % 8) + 8) % 8);
         chair.setFrame(`chair${CHAIR_DIRECTIONS[index]}`);
-    }
-
-    private isJammed(chair: DynamicSprite) {
-        return !chair.body.blocked.none;
     }
 
     // Pull mode (hold shift): grab the nearest chair within reach and drag it along with the mover, so a chair
@@ -163,10 +216,10 @@ export class Chairs {
     // drag sized for that distance (v² / 2d), and walls and furniture still stop it short.
     roll(chair: DynamicSprite, dirX: number, dirY: number, distance: number) {
         this.rolling.add(chair);
-        chair.body.setDrag((MAX_SPEED * MAX_SPEED) / (2 * distance));
-        chair.body.setVelocity(dirX * MAX_SPEED, dirY * MAX_SPEED);
+        chair.body.setDrag((CHAIR_MAX_SPEED * CHAIR_MAX_SPEED) / (2 * distance));
+        chair.body.setVelocity(dirX * CHAIR_MAX_SPEED, dirY * CHAIR_MAX_SPEED);
         this.scene.time.delayedCall(ROLL_MS, () => {
-            chair.body.setDrag(DRAG);
+            chair.body.setDrag(CHAIR_DRAG);
             this.rolling.delete(chair);
         });
     }
@@ -180,14 +233,6 @@ export class Chairs {
     // True if the mover is sliding a free chair this step (so contact with it isn't a dead end)
     isPushing(mover: DynamicSprite) {
         return this.pushing.has(mover);
-    }
-
-    private yieldIfJammed(mover: DynamicSprite, chair: DynamicSprite) {
-        const jammed = this.isJammed(chair);
-        if (!jammed) this.pushing.add(mover);
-        chair.body.immovable = jammed;
-        mover.body.pushable = jammed;
-        return true;
     }
 
     private sortByBottom(sprite: DynamicSprite) {
