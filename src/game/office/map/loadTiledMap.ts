@@ -118,10 +118,12 @@ export function loadTiledMap(
     const objects = findWalkBehindObjects(solid, CELL, CELL);
     // Which object each solid cell belongs to
     const objectAt = solid.map((row) => new Array<number>(row.length).fill(-1));
+    // The map's topmost solid row: a map may leave empty rows above its top wall (the bathroom does)
+    const topSolidY = Math.max(0, solid.findIndex((row) => row.some(Boolean))) * CELL;
     objects.forEach((object, i) => {
-        // An object that reaches the top of the map (the top wall and everything built onto it, and the side walls)
+        // An object that reaches the top wall (the wall and everything built onto it, and the side walls)
         // is not walked behind: it stays solid and drawn under the characters
-        if (object.bounds.y === 0) return;
+        if (object.bounds.y <= topSolidY) return;
         for (let y = object.bounds.y; y < object.baseY; y += CELL) {
             cutOf[y / CELL][object.bounds.x / CELL] = object.bounds.y + object.openDepth;
             objectAt[y / CELL][object.bounds.x / CELL] = i;
