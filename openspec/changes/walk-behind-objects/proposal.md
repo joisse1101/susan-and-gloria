@@ -4,8 +4,8 @@ Characters always draw in front of the map's furniture tiles, and a collider til
 
 ## What Changes
 
-- Every solid on the map can be walked behind, with no authoring: the top strip of each solid object is walkable, and the rest still blocks. An object is a vertical run of touching solid cells in one column, taken from all collider layers combined, so a wall, a desk and a wall stacked in a column are one object and only the top of the topmost piece opens.
-- The strip is the top `WALK_BEHIND_STRIP_PX` (16 px) of the object, capped at `WALK_BEHIND_STRIP_FRACTION` (2/3) of its height, rounded down to whole px. A 32 px wall opens 16 px; a 16 px object opens 10 px. At least a third of every object still blocks.
+- Every solid on the map can be walked behind, with no authoring: the top strip of each solid object is walkable, and the rest still blocks. An object is a vertical run of touching solid cells (8 px cells, the walk grid's size, marked wherever a collider draws a pixel) in one column, taken from all collider layers combined, so a wall, a desk and a wall stacked in a column are one object and only the top of the topmost piece opens.
+- The strip is the top `WALK_BEHIND_STRIP_PX` (16 px) of the object, capped at `WALK_BEHIND_STRIP_FRACTION` (2/3) of its height, rounded down to whole 8 px cells. A 32 px wall opens 16 px (its top 2 cells); a 16 px object opens 8 px; an 8 px object opens nothing. At least a third of every object still blocks.
 - Walk-behind objects are drawn depth-sorted against characters and chairs instead of flat under everything. A character whose feet are above an object's base line is drawn behind it.
 - An object fades when a character is behind it and overlapping its drawn pixels, then fades back in when they leave.
 - The walkable grid follows, because it is built from the colliders.

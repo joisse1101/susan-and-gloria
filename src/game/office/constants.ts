@@ -18,3 +18,7 @@ export const RUG_DEPTH = -1;
 // Tile layers sit below every y-sorted sprite, except the "top" layer which is drawn over them
 export const MAP_DEPTH = -2;
 export const MAP_TOP_DEPTH = SPEECH_DEPTH - 1;
+// Every solid object (wall, furniture) can be walked into from its top edge: the open strip is this many map px deep,
+// capped at WALK_BEHIND_STRIP_FRACTION of the object's height so short objects keep a blocking part. 0 turns it off.
+export const WALK_BEHIND_STRIP_PX = 16;
+export const WALK_BEHIND_STRIP_FRACTION = 2 / 3;

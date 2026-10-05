@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { MAP_DEPTH, MAP_TOP_DEPTH } from '../constants';
+import { CELL } from '../interaction/npc/WalkGrid';
+import { clipAboveCut, findWalkBehindObjects, splitAtColumns, type Rect } from './walkBehind';
 
 const MAP_KEY = 'officeMap';
 const MAP_TILESET_KEY = 'officeTiles';
@@ -10,8 +12,6 @@ const MAP_TILESET_NAME = 'spritefusion';
 const FLOOR_LAYER = 'Floor';
 // Tile layers drawn over the characters (everything else is under them)
 const TOP_LAYERS: string[] = ['Room Boundary Bottom'];
-
-type Rect = { x: number; y: number; w: number; h: number };
 
 export function preloadOfficeMap(scene: Phaser.Scene) {
     scene.load.tilemapTiledJSON(MAP_KEY, `${MAP_BASE_URL}map.json`);
@@ -34,6 +34,9 @@ export function loadOfficeMap(
 
     const pixels = readTilesetPixels(scene);
     const cache = new Map<number, Rect[]>();
+    const colliders: Phaser.Tilemaps.TilemapLayer[] = [];
+    // Colliders that take part in solid objects (layers drawn over the characters do not)
+    const objectLayers = new Set<Phaser.Tilemaps.TilemapLayer>();
     for (const data of map.layers) {
         const layer = map.createLayer(data.name, tileset, 0, 0);
         if (!(layer instanceof Phaser.Tilemaps.TilemapLayer)) continue;
@@ -54,11 +57,46 @@ export function loadOfficeMap(
 
         const props = data.properties as { name: string; value: unknown }[] | undefined;
         if (!props?.some((p) => p.name === 'collider' && p.value === true)) continue;
+        colliders.push(layer);
+        if (!TOP_LAYERS.includes(data.name)) objectLayers.add(layer);
+    }
+
+    // Solid objects are vertical runs of touching 8 px cells (the walk grid's size) across all collider layers combined,
+    // a cell being solid wherever a collider draws a pixel. The top strip of each (see openStripPx) is left open so
+    // characters can walk into it; the rest blocks.
+    const cellCols = Math.ceil(map.widthInPixels / CELL);
+    const cellRows = Math.ceil(map.heightInPixels / CELL);
+    const solid = Array.from({ length: cellRows }, () => new Array<boolean>(cellCols).fill(false));
+    const boxesOf = (tile: Phaser.Tilemaps.Tile) =>
+        tileOpaqueRects(tile, tileset, pixels, cache).map((b) => ({ ...b, x: tile.pixelX + b.x, y: tile.pixelY + b.y }));
+    for (const layer of colliders) {
+        if (!objectLayers.has(layer)) continue;
         layer.forEachTile((tile) => {
             if (tile.index < 0) return;
-            for (const box of tileOpaqueRects(tile, tileset, pixels, cache)) {
-                const zone = scene.add.zone(tile.pixelX + box.x + box.w / 2, tile.pixelY + box.y + box.h / 2, box.w, box.h);
-                obstacles.add(zone);
+            for (const b of boxesOf(tile)) {
+                for (let cy = Math.floor(b.y / CELL); cy <= Math.ceil((b.y + b.h) / CELL) - 1; cy++) {
+                    for (let cx = Math.floor(b.x / CELL); cx <= Math.ceil((b.x + b.w) / CELL) - 1; cx++) solid[cy][cx] = true;
+                }
+            }
+        });
+    }
+    // Where each cell's run is cut open (map y), by cell
+    const cutOf = solid.map((row) => new Array<number>(row.length).fill(-1));
+    for (const object of findWalkBehindObjects(solid, CELL, CELL)) {
+        for (let y = object.bounds.y; y < object.baseY; y += CELL) {
+            cutOf[y / CELL][object.bounds.x / CELL] = object.bounds.y + object.openDepth;
+        }
+    }
+    for (const layer of colliders) {
+        layer.forEachTile((tile) => {
+            if (tile.index < 0) return;
+            for (const box of boxesOf(tile)) {
+                // Each 8 px column of the box can belong to a different run, with its own cut
+                for (const piece of objectLayers.has(layer) ? splitAtColumns(box, CELL) : [box]) {
+                    const cutY = objectLayers.has(layer) ? cutOf[Math.floor(piece.y / CELL)][Math.floor(piece.x / CELL)] : -1;
+                    const kept = cutY >= 0 ? clipAboveCut([piece], 0, cutY) : [piece];
+                    for (const k of kept) obstacles.add(scene.add.zone(k.x + k.w / 2, k.y + k.h / 2, k.w, k.h));
+                }
             }
         });
     }
