@@ -2,29 +2,26 @@ import Phaser from 'phaser';
 import type { NpcName } from '../../OfficeScene';
 import { SEAT_BACK } from '../../furniture/SeatLayers';
 import { FACING } from './facing';
-import type { WalkGrid } from './WalkGrid';
+import { CELL, type WalkGrid } from './WalkGrid';
 import { PathFollower } from './PathFollower';
 import { WorkSlots } from './WorkSlots';
 import { facingFor, spotFor } from './deskSpot';
 import { stepOntoSpot } from './approach';
-import { routeToRect } from './route';
+import { routeCells } from './route';
 import type { GiveUpSignal } from './giveUp';
 import { Cooldowns, shouldStart } from '../trigger';
-import { containsPx, rectToPx, scanInteractionTiles, tileRect, type Rect } from '../zones';
+import { containsPx, rectToPx, scanInteractionTiles, type Rect } from '../zones';
 import type { Interaction, Pose } from '../registry';
 import { SayThenHide } from '../sayThenHide';
 import { DESK_TAKEN_PHRASES, FORGETFUL_PHRASES, JAM_PHRASES, STOLEN_PHRASES_NICE, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
 
-// Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one
-// (in the tile's "direction" property: left, right, up or down) stops and works
-// How far (in tiles) the work area extends from the work tile's edge in that direction, e.g. 0.5 = half a tile, 1 = the whole next square
+// Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one stops and
+// works, facing it. They work from the side they walked in on; a side whose spot is blocked (a wall, another desk) is
+// not used, so they come in on an open side instead.
+// How far (in tiles) the work area extends from the work tile's edge on a side, e.g. 0.5 = half a tile, 1 = the whole next square
 const WORK_RANGE_TILES = 0.75;
-const DIRECTIONS: Record<string, { dx: number; dy: number }> = {
-    left: { dx: -1, dy: 0 },
-    right: { dx: 1, dy: 0 },
-    up: { dx: 0, dy: -1 },
-    down: { dx: 0, dy: 1 }
-};
+type Dir = { dx: number; dy: number };
+const SIDES: Dir[] = [{ dx: -1, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }, { dx: 0, dy: 1 }];
 // They deliberately walk to a work zone about once a minute, giving up if they can't get there
 const WORK_VISIT_MS = { min: 50000, max: 70000 };
 const WORK_VISIT_GIVE_UP_MS = 20000;
@@ -39,8 +36,9 @@ interface Desk {
     id: string; // "tx,ty", the key the desk is claimed under
     tx: number;
     ty: number;
-    zone: Rect;
-    dir?: { dx: number; dy: number };
+    // One work strip per side of the tile; only the open ones (see openSides) are used
+    sides: { dir: Dir; zone: Rect }[];
+    open?: { dir: Dir; zone: Rect }[];
 }
 
 interface Visit {
@@ -85,6 +83,8 @@ export class WorkInteraction implements Interaction<NpcName> {
     private slots = new WorkSlots();
     // Stepping from the zone onto the exact spot against the desk
     private approach = new Map<NpcName, number>();
+    // The side of the desk each coworker stepped onto, kept while they fetch a chair and work
+    private chosen = new Map<NpcName, Dir>();
     // Coworkers fetching a chair, and the desk they are fetching it for
     private fetching = new Set<NpcName>();
     private fetchDesk = new Map<NpcName, Desk>();
@@ -111,15 +111,40 @@ export class WorkInteraction implements Interaction<NpcName> {
     collectTiles(layer: Phaser.Tilemaps.TilemapLayer, tileset: Phaser.Tilemaps.Tileset) {
         for (const tile of scanInteractionTiles(layer, tileset, 'work')) {
             this.tileSize = tile.tileSize;
-            const dir = DIRECTIONS[String(tile.property('direction'))];
-            if (!dir) console.warn(`[office] work tile at ${tile.tx},${tile.ty} has no valid direction; using the tile itself`);
-            this.tiles.push({ id: `${tile.tx},${tile.ty}`, tx: tile.tx, ty: tile.ty, zone: this.zoneFor(tile.tx, tile.ty, dir), dir });
+            this.tiles.push({
+                id: `${tile.tx},${tile.ty}`, tx: tile.tx, ty: tile.ty,
+                sides: SIDES.map((dir) => ({ dir, zone: this.zoneFor(tile.tx, tile.ty, dir) }))
+            });
         }
     }
 
+    // The sides of the desk with room to stand against it: the flush spot there is on a walkable cell. Worked out on
+    // first use, as the grid is built after the interaction, and it never changes.
+    private openSides(desk: Desk) {
+        if (!desk.open) {
+            const grid = this.host.walkGrid();
+            const { halfWidth, halfHeight } = this.host.npc('susan').body;
+            desk.open = desk.sides.filter(({ dir }) => {
+                const spot = spotFor({ tx: desk.tx, ty: desk.ty, dir }, this.tileSize, halfWidth, halfHeight, (desk.tx + 0.5) * this.tileSize);
+                return grid.isWalkable(Math.floor(spot.x / CELL), Math.floor(spot.y / CELL));
+            });
+        }
+        return desk.open;
+    }
+
+    // The side of the desk whose strip holds the point (px): the side they came in on. Undefined when none does.
+    private sideAt(desk: Desk, x: number, y: number) {
+        return this.openSides(desk).find((s) => containsPx(s.zone, this.tileSize, x, y))?.dir;
+    }
+
+    // The side this coworker works from: the one they stepped onto at the start, else the one they stand in
+    private sideFor(name: NpcName, desk: Desk): Dir | undefined {
+        const npc = this.host.npc(name);
+        return this.chosen.get(name) ?? this.sideAt(desk, npc.body.center.x, npc.body.center.y);
+    }
+
     // A one-tile-wide strip against the work tile's edge on the given side, WORK_RANGE_TILES deep
-    private zoneFor(tx: number, ty: number, dir?: { dx: number; dy: number }): Rect {
-        if (!dir) return tileRect(tx, ty);
+    private zoneFor(tx: number, ty: number, dir: Dir): Rect {
         const r = WORK_RANGE_TILES;
         if (dir.dx < 0) return { x0: tx - r, y0: ty, x1: tx, y1: ty + 1 };
         if (dir.dx > 0) return { x0: tx + 1, y0: ty, x1: tx + 1 + r, y1: ty + 1 };
@@ -132,7 +157,7 @@ export class WorkInteraction implements Interaction<NpcName> {
         const size = this.tileSize;
         const g = this.scene.add.graphics().setDepth(depth);
         g.fillStyle(0xffdd00, 0.3);
-        for (const { zone: z } of this.tiles) g.fillRect(z.x0 * size, z.y0 * size, (z.x1 - z.x0) * size, (z.y1 - z.y0) * size);
+        for (const { zone: z } of this.tiles.flatMap((d) => d.sides)) g.fillRect(z.x0 * size, z.y0 * size, (z.x1 - z.x0) * size, (z.y1 - z.y0) * size);
         g.fillStyle(0xff0000, 0.4);
         for (const { tx, ty } of this.tiles) g.fillRect(tx * size, ty * size, size, size);
         console.log(`[office] ${this.tiles.length} work tiles`, this.tiles);
@@ -217,13 +242,13 @@ export class WorkInteraction implements Interaction<NpcName> {
     // The desk isn't this coworker's to use: someone else holds it (or took its claim), or the player is standing
     // at it, working yet or not
     private occupied(name: NpcName, desk: Desk) {
-        return this.slots.holderOf(desk.id) !== name || this.host.isPlayerStillIn(this.zonePx(desk));
+        return this.slots.holderOf(desk.id) !== name || this.playerIn(name, desk);
     }
 
     // Within a tile of the work spot
     private nearSpot(name: NpcName, desk: Desk) {
         const npc = this.host.npc(name);
-        const spot = this.spotFor(desk, npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x);
+        const spot = this.spotFor(desk, this.sideFor(name, desk), npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x);
         return Phaser.Math.Distance.Between(npc.body.center.x, npc.body.center.y, spot.x, spot.y) <= this.tileSize;
     }
 
@@ -236,6 +261,7 @@ export class WorkInteraction implements Interaction<NpcName> {
         if (fetching || this.working.has(name)) this.host.releaseChair(name);
         this.sayer(name).cancel();
         this.approach.delete(name);
+        this.chosen.delete(name);
         if (this.visit.has(name) || this.slots.heldBy(name) !== undefined) this.scheduleVisit(name);
         this.slots.release(name);
         const work = this.working.get(name);
@@ -325,8 +351,15 @@ export class WorkInteraction implements Interaction<NpcName> {
         return this.tiles.some((d) => this.contains(d, sprite));
     }
 
-    private contains({ zone }: Desk, sprite: Npc) {
-        return containsPx(zone, this.tileSize, sprite.body.center.x, sprite.body.center.y);
+    private contains(desk: Desk, sprite: Npc) {
+        return this.sideAt(desk, sprite.body.center.x, sprite.body.center.y) !== undefined;
+    }
+
+    // The player is standing still in the strip this coworker works from, or in any open strip of the desk before they have one
+    private playerIn(name: NpcName, desk: Desk) {
+        const side = this.chosen.get(name);
+        const zones = side ? desk.sides.filter((s) => s.dir === side) : this.openSides(desk);
+        return zones.some((s) => this.host.isPlayerStillIn(rectToPx(s.zone, this.tileSize)));
     }
 
     private scheduleVisit(name: NpcName) {
@@ -344,7 +377,7 @@ export class WorkInteraction implements Interaction<NpcName> {
         if (!visit) {
             if (!this.nextVisitAt.has(name)) this.scheduleVisit(name);
             if (now < (this.nextVisitAt.get(name) ?? 0)) return false;
-            const id = this.slots.claimRandom(this.tiles.map((d) => d.id), name, Math.random);
+            const id = this.slots.claimRandom(this.tiles.filter((d) => this.openSides(d).length > 0).map((d) => d.id), name, Math.random);
             if (id === undefined) {
                 this.scheduleVisit(name); // every desk is held
                 return false;
@@ -356,7 +389,7 @@ export class WorkInteraction implements Interaction<NpcName> {
                 this.scheduleVisit(name);
                 return false;
             }
-            console.log(`[office] ${name} claims desk ${id} (tile x,y; zone in tiles ${JSON.stringify(desk.zone)})`);
+            console.log(`[office] ${name} claims desk ${id} (tile x,y; open sides ${this.openSides(desk).length})`);
             visit = { desk, follower, giveUpAt: now + WORK_VISIT_GIVE_UP_MS, bumps: 0 };
             this.visit.set(name, visit);
             this.cooldowns.clear(name); // a visit is deliberate, so skip the rest period
@@ -390,10 +423,17 @@ export class WorkInteraction implements Interaction<NpcName> {
         return false;
     }
 
-    // The A* route from where the coworker stands to the desk's work zone, or null when there is none.
-    // The zone's centre may sit on a cell kept clear around the desk, so the goal is the nearest reachable cell to it.
+    // The shortest A* route from where the coworker stands to the work strip of an open side of the desk, or null when
+    // there is none. A strip's centre may sit on a cell kept clear around the desk, so the goal is the nearest reachable cell to it.
     private routeTo(name: NpcName, desk: Desk): PathFollower | null {
-        return routeToRect(this.host.walkGrid(), this.host.npc(name).body.center, desk.zone, this.tileSize, GOAL_FALLBACK_CELLS);
+        const grid = this.host.walkGrid();
+        const from = this.host.npc(name).body.center;
+        let best: ReturnType<typeof routeCells> = null;
+        for (const { zone } of this.openSides(desk)) {
+            const route = routeCells(grid, from, zone, this.tileSize, GOAL_FALLBACK_CELLS);
+            if (route && (!best || route.path.length < best.path.length)) best = route;
+        }
+        return best ? new PathFollower(best.start, best.path) : null;
     }
 
     // Walks a coworker standing in a work zone to the spot flush against the work tile: 'ready' once they're there,
@@ -402,42 +442,47 @@ export class WorkInteraction implements Interaction<NpcName> {
         const npc = this.host.npc(name);
         const now = this.scene.time.now;
         if (!this.approach.has(name)) {
-            if (!this.slots.claim(desk.id, name) || this.host.isPlayerStillIn(this.zonePx(desk))) return 'failed';
+            if (!this.slots.claim(desk.id, name) || this.playerIn(name, desk)) return 'failed';
+            const side = this.sideFor(name, desk);
+            if (!side) return 'failed';
+            this.chosen.set(name, side);
             this.approach.set(name, now);
             this.visit.delete(name); // arrived: the route is done
         }
-        if (!desk.dir) return this.arrive(name);
-        const spot = this.spotFor(desk, npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x);
+        const dir = this.chosen.get(name)!;
+        const spot = this.spotFor(desk, dir, npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x);
         const step = stepOntoSpot(npc, spot, this.approach.get(name) ?? now, now);
         if (step !== 'ready') return step;
         // They face the desk; the facing also decides which side of them the chair is parked on
-        npc.setData(FACING, facingFor(desk.dir));
+        npc.setData(FACING, facingFor(dir));
         return this.arrive(name);
     }
 
-    // Body centre (px) of the spot flush against the work tile, level with it along the edge (`alongX` picks where on
-    // an up/down tile's edge). A tile with no direction has its centre as the spot.
-    private spotFor(desk: Desk, halfWidth: number, halfHeight: number, alongX: number) {
-        return spotFor(desk, this.tileSize, halfWidth, halfHeight, alongX);
+    // Body centre (px) of the spot flush against the work tile on the given side, level with it along the edge
+    // (`alongX` picks where on an up/down tile's edge)
+    private spotFor(desk: Desk, dir: Dir | undefined, halfWidth: number, halfHeight: number, alongX: number) {
+        return spotFor({ tx: desk.tx, ty: desk.ty, dir }, this.tileSize, halfWidth, halfHeight, alongX);
     }
 
-    // Where the player works at the desk whose zone they stand in (the one they hold if its zone contains them):
-    // the flush spot, and the way they face the desk (undefined for a tile with no direction). Undefined outside every zone.
+    // Where the player works at the desk whose strip they stand in (the one they hold if it contains them): the flush
+    // spot on the side they are on, and the way they face the desk. Undefined outside every strip.
     spotAndFacing(sprite: Npc) {
+        const { x, y } = sprite.body.center;
         const held = this.slots.heldBy('player');
         const desk = this.tiles.find((d) => d.id === held && this.contains(d, sprite)) ?? this.tiles.find((d) => this.contains(d, sprite));
-        if (!desk) return undefined;
-        const spot = this.spotFor(desk, sprite.body.halfWidth, sprite.body.halfHeight, sprite.body.center.x);
-        return { spot, facing: facingFor(desk.dir) };
+        const dir = desk && this.sideAt(desk, x, y);
+        if (!desk || !dir) return undefined;
+        return { spot: this.spotFor(desk, dir, sprite.body.halfWidth, sprite.body.halfHeight, x), facing: facingFor(dir) };
     }
 
-    // Where a coworker stands to work at each desk (body centre, px) and the way its chair is parked behind it, for the chair reach debug view
+    // Where a coworker stands to work at each open side of each desk (body centre, px) and the way its chair is parked
+    // behind it, for the chair reach debug view
     workSpots() {
         const { halfWidth, halfHeight } = this.host.npc('susan').body;
-        return this.tiles.map((d) => ({
-            ...this.spotFor(d, halfWidth, halfHeight, (d.tx + 0.5) * this.tileSize),
-            back: SEAT_BACK[facingFor(d.dir) ?? 'down']
-        }));
+        return this.tiles.flatMap((d) => this.openSides(d).map(({ dir }) => ({
+            ...this.spotFor(d, dir, halfWidth, halfHeight, (d.tx + 0.5) * this.tileSize),
+            back: SEAT_BACK[facingFor(dir) ?? 'down']
+        })));
     }
 
     // The desk each coworker is heading for, fetching a chair for, or working at (spot and tile in px, and where the
@@ -453,7 +498,7 @@ export class WorkInteraction implements Interaction<NpcName> {
             found.push({
                 name,
                 from: { x: npc.body.center.x, y: npc.body.center.y },
-                spot: this.spotFor(desk, npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x),
+                spot: this.spotFor(desk, this.sideFor(name, desk), npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x),
                 tile: { x0: desk.tx * size, y0: desk.ty * size, x1: (desk.tx + 1) * size, y1: (desk.ty + 1) * size }
             });
         }
@@ -464,10 +509,6 @@ export class WorkInteraction implements Interaction<NpcName> {
         this.approach.delete(name);
         this.host.npc(name).setVelocity(0);
         return 'ready' as const;
-    }
-
-    private zonePx({ zone }: Desk): Rect {
-        return rectToPx(zone, this.tileSize);
     }
 
     // The desk is unusable, or the chair trip was lost: say a random line from `phrases`, then give it up and try
