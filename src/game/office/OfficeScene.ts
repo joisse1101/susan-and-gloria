@@ -392,10 +392,15 @@ export class OfficeScene extends Phaser.Scene {
         const spriteFor = (id: string) => id === 'player' ? this.player : id === 'susan' ? this.susan : id === 'gloria' ? this.gloria : chairs[Number(id.slice(5))];
         for (const { id, x, y } of spawns) {
             const sprite = spriteFor(id);
-            // body.center is only up to date after a reset, so measure the offset from the sprite at its current spot
-            sprite.body.reset(sprite.x, sprite.y);
-            const pos = spritePosForBodyCentre(x, y, { x: sprite.body.center.x - sprite.x, y: sprite.body.center.y - sprite.y });
-            sprite.body.reset(pos.x, pos.y);
+            // body.reset() ignores the body's offset from the sprite, so refresh the body from the sprite to read its true centre
+            const { body } = sprite;
+            body.updateFromGameObject();
+            const pos = spritePosForBodyCentre(x, y, { x: body.center.x - sprite.x, y: body.center.y - sprite.y });
+            sprite.setPosition(pos.x, pos.y);
+            body.updateFromGameObject();
+            body.stop();
+            body.prev.copy(body.position);
+            body.prevFrame.copy(body.position);
             this.sortByBottom(sprite);
         }
         this.shadows.update();
