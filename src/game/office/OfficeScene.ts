@@ -31,7 +31,7 @@ import { WALK_SPEED_KEY } from './interaction/npc/PathFollower';
 import { Wander } from './interaction/npc/Wander';
 import { WalkGrid } from './interaction/npc/WalkGrid';
 import { CHAIR_CLEARANCE_CELLS } from './chairTuning';
-import { WalkGridOverlay } from './interaction/npc/WalkGridOverlay';
+import { WalkGridOverlay, gridOverRegion, type OverlayGrid } from './interaction/npc/WalkGridOverlay';
 import { ChairReachOverlay } from './interaction/npc/ChairReachOverlay';
 import { Chat } from './interaction/player/Chat';
 import { PlayerWork } from './interaction/player/PlayerWork';
@@ -228,9 +228,19 @@ export class OfficeScene extends Phaser.Scene {
         // Static solids are all in place now, so the walkable grid is built once here. Press G to show it (green = walkable, red = blocked)
         this.walkGrid = new WalkGrid(this.physics.world.bounds, this.obstacles);
         this.clearGrid = new WalkGrid(this.physics.world.bounds, this.obstacles, CHAIR_CLEARANCE_CELLS);
-        new WalkGridOverlay(this, this.walkGrid, SPEECH_DEPTH - 1, 'G', () => this.chat.isTyping);
+        // The bathroom is outside the coworker grid, so it gets its own grids just for the overlay (free cells show as player-only)
+        const overlayGrids: OverlayGrid[] = [
+            { grid: this.walkGrid, clearGrid: this.clearGrid, offset: { x: 0, y: 0 }, region: 'office' },
+            {
+                grid: gridOverRegion(bathroom.bounds, this.obstacles),
+                clearGrid: gridOverRegion(bathroom.bounds, this.obstacles, CHAIR_CLEARANCE_CELLS),
+                offset: { x: bathroom.bounds.x, y: bathroom.bounds.y },
+                region: 'bathroom'
+            }
+        ];
+        new WalkGridOverlay(this, overlayGrids, SPEECH_DEPTH - 1, 'G', () => this.chat.isTyping);
         // Press H to show where a dragged chair fits (green), where only a coworker does (yellow) and what is blocked (red)
-        new WalkGridOverlay(this, this.walkGrid, SPEECH_DEPTH - 1, 'H', () => this.chat.isTyping, this.clearGrid);
+        new WalkGridOverlay(this, overlayGrids, SPEECH_DEPTH - 1, 'H', () => this.chat.isTyping, true);
 
         // Pieces: place(name, centreX, centreY, { solid, flat, atlas }). Names live in interiorAtlas.ts; for officeAtlas.ts names pass atlas: 'office'
         // To add an object: pick a frame name, a position in canvas px (640x416), and solid (collision height in px) if it should block the player.
