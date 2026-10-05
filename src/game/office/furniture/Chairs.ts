@@ -15,6 +15,8 @@ const GRAB_GAP = 8;
 const RELEASE_GAP = 16;
 // Feet-only body around the wheels (unscaled px, offset from the frame's top-left)
 const BODY = { w: 14, h: 8, offsetX: 9, offsetY: 20 };
+// The chair's collision body on screen (px), for placing it clear of other things
+export const CHAIR_BODY_PX = { w: BODY.w * SPRITE_SCALE, h: BODY.h * SPRITE_SCALE };
 
 export interface GateMover {
     id: string;

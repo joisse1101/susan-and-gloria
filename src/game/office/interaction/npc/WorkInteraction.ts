@@ -462,6 +462,11 @@ export class WorkInteraction implements Interaction<NpcName> {
         return { spot: this.spotFor(desk, dir, sprite.body.halfWidth, sprite.body.halfHeight, x), facing: facingFor(dir) };
     }
 
+    // Every desk's work zones (the strips `P` draws in yellow), in px: the places nobody should spawn
+    zoneRects(): Rect[] {
+        return this.tiles.flatMap((d) => this.openSides(d).map(({ zone }) => rectToPx(zone, this.tileSize)));
+    }
+
     // Where a coworker stands to work at each open side of each desk (body centre, px) and the way its chair is parked
     // behind it, for the chair reach debug view
     workSpots() {

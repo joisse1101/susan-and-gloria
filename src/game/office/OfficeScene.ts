@@ -19,7 +19,7 @@ import {
     FURNITURE_FRAMES,
     type FurnitureFrameName
 } from './atlases/furnitureAtlas';
-import { Chairs } from './furniture/Chairs';
+import { Chairs, CHAIR_BODY_PX } from './furniture/Chairs';
 import { COWORKER_DRAG, COWORKER_MASS, COWORKER_MAX_SPEED, COWORKER_WALK_FRACTION, PLAYER_WALK_SPEED, PULL_CHAIR_SPEED, PULL_COWORKER_SPEED, PUSH_CHAIR_SPEED, PUSH_COWORKER_SPEED } from './pushTuning';
 import { NpcSeats } from './interaction/npc/NpcSeats';
 import type { AtlasFrame } from './atlases/types';
@@ -37,7 +37,8 @@ import { Chat } from './interaction/player/Chat';
 import { PlayerWork } from './interaction/player/PlayerWork';
 import { mergePlants, solidBounds, plantCells, reachZone, type PlantCell } from './interaction/plants';
 import { PlantOverlay } from './interaction/plantOverlay';
-import { scanInteractionTiles } from './interaction/zones';
+import { rectToPx, scanInteractionTiles, type Rect } from './interaction/zones';
+import { pickSpawns, spritePosForBodyCentre } from './interaction/npc/spawn';
 import { WATER_REACH_PX } from './interaction/waterTuning';
 import { WaterInteraction } from './interaction/WaterInteraction';
 import { PlantShared } from './interaction/plantShared';
@@ -216,7 +217,7 @@ export class OfficeScene extends Phaser.Scene {
         createPlayerAnims(this);
         createCharacterAnims(this, SUSAN_SPRITE);
         createCharacterAnims(this, GLORIA_SPRITE);
-        this.player = this.physics.add.sprite(300, 300, PLAYER_IDLE_KEY);
+        this.player = this.physics.add.sprite(0, 0, PLAYER_IDLE_KEY); // moved to a random spawn once everything exists
         this.player.setScale(SPRITE_SCALE);
         this.shadows = new Shadows(this);
         this.shadows.add(this.player, { hideWhen: () => this.npcSeats.isSeated('player') });
@@ -256,9 +257,7 @@ export class OfficeScene extends Phaser.Scene {
 
         this.player.body.pushable = false; // chairs move out of its way, not the other way round
         this.chairs = new Chairs(this, this.shadows);
-        this.chairs.add(450, 300, 'chairS');
-        this.chairs.add(260, 380, 'chairSE');
-        this.chairs.add(330, 380, 'chairW');
+        const chairs = (['chairS', 'chairSE', 'chairW'] as const).map((frame) => this.chairs.add(0, 0, frame));
         this.npcSeats = new NpcSeats(this, this.chairs, (name) => (name === 'player' ? this.player : name === 'susan' ? this.susan : this.gloria), () => this.walkGrid, () => this.clearGrid);
         // Press C to show which chairs a coworker working at each desk can reach, and why the others are filtered out
         this.chairReach = new ChairReachOverlay(this, {
@@ -269,8 +268,8 @@ export class OfficeScene extends Phaser.Scene {
             clearGrid: () => this.clearGrid
         }, SPEECH_DEPTH - 1, 'C', () => this.chat.isTyping);
 
-        this.gloria = this.createSheetCoworker(GLORIA_SPRITE, 170, 150);
-        this.susan = this.createSheetCoworker(SUSAN_SPRITE, 475, 151);
+        this.gloria = this.createSheetCoworker(GLORIA_SPRITE, 0, 0);
+        this.susan = this.createSheetCoworker(SUSAN_SPRITE, 0, 0);
         this.bubbles = new NpcBubbles(this, {
             npc: (name) => (name === 'susan' ? this.susan : this.gloria),
             mapWidth: () => this.mapSize.width,
@@ -282,6 +281,8 @@ export class OfficeScene extends Phaser.Scene {
             updateInteractions: (name) => this.coworkerInteractions.updateInteractions(name),
             isBusy: (name) => this.bubbles.isVisible(name)
         }, this.walkGrid);
+
+        this.spawnAll(chairs, [...this.work.zoneRects(), ...plants.map((p) => rectToPx(reachZone(p, WATER_REACH_PX), p.tileSize))]);
 
         // 3. WORLD COLLISION: Enable solid boundaries
         this.player.setCollideWorldBounds(true);
@@ -374,6 +375,30 @@ export class OfficeScene extends Phaser.Scene {
         this.chairs.gate([{ id: 'player', kind: 'player', sprite: this.player }, { id: 'gloria', kind: 'coworker', sprite: this.gloria, immovable: this.isImmovable('gloria') }, { id: 'susan', kind: 'coworker', sprite: this.susan, immovable: this.isImmovable('susan') }]);
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
         this.chat.bubble.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
+    }
+
+    // Puts the player, coworkers and chairs on random reachable floor, outside the interaction zones (px rects). Run once, after
+    // the grids, desks, plants and every body exist; their sprites start at (0, 0) until then.
+    private spawnAll(chairs: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody[], zones: Rect[]) {
+        const human = { w: PLAYER_BODY.width * 2, h: FEET_HEIGHT * SPRITE_SCALE };
+        const chair = { w: CHAIR_BODY_PX.w, h: CHAIR_BODY_PX.h };
+        const { spawns, notes } = pickSpawns(this.walkGrid, this.clearGrid, [
+            { id: 'player', kind: 'walker', ...human },
+            { id: 'susan', kind: 'walker', ...human },
+            { id: 'gloria', kind: 'walker', ...human },
+            ...chairs.map((_, i) => ({ id: `chair${i}`, kind: 'chair' as const, ...chair }))
+        ], zones, Math.random);
+        for (const note of notes) console.warn(note);
+        const spriteFor = (id: string) => id === 'player' ? this.player : id === 'susan' ? this.susan : id === 'gloria' ? this.gloria : chairs[Number(id.slice(5))];
+        for (const { id, x, y } of spawns) {
+            const sprite = spriteFor(id);
+            // body.center is only up to date after a reset, so measure the offset from the sprite at its current spot
+            sprite.body.reset(sprite.x, sprite.y);
+            const pos = spritePosForBodyCentre(x, y, { x: sprite.body.center.x - sprite.x, y: sprite.body.center.y - sprite.y });
+            sprite.body.reset(pos.x, pos.y);
+            this.sortByBottom(sprite);
+        }
+        this.shadows.update();
     }
 
     // A coworker's praise line: a mutter, taken down after a moment
