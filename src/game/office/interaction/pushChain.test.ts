@@ -118,4 +118,14 @@ describe('resolvePush drivers', () => {
         expect(r.released.has('c1')).toBe(true);
         expect(r.blockedX.size).toBe(0);
     });
+
+    it('keeps coworkers and chairs out of a keep-out area the player may enter', () => {
+        const area = box(-50, 0, 50, 100);
+        const player_ = resolvePush([player(box(0, 0), -2)], [], [area]);
+        expect(player_.blockedX.size).toBe(0);
+        const gloria = resolvePush([body('gloria', 'coworker', box(0, 0), { role: 'driver', dx: -2 })], [], [area]);
+        expect(gloria.blockedX.has('gloria')).toBe(true);
+        const chair = resolvePush([player(box(10, 0), -2), body('c1', 'chair', box(0, 0))], [], [area]);
+        expect(chair.blockedX.has('player')).toBe(true);
+    });
 });

@@ -149,7 +149,7 @@ export class Chairs {
             bodies.push({ id, kind: 'chair', rect: rectOf(chair.body), dx: velocity.x * dt, dy: velocity.y * dt, role: isHeld ? 'trailing' : 'coasting', playerDriven: isHeld });
         });
 
-        const result = resolvePush(bodies, [...this.solidRects, ...this.worldEdges()]);
+        const result = resolvePush(bodies, [...this.solidRects, ...this.worldEdges()], this.keepOutOfPlayerArea());
         for (const id of result.blockedX) sprites.get(id)?.body.setVelocityX(0);
         for (const id of result.blockedY) sprites.get(id)?.body.setVelocityY(0);
         for (const id of [...result.blockedX, ...result.blockedY]) {
@@ -194,11 +194,19 @@ export class Chairs {
         const b = this.scene.physics.world.bounds;
         const T = 1000;
         return [
-            { left: b.x - T, right: b.x, top: b.y - T, bottom: b.bottom + T },
             { left: b.right, right: b.right + T, top: b.y - T, bottom: b.bottom + T },
             { left: b.x, right: b.right, top: b.y - T, bottom: b.y },
             { left: b.x, right: b.right, top: b.bottom, bottom: b.bottom + T }
         ];
+    }
+
+    // The player may walk out through the office's left side (into the bathroom); chairs and coworkers may not.
+    // The slab is the physics world's left edge, which is the office's left edge only because the bathroom is placed
+    // left of the office (`placeBeside` assumes the same): a room on another side needs its own slab.
+    private keepOutOfPlayerArea(): Rect[] {
+        const b = this.scene.physics.world.bounds;
+        const T = 1000;
+        return [{ left: b.x - T, right: b.x, top: b.y - T, bottom: b.bottom + T }];
     }
 
     // Turn toward the push direction; while it coasts to a stop it keeps its last facing

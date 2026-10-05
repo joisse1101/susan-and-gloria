@@ -25,8 +25,8 @@
 
 ## 5. Rebuild the bathroom on the abstracted loader
 
-- [ ] 5.1 Rewrite `loadBathroomMap.ts` to use `joinCells` + `placeBeside` + the loader with a bathroom `MapSpec`, side by side with no shared cell, and verify a missing join tile throws an error naming the map
-- [ ] 5.2 Keep the player-only rules: physics world and walk grid stay the office floor, the player's bounds are the union, chairs/coworkers stop at the office's left edge via `keepOut`; add a comment in `Chairs.ts` that the slab assumes the bathroom is left of the office, and verify the existing `pushChain` keep-out test still passes
+- [x] 5.1 Rewrite `loadBathroomMap.ts` to use `joinCells` + `placeBeside` + the loader with a bathroom `MapSpec`, side by side with no shared cell, and verify a missing join tile throws an error naming the map
+- [x] 5.2 Keep the player-only rules: physics world and walk grid stay the office floor, the player's bounds are the union, chairs/coworkers stop at the office's left edge via `keepOut`; add a comment in `Chairs.ts` that the slab assumes the bathroom is left of the office, and verify the existing `pushChain` keep-out test still passes
 - [ ] 5.3 Update the camera bounds to the union of both maps and verify the camera follows the player into the bathroom without showing void beyond the maps' edges
 
 ## 6. Overlays across the whole scene

@@ -67,7 +67,8 @@ function canPush(mover: PushBody, target: PushBody, playerChain: boolean) {
     return true;
 }
 
-export function resolvePush(bodies: PushBody[], solids: Rect[]): PushResult {
+// `solids` stop every body; `keepOut` areas stop everything but the player.
+export function resolvePush(bodies: PushBody[], solids: Rect[], keepOut: Rect[] = []): PushResult {
     const result: PushResult = { blockedX: new Set(), blockedY: new Set(), released: new Set(), pushed: new Map(), pushedBy: new Map() };
     const rects = new Map(bodies.map((b) => [b.id, { ...b.rect }]));
     const handled = new Set<string>();
@@ -82,6 +83,7 @@ export function resolvePush(bodies: PushBody[], solids: Rect[]): PushResult {
             const from = rects.get(body.id)!;
             const to = shift(from, axis, by);
             if (solids.some((s) => overlaps(to, s))) return false;
+            if (body.kind !== 'player' && keepOut.some((s) => overlaps(to, s))) return false;
             moves.set(body.id, by);
             for (const other of bodies) {
                 if (other.id === body.id || moves.has(other.id)) continue;

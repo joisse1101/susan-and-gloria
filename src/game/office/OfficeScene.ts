@@ -65,6 +65,7 @@ import { FACING } from './interaction/npc/facing';
 import { facingFromVelocity, playerFacing } from './interaction/npc/workFacing';
 import { Shadows } from './interaction/Shadows';
 import { dumpMapIfRequested } from './map/dumpMap';
+import { loadBathroom, preloadBathroomMap } from './map/loadBathroomMap';
 import { loadOfficeMap, preloadOfficeMap, type WalkBehindPiece } from './map/loadOfficeMap';
 import { easeAlpha, isBehind, type Walker } from './map/walkBehind';
 import { CAMERA_ZOOM, FEET_HEIGHT, FEET_LIFT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE, WALK_BEHIND_ALPHA, WALK_BEHIND_FADE_MS } from './constants';
@@ -102,6 +103,8 @@ export class OfficeScene extends Phaser.Scene {
     private thinking!: ThinkingInteraction;
     private bubbles!: NpcBubbles;
     private mapSize = { width: 0, height: 0 };
+    // The office floor plus the bathroom beside it: where the player may go, and what the camera may show
+    private playerBounds = new Phaser.Geom.Rectangle();
     // Solid objects the characters can walk behind, with the images that draw them
     private walkBehind: WalkBehindPiece[] = [];
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
@@ -139,6 +142,7 @@ export class OfficeScene extends Phaser.Scene {
         preloadCharacterSprite(this, SUSAN_SPRITE);
         preloadCharacterSprite(this, GLORIA_SPRITE);
         preloadOfficeMap(this);
+        preloadBathroomMap(this);
     }
 
     create() {
@@ -185,8 +189,20 @@ export class OfficeScene extends Phaser.Scene {
             waterCells.push(...plantCells(tiles));
         });
         this.mapSize = loaded.mapSize;
-        this.walkBehind = loaded.walkBehind;
         dumpMapIfRequested(this, this.obstacles, loaded);
+        // Only the player may leave the office, through the doorway into the bathroom: coworkers and chairs stay inside
+        // the physics world (the office floor), and the walk grid built from it has no cells in the bathroom
+        const bathroom = loadBathroom(this, this.obstacles);
+        const floor = this.physics.world.bounds;
+        const left = Math.min(floor.x, bathroom.bounds.x);
+        const top = Math.min(floor.y, bathroom.bounds.y);
+        this.playerBounds = new Phaser.Geom.Rectangle(
+            left,
+            top,
+            Math.max(floor.right, bathroom.bounds.x + bathroom.bounds.w) - left,
+            Math.max(floor.bottom, bathroom.bounds.y + bathroom.bounds.h) - top
+        );
+        this.walkBehind = [...bathroom.walkBehind, ...loaded.walkBehind];
         const plants = mergePlants(waterCells, waterTileSize);
         // Actors stand against the plant's solid part (the pots), which is smaller than its tiles
         const bodies = this.obstacles.getChildren().map((c) => (c as Phaser.GameObjects.GameObject).body as Phaser.Physics.Arcade.StaticBody).filter(Boolean);
@@ -293,6 +309,7 @@ export class OfficeScene extends Phaser.Scene {
 
         // 3. WORLD COLLISION: Enable solid boundaries
         this.player.setCollideWorldBounds(true);
+        this.player.body.setBoundsRectangle(this.playerBounds);
         this.physics.add.collider(this.player, this.obstacles); // Stop on placed furniture and map walls/tables
         this.physics.add.collider(this.player, this.gloria);   // Stop on Gloria
         this.physics.add.collider(this.player, this.susan);    // Stop on Susan
@@ -558,11 +575,12 @@ export class OfficeScene extends Phaser.Scene {
         const cam = this.cameras.main;
         // Keep the camera exactly as big as the canvas so following/centring uses the real window size
         cam.setSize(this.scale.width, this.scale.height);
-        const w = Math.max(this.mapSize.width, cam.width / cam.zoom);
-        const h = Math.max(this.mapSize.height, cam.height / cam.zoom);
-        // Only when the map is smaller than the viewport on that axis, nudge it up from dead centre
-        const shiftY = h > this.mapSize.height ? SMALL_MAP_SHIFT_Y : 0;
-        cam.setBounds((this.mapSize.width - w) / 2, (this.mapSize.height - h) / 2 + shiftY, w, h);
+        const world = this.playerBounds;
+        const w = Math.max(world.width, cam.width / cam.zoom);
+        const h = Math.max(world.height, cam.height / cam.zoom);
+        // Only when the maps are smaller than the viewport on that axis, nudge them up from dead centre
+        const shiftY = h > world.height ? SMALL_MAP_SHIFT_Y : 0;
+        cam.setBounds(world.x + (world.width - w) / 2, world.y + (world.height - h) / 2 + shiftY, w, h);
     }
 
     protected place(name: InteriorFrameName, x: number, y: number, options?: PlaceOptions & { atlas?: 'interior' }): Phaser.GameObjects.Image;
