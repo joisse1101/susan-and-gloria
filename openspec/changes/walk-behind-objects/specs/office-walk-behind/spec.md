@@ -1,41 +1,45 @@
 ## Purpose
 
-Lets characters walk behind tall furniture on the map: the furniture draws in front of them, fades so they stay visible, and blocks only a set depth at its base.
+Lets characters walk into the top of solid objects on the map: the object draws in front of them, fades so they stay visible, and the top strip stops blocking. Every solid object works this way, with no authoring.
 
 ## ADDED Requirements
 
-### Requirement: Layers opt in with a property
-A tile layer SHALL be treated as walk-behind when its Tiled layer properties include `behind` with a number, the depth in px that blocks, measured up from the base of each piece. A layer without `behind` SHALL keep its current behaviour.
+### Requirement: Solid objects are found from the combined colliders
+An object SHALL be a vertical run of touching solid cells in one column, where a cell is solid when any collider layer has a tile there. Touching cells from different layers SHALL belong to the same object. Tiles on non-collider layers SHALL NOT make a cell solid.
 
-#### Scenario: Opted-in layer
-- **WHEN** a layer has `behind` set to 12
-- **THEN** its furniture is walk-behind and blocks the bottom 12 px of each piece
+#### Scenario: Wall, desk, wall
+- **WHEN** a wall, a desk and a wall touch in one column, the wall and the desk being on different layers
+- **THEN** they are one object whose top is the top of the upper wall and whose base is the bottom of the lower wall
 
-#### Scenario: Layer without the property
-- **WHEN** a layer has no `behind` property
-- **THEN** it is drawn and blocks exactly as before
+#### Scenario: Gap splits
+- **WHEN** a column has an empty cell between two solid cells
+- **THEN** they are two objects
 
-#### Scenario: Invalid value
-- **WHEN** `behind` is not a non-negative number
-- **THEN** the layer is treated as not opted in and a console message names the layer
+### Requirement: The top strip of every object can be walked into
+The top `WALK_BEHIND_STRIP_PX` (16 px) of an object SHALL NOT block movement, capped at `WALK_BEHIND_STRIP_FRACTION` (2/3) of the object's height and rounded down to whole px. The rest of the object SHALL block exactly as before, and the walkable area used for coworker routing SHALL follow the same reduced collision. Both values SHALL be set in one tuning location, with comments.
 
-### Requirement: Opted-in colliders block only their base
-On an opted-in collider layer, a tile's collision SHALL cover only the opaque pixels within `behind` px of the base of its piece. Pixels higher than that SHALL NOT block movement, so a character can stand there, behind the object. The walkable area used for coworker routing SHALL follow the same reduced collision.
+#### Scenario: Lone wall
+- **WHEN** the player walks down into a 32 px wall from the north
+- **THEN** the player is not stopped in the top 16 px, and is stopped by the lower 16 px
 
-#### Scenario: Walking into the base
-- **WHEN** the player walks into the bottom `behind` px of a shelf
-- **THEN** the player is stopped
+#### Scenario: Wall, desk, wall
+- **WHEN** the player walks down into a column of wall, desk and wall
+- **THEN** only the top 16 px of the upper wall can be entered; the rest of the column blocks
 
-#### Scenario: Walking into the upper part
-- **WHEN** the player walks up to the part of the shelf higher than `behind` px from its base
-- **THEN** the player is not stopped and ends up standing behind the shelf
+#### Scenario: Short object
+- **WHEN** an object is 16 px tall
+- **THEN** its top 10 px can be entered and its bottom 6 px still blocks
+
+#### Scenario: From the front
+- **WHEN** the player walks up to an object from the south
+- **THEN** the player is stopped by the lower part, as before
 
 #### Scenario: Coworkers route behind
 - **WHEN** a coworker wanders or walks to a desk
-- **THEN** it may route through the area behind an object that the player can also stand in
+- **THEN** it may route through the open top strip that the player can also stand in
 
 ### Requirement: Pieces are depth-sorted against characters
-A walk-behind piece SHALL be drawn in front of a character whose feet are above the piece's base line, and behind a character whose feet are below it, so characters pass in front of and behind it correctly. Chairs SHALL sort the same way.
+An object SHALL be drawn in front of a character whose feet are above the object's base line, and behind a character whose feet are below it, so characters pass in front of and behind it correctly. The base line is the bottom of the whole object, so a character in the open top strip is drawn behind all of it. Chairs SHALL sort the same way.
 
 #### Scenario: Behind the object
 - **WHEN** the player's feet are above the base line of a shelf and overlap its drawn area
@@ -46,7 +50,7 @@ A walk-behind piece SHALL be drawn in front of a character whose feet are above 
 - **THEN** the player is drawn over the shelf
 
 ### Requirement: Objects fade when a character is behind them
-While a character is behind a walk-behind piece and overlaps its drawn pixels, the piece SHALL become partly transparent so the character stays visible. The piece SHALL return to fully opaque when no character is behind it, with a short fade rather than a snap.
+While a character is behind an object and overlaps its drawn pixels, the object SHALL become partly transparent so the character stays visible. The object SHALL return to fully opaque when no character is behind it, with a short fade rather than a snap.
 
 #### Scenario: Fade on entering
 - **WHEN** the player walks behind a shelf and overlaps it
@@ -61,15 +65,15 @@ While a character is behind a walk-behind piece and overlaps its drawn pixels, t
 - **THEN** the shelf stays fully opaque
 
 #### Scenario: Coworker behind
-- **WHEN** Susan or Gloria is behind a piece
-- **THEN** the piece fades the same way as for the player
+- **WHEN** Susan or Gloria is behind an object
+- **THEN** the object fades the same way as for the player
 
 ### Requirement: Fade strength is tunable in one place
 The faded opacity and the fade time SHALL be set in one tuning location, with comments, and nothing else SHALL hardcode them.
 
 #### Scenario: Changing the fade
 - **WHEN** a maintainer changes the faded opacity value
-- **THEN** every walk-behind piece fades to the new value without other edits
+- **THEN** every object fades to the new value without other edits
 
 ### Requirement: Over-the-player layers use current layer names
 Layers drawn over characters SHALL be selected by names that exist in the current map, so a renamed or removed layer cannot silently stop working.
@@ -79,7 +83,4 @@ Layers drawn over characters SHALL be selected by names that exist in the curren
 - **THEN** a console message names it
 
 ### Note: other ways to define walk-behind objects (non-normative)
-The layer property above is the chosen way to mark objects. Two others have been considered and may replace or sit beside it later. They would change only where the list of objects comes from, not the sorting, fading or collision rules above:
-
-- **Rects over the map**: each walk-behind object is a rectangle with its own base line and depth, like the work-area rectangles. Most flexible, but must be redrawn when furniture moves.
-- **Auto-grouped tiles**: connected tiles on collider layers form one object each, with one global depth. Least authoring, but wrong where two pieces touch, such as a desk against a wall.
+Objects come from the combined collider layers. Another source, rects drawn over the map with their own base line and strip depth, could later add exceptions or replace this. It would change only where the list of objects comes from, not the sorting, fading or collision rules above.
