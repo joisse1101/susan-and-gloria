@@ -1,7 +1,7 @@
 // Placing maps side by side by their join tiles. Pure: works on the parsed Tiled JSON, no Phaser.
 
 // Tiled tile property marking the wall tile where two maps meet
-export const JOIN_PROPERTY = 'isJoin';
+const JOIN_PROPERTY = 'isJoin';
 // The top bits of a Tiled gid carry the flip/rotate flags
 const GID_MASK = 0x1fffffff;
 

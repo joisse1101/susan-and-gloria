@@ -24,7 +24,7 @@ export interface MapSpec extends MapFiles {
 // `baseY` is the object's base line; Infinity for a layer that is always drawn over the characters.
 export type WalkBehindPiece = { bounds: Rect; baseY: number; image: Phaser.GameObjects.Image; alpha: number };
 
-export type LoadedMap = {
+type LoadedMap = {
     // The map's own size, and the rectangle it covers in the world
     size: { width: number; height: number };
     bounds: Rect;

@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'fs'
 
-// Dev only: saves what the game posts to /__dump/<name> (see src/game/office/map/dumpMap.ts) into the open OpenSpec change
-const dumpDir = path.resolve(import.meta.dirname, 'openspec/changes/bathroom-side-by-side-map-loader')
+// Dev only: saves what the game posts to /__dump/<name> (see src/game/office/map/dumpMap.ts) into .map-dumps/ (git-ignored)
+const dumpDir = path.resolve(import.meta.dirname, '.map-dumps')
 const mapDump = {
   name: 'map-dump',
   apply: 'serve' as const,
@@ -15,6 +15,7 @@ const mapDump = {
       const chunks: Buffer[] = []
       req.on('data', (c) => chunks.push(c))
       req.on('end', () => {
+        fs.mkdirSync(dumpDir, { recursive: true })
         fs.writeFileSync(path.join(dumpDir, `${name}.json`), Buffer.concat(chunks))
         res.end('ok')
       })

@@ -5,7 +5,7 @@ Lets characters walk into the top of solid objects on the map: the object draws 
 ## Requirements
 
 ### Requirement: Solid objects are found from the combined colliders
-An object SHALL be a vertical run of touching solid cells in one column. Cells are 8 px (the walk grid's size) and a cell is solid when any collider layer draws at least one non-transparent pixel in it, so transparent parts of a tile, and the gaps between art that does not touch, do not join objects. Touching cells from different layers SHALL belong to the same object. Tiles on non-collider layers SHALL NOT make a cell solid.
+An object SHALL be a vertical run of touching solid cells in one column. Cells are 8 px (the walk grid's size) and a cell is solid when any collider layer draws at least one non-transparent pixel in it, so transparent parts of a tile, and the gaps between art that does not touch, do not join objects. Touching cells from different layers SHALL belong to the same object. Tiles on non-collider layers SHALL NOT make a cell solid. Each loaded map SHALL be analysed on its own, so objects of different maps never join, wherever the maps are placed in the world.
 
 #### Scenario: Wall, desk, wall
 - **WHEN** a wall, a desk and a wall touch in one column, the wall and the desk being on different layers
@@ -14,6 +14,10 @@ An object SHALL be a vertical run of touching solid cells in one column. Cells a
 #### Scenario: Gap splits
 - **WHEN** a column has an empty cell between two solid cells
 - **THEN** they are two objects
+
+#### Scenario: Maps side by side
+- **WHEN** a wall of the bathroom stands against a wall of the office
+- **THEN** they are separate objects, each with its own top, base and open strip
 
 ### Requirement: The top strip of every object can be walked into
 The top `WALK_BEHIND_STRIP_PX` (16 px) of an object SHALL NOT block movement, capped at `WALK_BEHIND_STRIP_FRACTION` (2/3) of the object's height and rounded down to whole 8 px cells. The rest of the object SHALL block exactly as before, and the walkable area used for coworker routing SHALL follow the same reduced collision. Both values SHALL be set in one tuning location, with comments.

@@ -5,7 +5,7 @@ const r = (n: number) => Math.round(n * 1000) / 1000;
 
 // Dev only: what the map loader produced for the office (collision bodies, walk-behind pieces, bounds), as plain data,
 // so a refactor can be compared against the output of the code before it. Open the game with `?dumpMap=baseline`
-// (saved as office-baseline.json) or `?dumpMap` (office-current.json); the Vite dev server writes the file.
+// (saved as office-baseline.json) or `?dumpMap` (office-current.json); the Vite dev server writes the file to .map-dumps/.
 export function dumpMapIfRequested(
     scene: Phaser.Scene,
     obstacles: Phaser.Physics.Arcade.StaticGroup,

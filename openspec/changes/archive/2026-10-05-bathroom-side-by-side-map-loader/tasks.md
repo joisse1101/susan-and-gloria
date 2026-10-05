@@ -31,13 +31,13 @@
 
 ## 6. Overlays across the whole scene
 
-- [ ] 6.1 Extend `WalkGridOverlay` to take a list of regions and build the bathroom region from a second `WalkGrid` over obstacle bodies translated by `-offset`, drawn translated back; add the "player only" colour constant; verify G and H show tinted bathroom cells (free = player-only colour, solid = red) and the office tint is unchanged
-- [ ] 6.2 Verify P and C still draw correctly with the bathroom loaded (no change expected) and that all overlays stay hidden by default and ignore their keys while typing
+- [x] 6.1 Extend `WalkGridOverlay` to take a list of regions and build the bathroom region from a second `WalkGrid` over obstacle bodies translated by `-offset`, drawn translated back; add the "player only" colour constant; verify G and H show tinted bathroom cells (free = player-only colour, solid = red) and the office tint is unchanged
+- [x] 6.2 Verify P and C still draw correctly with the bathroom loaded (no change expected) and that all overlays stay hidden by default and ignore their keys while typing
 
 ## 7. Verify the combined world (human + code)
 
-- [ ] 7.1 Run `npm test`, `npm run lint`, `npm run build` and verify all pass; re-run the dev dump for the office and verify it still equals `office-baseline.json` with the bathroom loaded
-- [ ] 7.2 Manual: the two rooms sit side by side with the doorways lined up and no shared wall column; the player walks through the door both ways and the camera follows; bathroom walls and furniture block; walking behind bathroom objects draws and fades them
-- [ ] 7.3 Manual: Susan and Gloria never wander, spawn or work in the bathroom (restart several times, then `/gloria-work` and `/susan-work`); pushing a chair or pulling Susan to the doorway stops at the office edge and lets go
-- [ ] 7.4 Manual: press G and H and confirm the whole world, bathroom included, is tinted correctly
-- [ ] 7.5 Update the bathroom paragraph in `CLAUDE.md` (side by side, abstracted loader, overlays) and the `loadOfficeMap.ts` line, and verify no stale mention of "overlap" or "drawn first" remains
+- [x] 7.1 Run `npm test`, `npm run lint`, `npm run build` and verify all pass; re-run the dev dump for the office and verify it still equals `office-baseline.json` with the bathroom loaded
+- [x] 7.2 Manual: the two rooms sit side by side with the doorways lined up and no shared wall column; the player walks through the door both ways and the camera follows; bathroom walls and furniture block; walking behind bathroom objects draws and fades them
+- [x] 7.3 Manual: Susan and Gloria never wander, spawn or work in the bathroom (restart several times, then `/gloria-work` and `/susan-work`); pushing a chair or pulling Susan to the doorway stops at the office edge and lets go
+- [x] 7.4 Manual: press G and H and confirm the whole world, bathroom included, is tinted correctly
+- [x] 7.5 Update the bathroom paragraph in `CLAUDE.md` (side by side, abstracted loader, overlays) and the `loadOfficeMap.ts` line, and verify no stale mention of "overlap" or "drawn first" remains

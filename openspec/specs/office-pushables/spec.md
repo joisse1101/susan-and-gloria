@@ -54,7 +54,7 @@ A walking free coworker SHALL move chairs and one other free coworker it walks i
 - **THEN** the other coworker is not moved and the chair stops
 
 ### Requirement: A pushed body never enters an obstacle
-A pushed body SHALL NOT end up inside a wall, desk or other solid furniture. If any body in a driven chain is blocked by a solid, an immovable coworker or the player, the whole chain SHALL stop, including the driver.
+A pushed body SHALL NOT end up inside a wall, desk or other solid furniture. If any body in a driven chain is blocked by a solid, an immovable coworker or the player, the whole chain SHALL stop, including the driver. Chairs and coworkers SHALL also be stopped at the edge of the area only the player may enter (the bathroom), the same way; the player SHALL NOT be stopped there.
 
 #### Scenario: Chair against a wall
 - **WHEN** the player pushes a chair that is against a wall
@@ -71,6 +71,14 @@ A pushed body SHALL NOT end up inside a wall, desk or other solid furniture. If 
 #### Scenario: Corners
 - **WHEN** a driven chain is pushed diagonally into a corner of furniture or wall
 - **THEN** no body in the chain ends up overlapping the corner
+
+#### Scenario: Chair at the player-only area
+- **WHEN** the player pushes a chair toward the bathroom doorway
+- **THEN** the chair stops at the office's edge and the player is stopped
+
+#### Scenario: Player crosses alone
+- **WHEN** the player walks through the doorway with nothing in front
+- **THEN** the player is not stopped at the office's edge
 
 ### Requirement: A pulled body trails the player and lets go when blocked
 The player SHALL hold one pullable body at a time: with the pull key down, the nearest loose chair or free coworker within reach is grabbed, and it SHALL follow the player and SHALL NOT enter an obstacle. Because it trails behind the player, a blocked pulled body SHALL be let go of instead of stopping the player; it is also let go of when it lags too far behind, when the pull key is released, or when a coworker becomes immovable. An immovable coworker SHALL NOT be grabbed. Anything the pulled body pushes in front of it follows the chain rules above.
