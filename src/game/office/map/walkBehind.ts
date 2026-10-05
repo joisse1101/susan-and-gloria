@@ -64,3 +64,22 @@ export function splitAtColumns(rect: Rect, size: number): Rect[] {
     }
     return pieces;
 }
+
+// A character as the fade sees it: the bottom of its feet body and its sprite's bounds (map px)
+export type Walker = { feetY: number; bounds: Rect };
+
+// True when a walker is behind the object (or tile) and overlapping it: feet above the base line (they draw behind it) and
+// the sprite overlaps the object's bounds. In front of it, or beside it, is false.
+export function isBehind(object: Pick<WalkBehindObject, 'bounds' | 'baseY'>, walkers: Walker[]): boolean {
+    const o = object.bounds;
+    return walkers.some((w) => {
+        const b = w.bounds;
+        return w.feetY < object.baseY && b.x < o.x + o.w && b.x + b.w > o.x && b.y < o.y + o.h && b.y + b.h > o.y;
+    });
+}
+
+// Moves `current` towards `target` at a full 0-to-1 sweep per `fadeMs`, never overshooting.
+export function easeAlpha(current: number, target: number, dtMs: number, fadeMs: number): number {
+    const step = fadeMs > 0 ? dtMs / fadeMs : 1;
+    return current < target ? Math.min(target, current + step) : Math.max(target, current - step);
+}

@@ -64,8 +64,9 @@ import {
 import { FACING } from './interaction/npc/facing';
 import { facingFromVelocity, playerFacing } from './interaction/npc/workFacing';
 import { Shadows } from './interaction/Shadows';
-import { loadOfficeMap, preloadOfficeMap } from './map/loadOfficeMap';
-import { CAMERA_ZOOM, FEET_HEIGHT, FEET_LIFT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE } from './constants';
+import { loadOfficeMap, preloadOfficeMap, type WalkBehindPiece } from './map/loadOfficeMap';
+import { easeAlpha, isBehind, type Walker } from './map/walkBehind';
+import { CAMERA_ZOOM, FEET_HEIGHT, FEET_LIFT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE, WALK_BEHIND_ALPHA, WALK_BEHIND_FADE_MS } from './constants';
 
 interface PlaceOptions {
     // Height (unscaled px) of the collision body measured up from the object's base; omit for no collision
@@ -100,6 +101,8 @@ export class OfficeScene extends Phaser.Scene {
     private thinking!: ThinkingInteraction;
     private bubbles!: NpcBubbles;
     private mapSize = { width: 0, height: 0 };
+    // Solid objects the characters can walk behind, with the images that draw them
+    private walkBehind: WalkBehindPiece[] = [];
     private obstacles!: Phaser.Physics.Arcade.StaticGroup;
     private chairs!: Chairs;
     private shadows!: Shadows;
@@ -181,6 +184,7 @@ export class OfficeScene extends Phaser.Scene {
             waterCells.push(...plantCells(tiles));
         });
         this.mapSize = loaded.mapSize;
+        this.walkBehind = loaded.walkBehind;
         const plants = mergePlants(waterCells, waterTileSize);
         // Actors stand against the plant's solid part (the pots), which is smaller than its tiles
         const bodies = this.obstacles.getChildren().map((c) => (c as Phaser.GameObjects.GameObject).body as Phaser.Physics.Arcade.StaticBody).filter(Boolean);
@@ -317,7 +321,7 @@ export class OfficeScene extends Phaser.Scene {
         }
     }
 
-    override update() {
+    override update(_time: number, delta: number) {
         // Coworkers not in an interaction can be pushed and pulled; one that is blocks like a wall
         const free = (['gloria', 'susan'] as const).filter((name) => !this.isImmovable(name));
         const coworkers = free.map((name) => ({ id: name, sprite: this.npcSprite(name) }));
@@ -376,6 +380,29 @@ export class OfficeScene extends Phaser.Scene {
         this.chairs.gate([{ id: 'player', kind: 'player', sprite: this.player }, { id: 'gloria', kind: 'coworker', sprite: this.gloria, immovable: this.isImmovable('gloria') }, { id: 'susan', kind: 'coworker', sprite: this.susan, immovable: this.isImmovable('susan') }]);
         this.chairs.update(); // after the wander: it clears the "pushing a chair" flags they read
         this.chat.bubble.setPosition(this.player.x, this.player.y - this.player.displayHeight / 2 - 4);
+        this.fadeWalkBehind(delta);
+    }
+
+    // Each tile a character is behind (or under, for the over-the-player layers) fades to WALK_BEHIND_ALPHA and comes back when they leave
+    private fadeWalkBehind(delta: number) {
+        // Someone watering stands beside the plant on purpose, under its leaves: nothing fades for them
+        const watering = [
+            { sprite: this.player, on: this.playerWater.isEngaged('player') },
+            { sprite: this.gloria, on: this.coworkerWater.isEngaged('gloria') },
+            { sprite: this.susan, on: this.coworkerWater.isEngaged('susan') }
+        ];
+        const walkers: Walker[] = watering.filter((w) => !w.on).map(({ sprite: s }) => {
+            const b = s.getBounds();
+            // Sideways only the feet body counts: the sprite's own bounds include transparent margins that would fade the neighbouring tiles
+            return { feetY: s.body.bottom, bounds: { x: s.body.left, y: b.y, w: s.body.width, h: b.height } };
+        });
+        for (const piece of this.walkBehind) {
+            const target = isBehind(piece, walkers) ? WALK_BEHIND_ALPHA : 1;
+            const alpha = easeAlpha(piece.alpha, target, delta, WALK_BEHIND_FADE_MS);
+            if (alpha === piece.alpha) continue;
+            piece.alpha = alpha;
+            piece.image.setAlpha(alpha);
+        }
     }
 
     // Puts the player, coworkers and chairs on random reachable floor, outside the interaction zones (px rects). Run once, after

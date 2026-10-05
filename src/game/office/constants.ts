@@ -22,3 +22,6 @@ export const MAP_TOP_DEPTH = SPEECH_DEPTH - 1;
 // capped at WALK_BEHIND_STRIP_FRACTION of the object's height so short objects keep a blocking part. 0 turns it off.
 export const WALK_BEHIND_STRIP_PX = 16;
 export const WALK_BEHIND_STRIP_FRACTION = 2 / 3;
+// An object a character is standing behind fades to this alpha (1 = opaque), over WALK_BEHIND_FADE_MS for the full 0 to 1
+export const WALK_BEHIND_ALPHA = 0.45;
+export const WALK_BEHIND_FADE_MS = 150;

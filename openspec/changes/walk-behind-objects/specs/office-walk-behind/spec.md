@@ -26,6 +26,10 @@ The top `WALK_BEHIND_STRIP_PX` (16 px) of an object SHALL NOT block movement, ca
 - **WHEN** the player walks down into a column of wall, desk and wall
 - **THEN** only the top 16 px of the upper wall can be entered; the rest of the column blocks
 
+#### Scenario: Objects joined to the top wall
+- **WHEN** an object reaches the top edge of the map (the top wall, furniture or plants against it, the side walls)
+- **THEN** it is not walk-behind: it blocks over its whole height, is drawn under every character, and does not fade
+
 #### Scenario: Short object
 - **WHEN** an object is 16 px tall
 - **THEN** its top 8 px can be entered and its bottom 8 px still blocks
@@ -50,7 +54,7 @@ An object SHALL be drawn in front of a character whose feet are above the object
 - **THEN** the player is drawn over the shelf
 
 ### Requirement: Objects fade when a character is behind them
-While a character is behind an object and overlaps its drawn pixels, the object SHALL become partly transparent so the character stays visible. The object SHALL return to fully opaque when no character is behind it, with a short fade rather than a snap.
+While a character is behind an object and overlaps its drawn pixels, only the part of the object the character overlaps (its tiles under the sprite, not the whole object) SHALL become partly transparent so the character stays visible. Layers drawn over the characters (the configured top layers, such as the room's bottom edge) SHALL do the same for the tiles a character is under. Each part SHALL return to fully opaque when no character is behind or under it, with a short fade rather than a snap.
 
 #### Scenario: Fade on entering
 - **WHEN** the player walks behind a shelf and overlaps it

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipAboveCut, findWalkBehindObjects, openStripPx, splitAtColumns } from './walkBehind';
+import { clipAboveCut, easeAlpha, findWalkBehindObjects, isBehind, openStripPx, splitAtColumns } from './walkBehind';
 
 describe('openStripPx', () => {
     it('is 16 for 32 and 48 px objects', () => {
@@ -74,5 +74,39 @@ describe('clipAboveCut', () => {
     });
     it('changes nothing when the cut is at or above the tile top', () => {
         expect(clipAboveCut([{ x: 0, y: 0, w: 16, h: 16 }], 32, 32)).toEqual([{ x: 0, y: 0, w: 16, h: 16 }]);
+    });
+});
+
+describe('isBehind', () => {
+    const object = { bounds: { x: 32, y: 32, w: 16, h: 32 }, baseY: 64, openDepth: 16 };
+    const walker = (feetY: number, x = 36, y = feetY - 40) => ({ feetY, bounds: { x, y, w: 20, h: 44 } });
+
+    it('is true with feet above the base line and the sprite overlapping', () => {
+        expect(isBehind(object, [walker(50)])).toBe(true);
+    });
+    it('is false once the feet pass the base line', () => {
+        expect(isBehind(object, [walker(64)])).toBe(false);
+        expect(isBehind(object, [walker(80)])).toBe(false);
+    });
+    it('is false beside the object', () => {
+        expect(isBehind(object, [walker(50, 100)])).toBe(false);
+    });
+    it('is false when the sprite is entirely above', () => {
+        expect(isBehind(object, [{ feetY: 20, bounds: { x: 36, y: -24, w: 20, h: 44 } }])).toBe(false);
+    });
+    it('is true if any walker is behind', () => {
+        expect(isBehind(object, [walker(80), walker(50)])).toBe(true);
+    });
+});
+
+describe('easeAlpha', () => {
+    it('moves towards the target without overshooting', () => {
+        expect(easeAlpha(1, 0.45, 15, 150)).toBeCloseTo(0.9);
+        expect(easeAlpha(0.5, 0.45, 150, 150)).toBe(0.45);
+        expect(easeAlpha(0.45, 1, 15, 150)).toBeCloseTo(0.55);
+        expect(easeAlpha(0.95, 1, 150, 150)).toBe(1);
+    });
+    it('jumps at fadeMs 0', () => {
+        expect(easeAlpha(1, 0.4, 16, 0)).toBe(0.4);
     });
 });

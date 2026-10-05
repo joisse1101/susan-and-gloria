@@ -13,13 +13,13 @@ Note: 1.1, 1.2, 2.1 and 2.2 replace what was built for a layer or tile property 
 ## 3. Sorting
 
 - [x] 3.1 For the solid tiles of each object, keep the `TilemapLayer` visible but hide each such tile in it (after `onLayer` has scanned it) and draw it as an image from the tileset frame (flips honoured), with depth `baseY + FEET_LIFT * SPRITE_SCALE`. Keep layer order within an object. Verify the room looks identical to before when no character is near, and that non-collider layers are unchanged. Decide here how decor tiles on non-collider layers (e.g. `Wall Details`) inside an object's cells sort.
-- [ ] 3.2 Confirm chairs and shadows sort correctly against the objects. Verify by dragging a chair behind and in front of an object.
-- [ ] 3.3 Walk the player and both coworkers above and below an object and verify each is drawn behind, then in front, flipping where the feet cross the base line.
+- [x] 3.2 Confirm chairs and shadows sort correctly against the objects. Verify by dragging a chair behind and in front of an object.
+- [x] 3.3 Walk the player and both coworkers above and below an object and verify each is drawn behind, then in front, flipping where the feet cross the base line.
 
 ## 4. Fade
 
-- [ ] 4.1 Add `WALK_BEHIND_ALPHA` and `WALK_BEHIND_FADE_MS` to the tuning with comments. Add a pure test-covered function deciding a piece's target alpha from the feet position and sprite bounds of each character (behind and overlapping gives faded; in front or beside gives 1).
-- [ ] 4.2 Run the fade each frame in `OfficeScene.update()` for every object, easing alpha towards the target. Verify in `npm run dev`: the object fades when the player (and each coworker) is behind and overlapping, and returns when they leave, without a snap.
+- [x] 4.1 Add `WALK_BEHIND_ALPHA` and `WALK_BEHIND_FADE_MS` to the tuning with comments. Add a pure test-covered function deciding a piece's target alpha from the feet position and sprite bounds of each character (behind and overlapping gives faded; in front or beside gives 1).
+- [x] 4.2 Run the fade each frame in `OfficeScene.update()` for every object, easing alpha towards the target. Verify in `npm run dev`: the object fades when the player (and each coworker) is behind and overlapping, and returns when they leave, without a snap.
 
 ## 5. Over-the-player layers
 

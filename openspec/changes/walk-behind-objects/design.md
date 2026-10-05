@@ -21,6 +21,8 @@ Sprites sort with `depth = sprite bottom`, which is the feet body's bottom plus 
 
 **An object is a vertical run of touching solid 8 px cells, from all collider layers combined.** Cells are the walk grid's size (`CELL`). Mark a cell solid wherever any collider layer draws an opaque pixel in it (from each tile's opaque rects, so transparent tile parts and fully transparent tiles mark nothing), then take the vertical runs per column of cells. This is what makes wall / desk / wall one object (they sit on different layers) so only its topmost piece opens, and what keeps art that does not actually touch (a gap of at least one free cell) as separate objects. Whole 16 px tiles were rejected: a mostly transparent tile (a desk foot) fused two desks that do not touch. `bounds.y` is the top of the run, `baseY` its bottom, both snapped to 8 px. Per-layer runs were rejected: the lower wall would get its own open strip, a pocket under the desk. *Also rejected: per-tile depth (`baseY` = each tile's own bottom).* A character in the upper tile's row would draw in front of its top half but behind the bottom half.
 
+**Objects joined to the top wall are not walk-behind.** A run whose top is at map y 0 (the top wall and whatever stands against it, plus the side walls, which also start at the top) gets no open strip, keeps its tiles in the map layers under every character, and never fades. Nobody walks behind the top wall, and a plant or desk against it would otherwise sort and fade as part of the wall (the plant fading while it is watered).
+
 **Strip depth: `min(WALK_BEHIND_STRIP_PX, floor(WALK_BEHIND_STRIP_FRACTION * height))`, rounded down to whole cells.** 16 px and 2/3. A 32 px wall opens 16 px (top 2 cells), a 24 px run 16 px, a 16 px run 8 px, an 8 px run nothing, a 48 px stack 16 px. The fraction cap keeps at least a third of every object blocking, so nothing short becomes a walk-through. A pure function, test-covered.
 
 **Collision: remove the top strip from the opaque rects.** Reuse `tileOpaqueRects`. Each rect is split at 8 px column boundaries, because neighbouring cell columns can have different cuts, and each piece is cut at `bounds.y + openDepth` of the run its cells belong to: drop what is entirely above the cut and trim what straddles it. This applies to the tiles of every collider layer, so touching art from different layers is cut at the same line. The existing `WalkGrid` constructor reads the bodies, so routing, clearance and chair reach follow with no change.
@@ -29,9 +31,7 @@ Sprites sort with `depth = sprite bottom`, which is the feet body's bottom plus 
 
 **Depth value: `baseY + FEET_LIFT * SPRITE_SCALE`.** Characters sort by sprite bottom, which is a few px below their feet. Adding the same offset to the object makes the draw order flip exactly where the feet body crosses the base line, and the same line drives the fade.
 
-**Fade: per object, per frame, from the feet.** For each object, find characters whose feet are above `baseY` and whose sprite bounds overlap the object bounds. If there is one, the object's target alpha is `WALK_BEHIND_ALPHA`, otherwise 1. Move each object's alpha towards its target at a rate set by `WALK_BEHIND_FADE_MS`. With a few hundred objects (one per solid column) and three characters, a plain loop per frame is enough; no spatial index.
-
-**Fade is per column.** On a wide desk or long wall made of many columns, only the columns the character overlaps fade. This is the natural consequence of the run-per-column rule. See open questions.
+**Fade: per tile, per frame, from the feet.** Each drawn tile is a piece `{ bounds (the tile), baseY (its object's base line), image, alpha }`. A piece's target is `WALK_BEHIND_ALPHA` when some character's feet are above `baseY` and its sprite bounds overlap the tile, otherwise 1; alpha eases to the target at a rate set by `WALK_BEHIND_FADE_MS`. Per tile (not per object) means only the edge being walked under fades, not the whole desk or wall. Tiles of the `TOP_LAYERS` layers (drawn over every character) are pieces with `baseY` = Infinity, so they fade wherever a sprite overlaps them. Posters and other decor fade with their tile. A plain loop over a few hundred pieces and three characters is enough; no spatial index.
 
 **Tuning in one place.** `WALK_BEHIND_STRIP_PX`, `WALK_BEHIND_STRIP_FRACTION`, `WALK_BEHIND_ALPHA` and `WALK_BEHIND_FADE_MS` live with the other tuning constants in `constants.ts`, commented. `WALK_BEHIND_STRIP_PX` is in map px.
 
@@ -56,5 +56,4 @@ Swapping or adding a source later means writing a new producer for the list; sor
 Nothing to author, but not inert: every collider on the map changes. Check collisions and routing with the `G`/`H`/`C` overlays, then walk around the walls and each piece of furniture. Rollback is reverting, or setting `WALK_BEHIND_STRIP_PX` to 0.
 
 ## Open Questions
-- Should a wide object fade as a whole instead of per column? Deferrable: it changes only how objects are grouped for the fade, not the specs.
 - Should non-collider decor tiles inside an object's cells sort and fade with it? See risks.

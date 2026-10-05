@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { FEET_LIFT, MAP_DEPTH, MAP_TOP_DEPTH, SPRITE_SCALE } from '../constants';
 import { CELL } from '../interaction/npc/WalkGrid';
-import { clipAboveCut, findWalkBehindObjects, splitAtColumns, type Rect, type WalkBehindObject } from './walkBehind';
+import { clipAboveCut, findWalkBehindObjects, splitAtColumns, type Rect } from './walkBehind';
 
 const MAP_KEY = 'officeMap';
 const MAP_TILESET_KEY = 'officeTiles';
@@ -13,8 +13,9 @@ const FLOOR_LAYER = 'Floor';
 // Tile layers drawn over the characters (everything else is under them)
 const TOP_LAYERS: string[] = ['Room Boundary Bottom'];
 
-// A solid object and the images that draw it, depth-sorted against the characters
-export type WalkBehindView = { object: WalkBehindObject; images: Phaser.GameObjects.Image[] };
+// One drawn tile of a solid object (or of a layer over the characters), faded on its own when a character is under it.
+// `baseY` is the object's base line; Infinity for a layer that is always drawn over the characters.
+export type WalkBehindPiece = { bounds: Rect; baseY: number; image: Phaser.GameObjects.Image; alpha: number };
 
 export function preloadOfficeMap(scene: Phaser.Scene) {
     scene.load.tilemapTiledJSON(MAP_KEY, `${MAP_BASE_URL}map.json`);
@@ -28,7 +29,7 @@ export function loadOfficeMap(
     scene: Phaser.Scene,
     obstacles: Phaser.Physics.Arcade.StaticGroup,
     onLayer: (layer: Phaser.Tilemaps.TilemapLayer, tileset: Phaser.Tilemaps.Tileset) => void
-): { mapSize: { width: number; height: number }; walkBehind: WalkBehindView[] } {
+): { mapSize: { width: number; height: number }; walkBehind: WalkBehindPiece[] } {
     const map = scene.make.tilemap({ key: MAP_KEY });
     const tileset = map.addTilesetImage(MAP_TILESET_NAME, MAP_TILESET_KEY);
     if (!tileset) throw new Error(`Tileset "${MAP_TILESET_NAME}" not found in map.json`);
@@ -93,6 +94,9 @@ export function loadOfficeMap(
     // Which object each solid cell belongs to
     const objectAt = solid.map((row) => new Array<number>(row.length).fill(-1));
     objects.forEach((object, i) => {
+        // An object that reaches the top of the map (the top wall and everything built onto it, and the side walls)
+        // is not walked behind: it stays solid and drawn under the characters
+        if (object.bounds.y === 0) return;
         for (let y = object.bounds.y; y < object.baseY; y += CELL) {
             cutOf[y / CELL][object.bounds.x / CELL] = object.bounds.y + object.openDepth;
             objectAt[y / CELL][object.bounds.x / CELL] = i;
@@ -114,11 +118,22 @@ export function loadOfficeMap(
 
     return { mapSize, walkBehind: drawObjects() };
 
+    // The box around a tile's drawn pixels (map px): what a character must overlap to fade it, not the whole tile
+    function drawnBounds(tile: Phaser.Tilemaps.Tile): Rect {
+        const boxes = boxesOf(tile);
+        if (boxes.length === 0) return { x: tile.pixelX, y: tile.pixelY, w: tile.width, h: tile.height };
+        const x1 = Math.min(...boxes.map((b) => b.x));
+        const y1 = Math.min(...boxes.map((b) => b.y));
+        const x2 = Math.max(...boxes.map((b) => b.x + b.w));
+        const y2 = Math.max(...boxes.map((b) => b.y + b.h));
+        return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    }
+
     // The solid tiles of each object, and the decor drawn over them (non-collider layers above the first solid layer,
     // e.g. wall posters), are hidden in their TilemapLayer and drawn as images at the object's depth. A tile that
     // covers cells of several objects joins the lowest one. Layer order is kept by a tiny depth step per layer.
-    function drawObjects(): WalkBehindView[] {
-        const views: WalkBehindView[] = objects.map((object) => ({ object, images: [] }));
+    function drawObjects(): WalkBehindPiece[] {
+        const pieces: WalkBehindPiece[] = [];
         const texture = scene.textures.get(MAP_TILESET_KEY);
         const frameOf = (index: number) => {
             const name = `tile-${index}`;
@@ -148,10 +163,24 @@ export function loadOfficeMap(
                     .setRotation(tile.rotation)
                     .setDepth(objects[best].baseY + FEET_LIFT * SPRITE_SCALE + order * 0.001);
                 tile.visible = false;
-                views[best].images.push(image);
+                pieces.push({ bounds: drawnBounds(tile), baseY: objects[best].baseY, image, alpha: 1 });
             });
         });
-        return views;
+        // Layers drawn over the characters (the room's bottom edge) stay on top, but fade where someone is under them
+        created.forEach(({ layer, name }, order) => {
+            if (!TOP_LAYERS.includes(name)) return;
+            layer.forEachTile((tile) => {
+                if (tile.index < 0) return;
+                const image = scene.add
+                    .image(tile.pixelX + tile.width / 2, tile.pixelY + tile.height / 2, MAP_TILESET_KEY, frameOf(tile.index))
+                    .setFlip(tile.flipX, tile.flipY)
+                    .setRotation(tile.rotation)
+                    .setDepth(MAP_TOP_DEPTH + order * 0.001);
+                tile.visible = false;
+                pieces.push({ bounds: drawnBounds(tile), baseY: Infinity, image, alpha: 1 });
+            });
+        });
+        return pieces;
     }
 }
 
