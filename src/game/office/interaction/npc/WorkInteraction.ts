@@ -152,15 +152,13 @@ export class WorkInteraction implements Interaction<NpcName> {
         return { x0: tx, y0: ty + 1, x1: tx + 1, y1: ty + 1 + r };
     }
 
-    // Debug overlay: red = work tile, yellow = the zone where a coworker will start working
-    drawZones(depth: number) {
+    // Debug overlay: red = work tile, yellow = the strips where a coworker will start working (open sides only)
+    drawZones(g: Phaser.GameObjects.Graphics) {
         const size = this.tileSize;
-        const g = this.scene.add.graphics().setDepth(depth);
         g.fillStyle(0xffdd00, 0.3);
-        for (const { zone: z } of this.tiles.flatMap((d) => d.sides)) g.fillRect(z.x0 * size, z.y0 * size, (z.x1 - z.x0) * size, (z.y1 - z.y0) * size);
+        for (const { zone: z } of this.tiles.flatMap((d) => this.openSides(d))) g.fillRect(z.x0 * size, z.y0 * size, (z.x1 - z.x0) * size, (z.y1 - z.y0) * size);
         g.fillStyle(0xff0000, 0.4);
         for (const { tx, ty } of this.tiles) g.fillRect(tx * size, ty * size, size, size);
-        console.log(`[office] ${this.tiles.length} work tiles`, this.tiles);
     }
 
     // Call every frame for each coworker. Returns true while the coworker is walking to a work zone,

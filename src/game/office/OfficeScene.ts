@@ -199,9 +199,8 @@ export class OfficeScene extends Phaser.Scene {
             walkGrid: () => this.walkGrid
         }, this.plantShared);
         this.coworkerInteractions.register(this.coworkerWater);
-        // Press P to outline each plant (blue) and the zone an actor must be in to water it (white)
-        new PlantOverlay(this, plants.map((p) => ({ rect: p.rect, reach: reachZone(p, WATER_REACH_TILES), tileSize: p.tileSize })), SPEECH_DEPTH - 1, 'P', () => this.chat.isTyping);
-        // this.work.drawZones(SPEECH_DEPTH - 1); // TODO: some button or env to toggle show
+        // Press P to outline each plant (blue) and the zone an actor must be in to water it (white), and the work tiles (red) with their zones (yellow)
+        new PlantOverlay(this, plants.map((p) => ({ rect: p.rect, reach: reachZone(p, WATER_REACH_TILES), tileSize: p.tileSize })), SPEECH_DEPTH - 1, 'P', () => this.chat.isTyping, (g) => this.work.drawZones(g));
         // Static solids are all in place now, so the walkable grid is built once here. Press G to show it (green = walkable, red = blocked)
         this.walkGrid = new WalkGrid(this.physics.world.bounds, this.obstacles);
         this.clearGrid = new WalkGrid(this.physics.world.bounds, this.obstacles, CHAIR_CLEARANCE_CELLS);
