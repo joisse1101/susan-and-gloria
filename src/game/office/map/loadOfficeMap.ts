@@ -69,6 +69,10 @@ export function loadOfficeMap(
         if (!TOP_LAYERS.includes(data.name)) objectLayers.add(layer);
     }
 
+    for (const name of TOP_LAYERS) {
+        if (!map.layers.some((l) => l.name === name)) console.warn(`TOP_LAYERS names "${name}", which is not a layer in map.json`);
+    }
+
     // Solid objects are vertical runs of touching 8 px cells (the walk grid's size) across all collider layers combined,
     // a cell being solid wherever a collider draws a pixel. The top strip of each (see openStripPx) is left open so
     // characters can walk into it; the rest blocks.

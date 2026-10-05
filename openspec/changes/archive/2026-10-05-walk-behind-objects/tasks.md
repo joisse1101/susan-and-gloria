@@ -23,10 +23,10 @@ Note: 1.1, 1.2, 2.1 and 2.2 replace what was built for a layer or tile property 
 
 ## 5. Over-the-player layers
 
-- [ ] 5.1 Update `TOP_LAYERS` to layers that exist in the current `map.json` (confirm the intended layer with the user) and log a console message for any configured name that is missing. Verify by running with a deliberately wrong name, then restoring.
+- [x] 5.1 Update `TOP_LAYERS` to layers that exist in the current `map.json` (confirm the intended layer with the user) and log a console message for any configured name that is missing. Verify by running with a deliberately wrong name, then restoring.
 
 ## 6. Map and docs
 
-- [ ] 6.1 Verify routing with `G`, `H` and `C`: coworkers still reach desks and chairs, no spot in an open top strip traps a chair, and nobody can end up outside the room.
-- [ ] 6.2 Document the automatic top-strip rule, the strip and fade tuning and the B alternative in the Office section of `CLAUDE.md`. Verify by re-reading for stale statements that all tile layers are under characters.
-- [ ] 6.3 Run `npm test`, `npm run lint` and `npm run build`; then in `npm run dev` walk around the walls and every piece of furniture and confirm behind, in front, fade and collision all look right.
+- [x] 6.1 Verify routing with `G`, `H` and `C`: coworkers still reach desks and chairs, no spot in an open top strip traps a chair, and nobody can end up outside the room.
+- [x] 6.2 Document the automatic top-strip rule, the strip and fade tuning and the B alternative in the Office section of `CLAUDE.md`. Verify by re-reading for stale statements that all tile layers are under characters.
+- [x] 6.3 Run `npm test`, `npm run lint` and `npm run build`; then in `npm run dev` walk around the walls and every piece of furniture and confirm behind, in front, fade and collision all look right.
