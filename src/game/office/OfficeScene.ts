@@ -174,12 +174,13 @@ export class OfficeScene extends Phaser.Scene {
         });
         const waterCells: PlantCell[] = [];
         let waterTileSize = 32;
-        this.mapSize = loadOfficeMap(this, this.obstacles, (layer, tileset) => {
+        const loaded = loadOfficeMap(this, this.obstacles, (layer, tileset) => {
             this.work.collectTiles(layer, tileset);
             const tiles = scanInteractionTiles(layer, tileset, 'water');
             if (tiles.length) waterTileSize = tiles[0].tileSize;
             waterCells.push(...plantCells(tiles));
         });
+        this.mapSize = loaded.mapSize;
         const plants = mergePlants(waterCells, waterTileSize);
         // Actors stand against the plant's solid part (the pots), which is smaller than its tiles
         const bodies = this.obstacles.getChildren().map((c) => (c as Phaser.GameObjects.GameObject).body as Phaser.Physics.Arcade.StaticBody).filter(Boolean);

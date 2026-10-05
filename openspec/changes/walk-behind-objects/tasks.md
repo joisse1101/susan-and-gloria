@@ -12,7 +12,7 @@ Note: 1.1, 1.2, 2.1 and 2.2 replace what was built for a layer or tile property 
 
 ## 3. Sorting
 
-- [ ] 3.1 For the solid tiles of each object, keep the `TilemapLayer` visible but hide each such tile in it (after `onLayer` has scanned it) and draw it as an image from the tileset frame (flips honoured), with depth `baseY + FEET_LIFT * SPRITE_SCALE`. Keep layer order within an object. Verify the room looks identical to before when no character is near, and that non-collider layers are unchanged. Decide here how decor tiles on non-collider layers (e.g. `Wall Details`) inside an object's cells sort.
+- [x] 3.1 For the solid tiles of each object, keep the `TilemapLayer` visible but hide each such tile in it (after `onLayer` has scanned it) and draw it as an image from the tileset frame (flips honoured), with depth `baseY + FEET_LIFT * SPRITE_SCALE`. Keep layer order within an object. Verify the room looks identical to before when no character is near, and that non-collider layers are unchanged. Decide here how decor tiles on non-collider layers (e.g. `Wall Details`) inside an object's cells sort.
 - [ ] 3.2 Confirm chairs and shadows sort correctly against the objects. Verify by dragging a chair behind and in front of an object.
 - [ ] 3.3 Walk the player and both coworkers above and below an object and verify each is drawn behind, then in front, flipping where the feet cross the base line.
 

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { MAP_DEPTH, MAP_TOP_DEPTH } from '../constants';
+import { FEET_LIFT, MAP_DEPTH, MAP_TOP_DEPTH, SPRITE_SCALE } from '../constants';
 import { CELL } from '../interaction/npc/WalkGrid';
-import { clipAboveCut, findWalkBehindObjects, splitAtColumns, type Rect } from './walkBehind';
+import { clipAboveCut, findWalkBehindObjects, splitAtColumns, type Rect, type WalkBehindObject } from './walkBehind';
 
 const MAP_KEY = 'officeMap';
 const MAP_TILESET_KEY = 'officeTiles';
@@ -12,6 +12,9 @@ const MAP_TILESET_NAME = 'spritefusion';
 const FLOOR_LAYER = 'Floor';
 // Tile layers drawn over the characters (everything else is under them)
 const TOP_LAYERS: string[] = ['Room Boundary Bottom'];
+
+// A solid object and the images that draw it, depth-sorted against the characters
+export type WalkBehindView = { object: WalkBehindObject; images: Phaser.GameObjects.Image[] };
 
 export function preloadOfficeMap(scene: Phaser.Scene) {
     scene.load.tilemapTiledJSON(MAP_KEY, `${MAP_BASE_URL}map.json`);
@@ -25,7 +28,7 @@ export function loadOfficeMap(
     scene: Phaser.Scene,
     obstacles: Phaser.Physics.Arcade.StaticGroup,
     onLayer: (layer: Phaser.Tilemaps.TilemapLayer, tileset: Phaser.Tilemaps.Tileset) => void
-) {
+): { mapSize: { width: number; height: number }; walkBehind: WalkBehindView[] } {
     const map = scene.make.tilemap({ key: MAP_KEY });
     const tileset = map.addTilesetImage(MAP_TILESET_NAME, MAP_TILESET_KEY);
     if (!tileset) throw new Error(`Tileset "${MAP_TILESET_NAME}" not found in map.json`);
@@ -35,6 +38,8 @@ export function loadOfficeMap(
     const pixels = readTilesetPixels(scene);
     const cache = new Map<number, Rect[]>();
     const colliders: Phaser.Tilemaps.TilemapLayer[] = [];
+    // Every created layer in map order, for drawing solids over the characters that walk behind them
+    const created: { layer: Phaser.Tilemaps.TilemapLayer; name: string; collider: boolean }[] = [];
     // Colliders that take part in solid objects (layers drawn over the characters do not)
     const objectLayers = new Set<Phaser.Tilemaps.TilemapLayer>();
     for (const data of map.layers) {
@@ -56,7 +61,9 @@ export function loadOfficeMap(
         onLayer(layer, tileset);
 
         const props = data.properties as { name: string; value: unknown }[] | undefined;
-        if (!props?.some((p) => p.name === 'collider' && p.value === true)) continue;
+        const collider = !!props?.some((p) => p.name === 'collider' && p.value === true);
+        created.push({ layer, name: data.name, collider });
+        if (!collider) continue;
         colliders.push(layer);
         if (!TOP_LAYERS.includes(data.name)) objectLayers.add(layer);
     }
@@ -82,11 +89,15 @@ export function loadOfficeMap(
     }
     // Where each cell's run is cut open (map y), by cell
     const cutOf = solid.map((row) => new Array<number>(row.length).fill(-1));
-    for (const object of findWalkBehindObjects(solid, CELL, CELL)) {
+    const objects = findWalkBehindObjects(solid, CELL, CELL);
+    // Which object each solid cell belongs to
+    const objectAt = solid.map((row) => new Array<number>(row.length).fill(-1));
+    objects.forEach((object, i) => {
         for (let y = object.bounds.y; y < object.baseY; y += CELL) {
             cutOf[y / CELL][object.bounds.x / CELL] = object.bounds.y + object.openDepth;
+            objectAt[y / CELL][object.bounds.x / CELL] = i;
         }
-    }
+    });
     for (const layer of colliders) {
         layer.forEachTile((tile) => {
             if (tile.index < 0) return;
@@ -100,7 +111,48 @@ export function loadOfficeMap(
             }
         });
     }
-    return mapSize;
+
+    return { mapSize, walkBehind: drawObjects() };
+
+    // The solid tiles of each object, and the decor drawn over them (non-collider layers above the first solid layer,
+    // e.g. wall posters), are hidden in their TilemapLayer and drawn as images at the object's depth. A tile that
+    // covers cells of several objects joins the lowest one. Layer order is kept by a tiny depth step per layer.
+    function drawObjects(): WalkBehindView[] {
+        const views: WalkBehindView[] = objects.map((object) => ({ object, images: [] }));
+        const texture = scene.textures.get(MAP_TILESET_KEY);
+        const frameOf = (index: number) => {
+            const name = `tile-${index}`;
+            if (!texture.has(name)) {
+                const origin = tileset!.getTileTextureCoordinates(index) as { x: number; y: number };
+                texture.add(name, 0, origin.x, origin.y, map.tileWidth, map.tileHeight);
+            }
+            return name;
+        };
+        const firstSolid = created.findIndex((c) => objectLayers.has(c.layer));
+        created.forEach(({ layer, name, collider }, order) => {
+            const eligible = objectLayers.has(layer) || (!collider && order > firstSolid && firstSolid >= 0 && !TOP_LAYERS.includes(name));
+            if (!eligible) return;
+            layer.forEachTile((tile) => {
+                if (tile.index < 0) return;
+                let best = -1;
+                for (let cy = Math.floor(tile.pixelY / CELL); cy <= Math.ceil((tile.pixelY + tile.height) / CELL) - 1; cy++) {
+                    for (let cx = Math.floor(tile.pixelX / CELL); cx <= Math.ceil((tile.pixelX + tile.width) / CELL) - 1; cx++) {
+                        const i = objectAt[cy]?.[cx] ?? -1;
+                        if (i >= 0 && (best < 0 || objects[i].baseY > objects[best].baseY)) best = i;
+                    }
+                }
+                if (best < 0) return;
+                const image = scene.add
+                    .image(tile.pixelX + tile.width / 2, tile.pixelY + tile.height / 2, MAP_TILESET_KEY, frameOf(tile.index))
+                    .setFlip(tile.flipX, tile.flipY)
+                    .setRotation(tile.rotation)
+                    .setDepth(objects[best].baseY + FEET_LIFT * SPRITE_SCALE + order * 0.001);
+                tile.visible = false;
+                views[best].images.push(image);
+            });
+        });
+        return views;
+    }
 }
 
 function readTilesetPixels(scene: Phaser.Scene): ImageData {
