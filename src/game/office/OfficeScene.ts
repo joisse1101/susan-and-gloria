@@ -64,6 +64,7 @@ import {
 import { FACING } from './interaction/npc/facing';
 import { facingFromVelocity, playerFacing } from './interaction/npc/workFacing';
 import { Shadows } from './interaction/Shadows';
+import { dumpMapIfRequested } from './map/dumpMap';
 import { loadOfficeMap, preloadOfficeMap, type WalkBehindPiece } from './map/loadOfficeMap';
 import { easeAlpha, isBehind, type Walker } from './map/walkBehind';
 import { CAMERA_ZOOM, FEET_HEIGHT, FEET_LIFT, RUG_DEPTH, SMALL_MAP_SHIFT_Y, SPEECH_DEPTH, SPRITE_SCALE, WALK_BEHIND_ALPHA, WALK_BEHIND_FADE_MS } from './constants';
@@ -185,6 +186,7 @@ export class OfficeScene extends Phaser.Scene {
         });
         this.mapSize = loaded.mapSize;
         this.walkBehind = loaded.walkBehind;
+        dumpMapIfRequested(this, this.obstacles, loaded);
         const plants = mergePlants(waterCells, waterTileSize);
         // Actors stand against the plant's solid part (the pots), which is smaller than its tiles
         const bodies = this.obstacles.getChildren().map((c) => (c as Phaser.GameObjects.GameObject).body as Phaser.Physics.Arcade.StaticBody).filter(Boolean);

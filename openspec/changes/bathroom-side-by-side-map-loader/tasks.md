@@ -1,27 +1,27 @@
 ## 1. Baseline the office (before touching the loader)
 
-- [ ] 1.1 Stash or park the uncommitted bathroom first pass so the office loads alone, run `npm test`, `npm run lint` and `npx tsc -b`, and record that all pass (278 tests)
-- [ ] 1.2 Add a dev-only dump of the office loader's output (obstacle body rects, walk-behind piece bounds/`baseY`/depth, physics world bounds, `mapSize`) behind a `?dumpMap` query flag or console helper, run it on the unrefactored office, and save the result as `openspec/changes/bathroom-side-by-side-map-loader/office-baseline.json`; verify the file is non-empty and has all four sections
-- [ ] 1.3 Play the office once as the reference and write the manual checklist (task 6.1) from what you see; verify the checklist covers desks, plant, walls, behind-fading, chairs, spawn and the G/H/C/P overlays
+- [x] 1.1 Stash or park the uncommitted bathroom first pass so the office loads alone, run `npm test`, `npm run lint` and `npx tsc -b`, and record that all pass (278 tests)
+- [x] 1.2 Add a dev-only dump of the office loader's output (obstacle body rects, walk-behind piece bounds/`baseY`/depth, physics world bounds, `mapSize`) behind a `?dumpMap` query flag or console helper, run it on the unrefactored office, and save the result as `openspec/changes/bathroom-side-by-side-map-loader/office-baseline.json`; verify the file is non-empty and has all four sections
+- [x] 1.3 Play the office once as the reference and write the manual checklist (task 6.1) from what you see; verify the checklist covers desks, plant, walls, behind-fading, chairs, spawn and the G/H/C/P overlays
 
 ## 2. Pure logic with tests
 
-- [ ] 2.1 Add `joinCells(map)` (Tiled JSON → cells of tiles whose tileset entry has `isJoin = true`, flip bits stripped) as a pure module and verify unit tests: one join, no join, flipped gid, join on several layers
-- [ ] 2.2 Add `placeBeside(neighbourJoin, ownJoin, tile)` returning the offset that puts the own join in the cell directly left of the neighbour's, same row, and verify unit tests: current office (0,12) / bathroom (19,13), a moved door, and that the two maps share no cell
-- [ ] 2.3 Add a pure `overlayCellColour(walkable, clearWalkable | undefined, region)` and verify unit tests for office green/yellow/red and bathroom player-only/red
+- [x] 2.1 Add `joinCells(map)` (Tiled JSON → cells of tiles whose tileset entry has `isJoin = true`, flip bits stripped) as a pure module and verify unit tests: one join, no join, flipped gid, join on several layers
+- [x] 2.2 Add `placeBeside(neighbourJoin, ownJoin, tile)` returning the offset that puts the own join in the cell directly left of the neighbour's, same row, and verify unit tests: current office (0,12) / bathroom (19,13), a moved door, and that the two maps share no cell
+- [x] 2.3 Add a pure `overlayCellColour(walkable, clearWalkable | undefined, region)` and verify unit tests for office green/yellow/red and bathroom player-only/red
 
 ## 3. Abstract the map loader (office only, bathroom still unloaded)
 
-- [ ] 3.1 Define `MapSpec` (`mapKey`, `tilesetKey`, `baseUrl`, `offset`, `topLayers`, optional floor layer that limits the physics world) and move the body of `loadTiledMap` into a map-agnostic module with no office constants, replacing the `offset === (0,0)` check; verify `npx tsc -b` is clean
-- [ ] 3.2 Apply the offset in one place per output (zones, images, depths, piece bounds/`baseY`) via a `translate` helper, keeping the solid-cell analysis in local coordinates; verify `npm test` still passes
-- [ ] 3.3 Reduce `loadOfficeMap.ts` to a wrapper holding only the office's constants (keys, `Room Boundary Bottom`, `Floor`) and verify it exports the same `loadOfficeMap` / `preloadOfficeMap` / `WalkBehindPiece` the scene uses
-- [ ] 3.4 Run the dev dump on the refactored office and verify it equals `office-baseline.json` (same body rects, same pieces and depths, same bounds); any difference blocks the next group
+- [x] 3.1 Define `MapSpec` (`mapKey`, `tilesetKey`, `baseUrl`, `offset`, `topLayers`, optional floor layer that limits the physics world) and move the body of `loadTiledMap` into a map-agnostic module with no office constants, replacing the `offset === (0,0)` check; verify `npx tsc -b` is clean
+- [x] 3.2 Apply the offset in one place per output (zones, images, depths, piece bounds/`baseY`) via a `translate` helper, keeping the solid-cell analysis in local coordinates; verify `npm test` still passes
+- [x] 3.3 Reduce `loadOfficeMap.ts` to a wrapper holding only the office's constants (keys, `Room Boundary Bottom`, `Floor`) and verify it exports the same `loadOfficeMap` / `preloadOfficeMap` / `WalkBehindPiece` the scene uses
+- [x] 3.4 Run the dev dump on the refactored office and verify it equals `office-baseline.json` (same body rects, same pieces and depths, same bounds); any difference blocks the next group
 
 ## 4. Verify the office is unchanged (human + code)
 
-- [ ] 4.1 Run `npm test`, `npm run lint`, `npm run build` and verify all pass
-- [ ] 4.2 Do the manual checklist from 1.3 against `npm run dev` with the bathroom unloaded and tick every line: layout and floor look identical; walls and desks block; walking into a top strip fades the object and draws it in front; coworkers walk to desks, fetch chairs and sit; the plant is watered; pushing/pulling chairs and Susan/Gloria works; spawn is random and valid; G, H, C, P overlays toggle and draw as before; chat box ignores the overlay keys
-- [ ] 4.3 Commit the refactor on its own (`refactor: abstract map loader from the office`) so it can be reverted separately
+- [x] 4.1 Run `npm test`, `npm run lint`, `npm run build` and verify all pass
+- [x] 4.2 Do the manual checklist from 1.3 against `npm run dev` with the bathroom unloaded and tick every line: layout and floor look identical; walls and desks block; walking into a top strip fades the object and draws it in front; coworkers walk to desks, fetch chairs and sit; the plant is watered; pushing/pulling chairs and Susan/Gloria works; spawn is random and valid; G, H, C, P overlays toggle and draw as before; chat box ignores the overlay keys
+- [x] 4.3 Commit the refactor on its own (`refactor: abstract map loader from the office`) so it can be reverted separately
 
 ## 5. Rebuild the bathroom on the abstracted loader
 
