@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { facingFor, spotAgainst, spotFor } from './deskSpot';
+import { facingFor, scaledHalfSize, spotAgainst, spotFor } from './deskSpot';
+import { CELL } from './WalkGrid';
 
 const TILE = 32;
 const HALF_W = 6;
@@ -88,5 +89,25 @@ describe('spotFor on a merged desk', () => {
         expect(spotFor(desk, { dx: 0, dy: 1 }, 16, HALF_W, HALF_H, 0)).toEqual({ x: 160, y: 256 + HALF_H });
         expect(spotFor(desk, { dx: 0, dy: -1 }, 16, HALF_W, HALF_H, 999)).toEqual({ x: 192, y: 224 - HALF_H });
         expect(spotFor(desk, { dx: -1, dy: 0 }, 16, HALF_W, HALF_H, 0)).toEqual({ x: 160 - HALF_W, y: 256 - HALF_H });
+    });
+});
+
+describe('scaledHalfSize', () => {
+    it('halves the scaled size', () => {
+        expect(scaledHalfSize(11, 4, 2)).toEqual({ halfWidth: 11, halfHeight: 4 });
+    });
+
+    // Regression: with the unscaled half width (5) the flush spot sat so close to the desk that the walk grid's
+    // one-cell side margin overlapped it, so every desk side was rejected and no one could work
+    it('leaves the walker footprint clear of a desk on the flush spot, at both tile sizes', () => {
+        for (const tileSize of [32, 16]) {
+            const desk = { x0: 4, y0: 4, x1: 5, y1: 6 };
+            const { halfWidth, halfHeight } = scaledHalfSize(11, 4, 2);
+            const spot = spotFor(desk, { dx: -1, dy: 0 }, tileSize, halfWidth, halfHeight, 0);
+            const rightCell = Math.floor(spot.x / CELL) + 1; // footprint reaches one cell to the right
+            expect(rightCell * CELL + CELL).toBeLessThanOrEqual(desk.x0 * tileSize);
+            const unscaled = spotFor(desk, { dx: -1, dy: 0 }, tileSize, 5, 2, 0);
+            expect((Math.floor(unscaled.x / CELL) + 1) * CELL + CELL).toBeGreaterThan(desk.x0 * tileSize);
+        }
     });
 });

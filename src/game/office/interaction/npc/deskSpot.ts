@@ -30,3 +30,9 @@ export function facingFor(dir?: { dx: number; dy: number }): Facing | undefined 
     if (!dir) return undefined;
     return dir.dx > 0 ? 'left' : dir.dx < 0 ? 'right' : dir.dy > 0 ? 'up' : 'down';
 }
+
+// Half the size (px) of a feet body of `width` x `height` unscaled px on a sprite scaled by `scale`. Worked out rather
+// than read from the Arcade body, which only takes on the sprite's scale at its first physics step.
+export function scaledHalfSize(width: number, height: number, scale: number) {
+    return { halfWidth: (width * scale) / 2, halfHeight: (height * scale) / 2 };
+}

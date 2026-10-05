@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import type { NpcName } from '../../OfficeScene';
 import { SEAT_BACK } from '../../furniture/SeatLayers';
+import { FEET_HEIGHT, SPRITE_SCALE } from '../../constants';
+import { PLAYER_BODY } from '../player/playerSprite';
 import { FACING } from './facing';
 import { CELL, type WalkGrid } from './WalkGrid';
 import { PathFollower } from './PathFollower';
 import { WorkSlots } from './WorkSlots';
-import { facingFor, spotFor } from './deskSpot';
+import { facingFor, scaledHalfSize, spotFor } from './deskSpot';
 import { stepOntoSpot } from './approach';
 import { routeCells } from './route';
 import type { GiveUpSignal } from './giveUp';
@@ -65,6 +67,11 @@ export interface WorkHost {
     chairBumped(name: NpcName): boolean;
 }
 
+// Half the size of a coworker's feet body (px). Worked out from the constants, not read from the Arcade body: the body
+// only takes on the sprite's scale at its first physics step, and the desks' open sides are first needed before it
+// (while the scene is created, to keep spawns off the work zones), then cached.
+const BODY_HALF = scaledHalfSize(PLAYER_BODY.width, FEET_HEIGHT, SPRITE_SCALE);
+
 export class WorkInteraction implements Interaction<NpcName> {
     // The desks, each with the areas (in tile units) a coworker stands in to use it
     private tiles: Desk[] = [];
@@ -111,7 +118,7 @@ export class WorkInteraction implements Interaction<NpcName> {
     private openSides(desk: Desk) {
         if (!desk.open) {
             const grid = this.host.walkGrid();
-            const { halfWidth, halfHeight } = this.host.npc('susan').body;
+            const { halfWidth, halfHeight } = BODY_HALF;
             desk.open = desk.sides.filter(({ dir }) => {
                 const spot = spotFor(desk.rect, dir, this.tileSize, halfWidth, halfHeight, this.centreX(desk));
                 return grid.isWalkable(Math.floor(spot.x / CELL), Math.floor(spot.y / CELL));
@@ -470,7 +477,7 @@ export class WorkInteraction implements Interaction<NpcName> {
     // Where a coworker stands to work at each open side of each desk (body centre, px) and the way its chair is parked
     // behind it, for the chair reach debug view
     workSpots() {
-        const { halfWidth, halfHeight } = this.host.npc('susan').body;
+        const { halfWidth, halfHeight } = BODY_HALF;
         return this.tiles.flatMap((d) => this.openSides(d).map(({ dir }) => ({
             ...this.spotFor(d, dir, halfWidth, halfHeight, this.centreX(d)),
             back: SEAT_BACK[facingFor(dir) ?? 'down']

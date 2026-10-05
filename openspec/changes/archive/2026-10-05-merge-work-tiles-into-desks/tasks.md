@@ -21,4 +21,4 @@
 ## 4. Docs and end-to-end check
 
 - [x] 4.1 Update `CLAUDE.md` (tile-sized strips, `WATER_REACH_TILES`, the new tuning names, the 32 px desk cap and the "keep desks a multiple of 32 px" caveat). Verify by re-reading the Office section for stale tile-unit wording.
-- [ ] 4.2 Run `npm test`, `npm run lint` and `npm run build`; then in `npm run dev` confirm on the current 32px map that coworkers and the player still pick desks, sit and water exactly as before. Redraw a copy of the map at 16px with every sub-tile tagged and confirm one worker per desk.
+- [x] 4.2 Run `npm test`, `npm run lint` and `npm run build`; then in `npm run dev` confirm on the current 32px map that coworkers and the player still pick desks, sit and water exactly as before. Redraw a copy of the map at 16px with every sub-tile tagged and confirm one worker per desk.
