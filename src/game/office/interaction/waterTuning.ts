@@ -1,7 +1,7 @@
 // Tuning for watering the plant. Everything here is meant to be adjusted by hand.
 
-// How far (in tiles) from the plant's edge on every side an actor counts as in reach: 0.5 = half a tile
-export const WATER_REACH_TILES = 0.5;
+// How far (px) from the plant's edge on every side an actor counts as in reach
+export const WATER_REACH_PX = 16;
 
 // How long (ms) an actor waters once it is at the plant
 export const WATER_DURATION_MS = 8000;

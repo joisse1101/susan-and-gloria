@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { rectToPx, type Rect } from './zones';
 
-const PLANT_COLOR = 0x33ccff;
-const REACH_COLOR = 0xffffff;
+export const PLANT_COLOR = 0x33ccff;
+export const REACH_COLOR = 0xffffff;
 
 // Development aid, toggled with a key: outlines each plant (blue) and its reach zone (white, filled faintly), plus whatever `drawExtra` adds (the work zones)
 export class PlantOverlay {

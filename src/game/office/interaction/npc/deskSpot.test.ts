@@ -4,32 +4,33 @@ import { facingFor, spotAgainst, spotFor } from './deskSpot';
 const TILE = 32;
 const HALF_W = 6;
 const HALF_H = 4;
-const at = (dx: number, dy: number) => ({ tx: 5, ty: 7, dir: { dx, dy } });
+const tile = { x0: 5, y0: 7, x1: 6, y1: 8 };
+const at = (dx: number, dy: number) => [tile, { dx, dy }] as const;
 
 describe('spotFor', () => {
     it('stands above a desk whose zone is up', () => {
-        expect(spotFor(at(0, -1), TILE, HALF_W, HALF_H, 5 * TILE + 10)).toEqual({ x: 5 * TILE + 10, y: 7 * TILE - HALF_H });
+        expect(spotFor(...at(0, -1), TILE, HALF_W, HALF_H, 5 * TILE + 10)).toEqual({ x: 5 * TILE + 10, y: 7 * TILE - HALF_H });
     });
 
     it('stands below a desk whose zone is down', () => {
-        expect(spotFor(at(0, 1), TILE, HALF_W, HALF_H, 5 * TILE + 10)).toEqual({ x: 5 * TILE + 10, y: 8 * TILE + HALF_H });
+        expect(spotFor(...at(0, 1), TILE, HALF_W, HALF_H, 5 * TILE + 10)).toEqual({ x: 5 * TILE + 10, y: 8 * TILE + HALF_H });
     });
 
     it('stands left of a desk whose zone is left, bottom edges level', () => {
-        expect(spotFor(at(-1, 0), TILE, HALF_W, HALF_H, 0)).toEqual({ x: 5 * TILE - HALF_W, y: 8 * TILE - HALF_H });
+        expect(spotFor(...at(-1, 0), TILE, HALF_W, HALF_H, 0)).toEqual({ x: 5 * TILE - HALF_W, y: 8 * TILE - HALF_H });
     });
 
     it('stands right of a desk whose zone is right, bottom edges level', () => {
-        expect(spotFor(at(1, 0), TILE, HALF_W, HALF_H, 0)).toEqual({ x: 6 * TILE + HALF_W, y: 8 * TILE - HALF_H });
+        expect(spotFor(...at(1, 0), TILE, HALF_W, HALF_H, 0)).toEqual({ x: 6 * TILE + HALF_W, y: 8 * TILE - HALF_H });
     });
 
     it('clamps the position along an up/down tile to the tile edge', () => {
-        expect(spotFor(at(0, -1), TILE, HALF_W, HALF_H, 0).x).toBe(5 * TILE);
-        expect(spotFor(at(0, -1), TILE, HALF_W, HALF_H, 999).x).toBe(6 * TILE);
+        expect(spotFor(...at(0, -1), TILE, HALF_W, HALF_H, 0).x).toBe(5 * TILE);
+        expect(spotFor(...at(0, -1), TILE, HALF_W, HALF_H, 999).x).toBe(6 * TILE);
     });
 
     it('uses the tile centre when the tile has no direction', () => {
-        expect(spotFor({ tx: 5, ty: 7 }, TILE, HALF_W, HALF_H, 0)).toEqual({ x: 5.5 * TILE, y: 7.5 * TILE });
+        expect(spotFor(tile, undefined, TILE, HALF_W, HALF_H, 0)).toEqual({ x: 5.5 * TILE, y: 7.5 * TILE });
     });
 });
 
@@ -77,5 +78,15 @@ describe('facingFor', () => {
 
     it('has no facing without a direction', () => {
         expect(facingFor(undefined)).toBeUndefined();
+    });
+});
+
+describe('spotFor on a merged desk', () => {
+    // a 2x2 block of 16 px tiles: 32 px square
+    const desk = { x0: 10, y0: 14, x1: 12, y1: 16 };
+    it('is flush against the whole 32 px edge, clamped along it', () => {
+        expect(spotFor(desk, { dx: 0, dy: 1 }, 16, HALF_W, HALF_H, 0)).toEqual({ x: 160, y: 256 + HALF_H });
+        expect(spotFor(desk, { dx: 0, dy: -1 }, 16, HALF_W, HALF_H, 999)).toEqual({ x: 192, y: 224 - HALF_H });
+        expect(spotFor(desk, { dx: -1, dy: 0 }, 16, HALF_W, HALF_H, 0)).toEqual({ x: 160 - HALF_W, y: 256 - HALF_H });
     });
 });

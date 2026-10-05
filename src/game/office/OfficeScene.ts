@@ -38,7 +38,7 @@ import { PlayerWork } from './interaction/player/PlayerWork';
 import { mergePlants, solidBounds, plantCells, reachZone, type PlantCell } from './interaction/plants';
 import { PlantOverlay } from './interaction/plantOverlay';
 import { scanInteractionTiles } from './interaction/zones';
-import { WATER_REACH_TILES } from './interaction/waterTuning';
+import { WATER_REACH_PX } from './interaction/waterTuning';
 import { WaterInteraction } from './interaction/WaterInteraction';
 import { PlantShared } from './interaction/plantShared';
 import { coworkerInterrupted, playerInterrupted } from './interaction/waterActor';
@@ -200,7 +200,7 @@ export class OfficeScene extends Phaser.Scene {
         }, this.plantShared);
         this.coworkerInteractions.register(this.coworkerWater);
         // Press P to outline each plant (blue) and the zone an actor must be in to water it (white), and the work tiles (red) with their zones (yellow)
-        new PlantOverlay(this, plants.map((p) => ({ rect: p.rect, reach: reachZone(p, WATER_REACH_TILES), tileSize: p.tileSize })), SPEECH_DEPTH - 1, 'P', () => this.chat.isTyping, (g) => this.work.drawZones(g));
+        new PlantOverlay(this, plants.map((p) => ({ rect: p.rect, reach: reachZone(p, WATER_REACH_PX), tileSize: p.tileSize })), SPEECH_DEPTH - 1, 'P', () => this.chat.isTyping, (g) => this.work.drawZones(g));
         // Static solids are all in place now, so the walkable grid is built once here. Press G to show it (green = walkable, red = blocked)
         this.walkGrid = new WalkGrid(this.physics.world.bounds, this.obstacles);
         this.clearGrid = new WalkGrid(this.physics.world.bounds, this.obstacles, CHAIR_CLEARANCE_CELLS);

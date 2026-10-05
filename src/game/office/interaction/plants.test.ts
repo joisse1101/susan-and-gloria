@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { rectToPx } from './zones';
 import { mergePlants, reachZone, solidBounds, standSide } from './plants';
 
 describe('mergePlants', () => {
@@ -21,7 +22,7 @@ describe('mergePlants', () => {
 describe('reachZone', () => {
     it('grows the plant by the reach on all sides', () => {
         const [plant] = mergePlants([{ tx: 14, ty: 3 }, { tx: 15, ty: 3 }], 32);
-        expect(reachZone(plant, 0.5)).toEqual({ x0: 13.5, y0: 2.5, x1: 16.5, y1: 4.5 });
+        expect(reachZone(plant, 16)).toEqual({ x0: 13.5, y0: 2.5, x1: 16.5, y1: 4.5 });
     });
 });
 
@@ -62,5 +63,12 @@ describe('solidBounds', () => {
         const big = { left: 400, top: 90, right: 600, bottom: 110 };
         expect(solidBounds(plant.rect, 32, [wall])).toBeUndefined();
         expect(solidBounds(plant.rect, 32, [big])).toEqual({ x0: 14, y0: 3, x1: 16, y1: 3.4375 });
+    });
+});
+
+describe('reachZone on a 16 px grid', () => {
+    it('is the same size in px', () => {
+        const [plant] = mergePlants([{ tx: 28, ty: 6 }, { tx: 29, ty: 6 }, { tx: 30, ty: 6 }, { tx: 31, ty: 6 }], 16);
+        expect(rectToPx(reachZone(plant, 16), 16)).toEqual({ x0: 432, y0: 80, x1: 528, y1: 128 });
     });
 });

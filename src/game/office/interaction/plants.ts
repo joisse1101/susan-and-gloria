@@ -1,5 +1,4 @@
-import type { InteractionTile } from './zones';
-import type { Rect } from './zones';
+import { SIDE_DIRS, growRect, groupTiles, type GroupCell, type InteractionTile, type Rect } from './zones';
 
 // A plant is one or more touching `interaction = water` tiles (the pot and its leaves are on separate layers or tiles)
 export interface Plant {
@@ -30,7 +29,7 @@ export function solidBounds(rect: Rect, tileSize: number, bodies: { left: number
     return found && { x0: found.x0 / tileSize, y0: found.y0 / tileSize, x1: found.x1 / tileSize, y1: found.y1 / tileSize };
 }
 
-export interface PlantCell { tx: number; ty: number; direction?: string }
+export type PlantCell = GroupCell;
 
 export function plantCells(tiles: InteractionTile[]): PlantCell[] {
     return tiles.map((t) => {
@@ -39,61 +38,22 @@ export function plantCells(tiles: InteractionTile[]): PlantCell[] {
     });
 }
 
-// Dedupes cells (the same cell on two layers), then merges 4-neighbours into plants
+// Merges touching cells into plants
 export function mergePlants(cells: PlantCell[], tileSize: number): Plant[] {
-    const byKey = new Map<string, PlantCell>();
-    for (const c of cells) {
-        const key = `${c.tx},${c.ty}`;
-        const seen = byKey.get(key);
-        if (!seen) byKey.set(key, { ...c });
-        else seen.direction ??= c.direction;
-    }
-    const plants: Plant[] = [];
-    const left = new Set(byKey.keys());
-    for (const start of [...byKey.keys()]) {
-        if (!left.delete(start)) continue;
-        const group: PlantCell[] = [];
-        const queue = [byKey.get(start)!];
-        while (queue.length) {
-            const c = queue.pop()!;
-            group.push(c);
-            for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-                const key = `${c.tx + dx},${c.ty + dy}`;
-                if (left.delete(key)) queue.push(byKey.get(key)!);
-            }
-        }
-        const xs = group.map((c) => c.tx);
-        const ys = group.map((c) => c.ty);
-        const x0 = Math.min(...xs), y0 = Math.min(...ys);
-        plants.push({
-            id: `${x0},${y0}`,
-            rect: { x0, y0, x1: Math.max(...xs) + 1, y1: Math.max(...ys) + 1 },
-            direction: group.find((c) => c.direction)?.direction,
-            tileSize
-        });
-    }
-    return plants;
+    return groupTiles(cells).map(({ id, rect, direction }) => ({ id, rect, direction, tileSize }));
 }
 
-// The area an actor must be in to water: the plant grown by `reach` tiles on every side
-export function reachZone(plant: Plant, reach: number): Rect {
-    const { x0, y0, x1, y1 } = plant.rect;
-    return { x0: x0 - reach, y0: y0 - reach, x1: x1 + reach, y1: y1 + reach };
+// The area an actor must be in to water: the plant grown by `reachPx` on every side
+export function reachZone(plant: Plant, reachPx: number): Rect {
+    return growRect(plant.rect, reachPx, plant.tileSize);
 }
-
-const DIRECTIONS: Record<string, { dx: number; dy: number }> = {
-    left: { dx: -1, dy: 0 },
-    right: { dx: 1, dy: 0 },
-    up: { dx: 0, dy: -1 },
-    down: { dx: 0, dy: 1 }
-};
 
 // The side of the plant an actor at (x, y) px stands on, as for a desk (`dir` is the side of the tile they stand on):
 // the plant's own `direction` when it has one. Otherwise a point beside the plant (past its left or right edge) takes
 // that side, even when it is also a little below it, so coming in from the corner of the reach zone does not send
 // the actor round to the front; a point in line with the plant takes the side it is outside of.
 export function standSide(plant: Plant, x: number, y: number): { dx: number; dy: number } {
-    const fixed = plant.direction ? DIRECTIONS[plant.direction] : undefined;
+    const fixed = plant.direction ? SIDE_DIRS[plant.direction as keyof typeof SIDE_DIRS] : undefined;
     if (fixed) return fixed;
     const s = plant.tileSize;
     const r = plant.solid ?? plant.rect;

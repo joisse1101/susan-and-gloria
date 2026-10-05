@@ -12,7 +12,7 @@ import { reachZone, standSide, type Plant } from './plants';
 import type { PlantShared } from './plantShared';
 import type { WaterActor } from './waterActor';
 import type { Interaction, Pose } from './registry';
-import { WATER_COOLDOWN_MS, WATER_DURATION_MS, WATER_GIVE_UP_MS, WATER_REACH_TILES } from './waterTuning';
+import { WATER_COOLDOWN_MS, WATER_DURATION_MS, WATER_GIVE_UP_MS, WATER_REACH_PX } from './waterTuning';
 
 // The goal beside a plant can sit on a cell the grid keeps clear; settle for a reachable cell this close (in cells)
 const GOAL_FALLBACK_CELLS = 4;
@@ -84,7 +84,7 @@ export class WaterInteraction<Id extends string> implements Interaction<Id> {
         const { x, y } = actor.sprite.body.center;
         const interrupted = actor.interrupted();
         const standingStill = actor.standingStill();
-        const inReach = (plant: Plant) => containsPx(reachZone(plant, WATER_REACH_TILES), plant.tileSize, x, y);
+        const inReach = (plant: Plant) => containsPx(reachZone(plant, WATER_REACH_PX), plant.tileSize, x, y);
         // Where the player's last watering ended, standing still does not start another until they have left reach
         if (actor.stillRequired) this.ended.set(id, stillBlocked(this.ended.get(id) ?? false, this.shared.plants.some(inReach), true));
         for (const plant of this.shared.plants) {

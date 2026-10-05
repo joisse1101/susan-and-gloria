@@ -10,18 +10,16 @@ import { stepOntoSpot } from './approach';
 import { routeCells } from './route';
 import type { GiveUpSignal } from './giveUp';
 import { Cooldowns, shouldStart } from '../trigger';
-import { containsPx, rectToPx, scanInteractionTiles, type Rect } from '../zones';
+import { containsPx, rectToPx, scanInteractionTiles, type Dir, type GroupCell, type Rect } from '../zones';
+import { PLANT_COLOR, REACH_COLOR } from '../plantOverlay';
+import { buildDesks, type Desk } from './desks';
 import type { Interaction, Pose } from '../registry';
 import { SayThenHide } from '../sayThenHide';
 import { DESK_TAKEN_PHRASES, FORGETFUL_PHRASES, JAM_PHRASES, STOLEN_PHRASES_NICE, WORK_DURATION_MS, WORK_PHRASE_MS, WORK_PHRASES } from '../workPhrases';
 
-// Tiles with the Tiled tile property interaction = "work": a coworker standing on the square next to one stops and
+// Tiles with the Tiled tile property interaction = "work": a coworker standing next to a desk of them stops and
 // works, facing it. They work from the side they walked in on; a side whose spot is blocked (a wall, another desk) is
 // not used, so they come in on an open side instead.
-// How far (in tiles) the work area extends from the work tile's edge on a side, e.g. 0.5 = half a tile, 1 = the whole next square
-const WORK_RANGE_TILES = 0.75;
-type Dir = { dx: number; dy: number };
-const SIDES: Dir[] = [{ dx: -1, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }, { dx: 0, dy: 1 }];
 // They deliberately walk to a work zone about once a minute, giving up if they can't get there
 const WORK_VISIT_MS = { min: 50000, max: 70000 };
 const WORK_VISIT_GIVE_UP_MS = 20000;
@@ -31,15 +29,6 @@ const WORK_COOLDOWN_MS = 8000;
 const GOAL_FALLBACK_CELLS = 4;
 // Bumps into the player or the other coworker on the way before giving up the trip
 const MAX_BUMPS = 3;
-
-interface Desk {
-    id: string; // "tx,ty", the key the desk is claimed under
-    tx: number;
-    ty: number;
-    // One work strip per side of the tile; only the open ones (see openSides) are used
-    sides: { dir: Dir; zone: Rect }[];
-    open?: { dir: Dir; zone: Rect }[];
-}
 
 interface Visit {
     desk: Desk;
@@ -77,8 +66,9 @@ export interface WorkHost {
 }
 
 export class WorkInteraction implements Interaction<NpcName> {
-    // tx/ty is the work tile, zone the area (in tile units) a coworker stands in to use it
+    // The desks, each with the areas (in tile units) a coworker stands in to use it
     private tiles: Desk[] = [];
+    private cells: GroupCell[] = [];
     // Who is using which desk; claimed when a coworker picks one, released on every way out
     private slots = new WorkSlots();
     // Stepping from the zone onto the exact spot against the desk
@@ -107,15 +97,13 @@ export class WorkInteraction implements Interaction<NpcName> {
         this.host = host;
     }
 
-    // Records the layer's work tiles; call once per map layer
+    // Records the layer's work tiles; call once per map layer. Touching tiles make one desk.
     collectTiles(layer: Phaser.Tilemaps.TilemapLayer, tileset: Phaser.Tilemaps.Tileset) {
         for (const tile of scanInteractionTiles(layer, tileset, 'work')) {
             this.tileSize = tile.tileSize;
-            this.tiles.push({
-                id: `${tile.tx},${tile.ty}`, tx: tile.tx, ty: tile.ty,
-                sides: SIDES.map((dir) => ({ dir, zone: this.zoneFor(tile.tx, tile.ty, dir) }))
-            });
+            this.cells.push({ tx: tile.tx, ty: tile.ty });
         }
+        this.tiles = buildDesks(this.cells, this.tileSize);
     }
 
     // The sides of the desk with room to stand against it: the flush spot there is on a walkable cell. Worked out on
@@ -125,7 +113,7 @@ export class WorkInteraction implements Interaction<NpcName> {
             const grid = this.host.walkGrid();
             const { halfWidth, halfHeight } = this.host.npc('susan').body;
             desk.open = desk.sides.filter(({ dir }) => {
-                const spot = spotFor({ tx: desk.tx, ty: desk.ty, dir }, this.tileSize, halfWidth, halfHeight, (desk.tx + 0.5) * this.tileSize);
+                const spot = spotFor(desk.rect, dir, this.tileSize, halfWidth, halfHeight, this.centreX(desk));
                 return grid.isWalkable(Math.floor(spot.x / CELL), Math.floor(spot.y / CELL));
             });
         }
@@ -143,22 +131,23 @@ export class WorkInteraction implements Interaction<NpcName> {
         return this.chosen.get(name) ?? this.sideAt(desk, npc.body.center.x, npc.body.center.y);
     }
 
-    // A one-tile-wide strip against the work tile's edge on the given side, WORK_RANGE_TILES deep
-    private zoneFor(tx: number, ty: number, dir: Dir): Rect {
-        const r = WORK_RANGE_TILES;
-        if (dir.dx < 0) return { x0: tx - r, y0: ty, x1: tx, y1: ty + 1 };
-        if (dir.dx > 0) return { x0: tx + 1, y0: ty, x1: tx + 1 + r, y1: ty + 1 };
-        if (dir.dy < 0) return { x0: tx, y0: ty - r, x1: tx + 1, y1: ty };
-        return { x0: tx, y0: ty + 1, x1: tx + 1, y1: ty + 1 + r };
+    // Horizontal centre of the desk, px
+    private centreX(desk: Desk) {
+        return ((desk.rect.x0 + desk.rect.x1) / 2) * this.tileSize;
     }
 
-    // Debug overlay: red = work tile, yellow = the strips where a coworker will start working (open sides only)
+    // Debug overlay, drawn like the plants': blue outline = the desk, white = the strips where a coworker will start
+    // working (open sides only, filled faintly)
     drawZones(g: Phaser.GameObjects.Graphics) {
         const size = this.tileSize;
-        g.fillStyle(0xffdd00, 0.3);
-        for (const { zone: z } of this.tiles.flatMap((d) => this.openSides(d))) g.fillRect(z.x0 * size, z.y0 * size, (z.x1 - z.x0) * size, (z.y1 - z.y0) * size);
-        g.fillStyle(0xff0000, 0.4);
-        for (const { tx, ty } of this.tiles) g.fillRect(tx * size, ty * size, size, size);
+        for (const desk of this.tiles) {
+            for (const { zone: z } of this.openSides(desk)) {
+                g.fillStyle(REACH_COLOR, 0.25).fillRect(z.x0 * size, z.y0 * size, (z.x1 - z.x0) * size, (z.y1 - z.y0) * size);
+                g.lineStyle(1, REACH_COLOR, 1).strokeRect(z.x0 * size, z.y0 * size, (z.x1 - z.x0) * size, (z.y1 - z.y0) * size);
+            }
+            const r = desk.rect;
+            g.lineStyle(1, PLANT_COLOR, 1).strokeRect(r.x0 * size, r.y0 * size, (r.x1 - r.x0) * size, (r.y1 - r.y0) * size);
+        }
     }
 
     // Call every frame for each coworker. Returns true while the coworker is walking to a work zone,
@@ -387,7 +376,7 @@ export class WorkInteraction implements Interaction<NpcName> {
                 this.scheduleVisit(name);
                 return false;
             }
-            console.log(`[office] ${name} claims desk ${id} (tile x,y; open sides ${this.openSides(desk).length})`);
+            console.log(`[office] ${name} claims desk ${id} (top-left tile x,y; open sides ${this.openSides(desk).length})`);
             visit = { desk, follower, giveUpAt: now + WORK_VISIT_GIVE_UP_MS, bumps: 0 };
             this.visit.set(name, visit);
             this.cooldowns.clear(name); // a visit is deliberate, so skip the rest period
@@ -459,7 +448,7 @@ export class WorkInteraction implements Interaction<NpcName> {
     // Body centre (px) of the spot flush against the work tile on the given side, level with it along the edge
     // (`alongX` picks where on an up/down tile's edge)
     private spotFor(desk: Desk, dir: Dir | undefined, halfWidth: number, halfHeight: number, alongX: number) {
-        return spotFor({ tx: desk.tx, ty: desk.ty, dir }, this.tileSize, halfWidth, halfHeight, alongX);
+        return spotFor(desk.rect, dir, this.tileSize, halfWidth, halfHeight, alongX);
     }
 
     // Where the player works at the desk whose strip they stand in (the one they hold if it contains them): the flush
@@ -478,7 +467,7 @@ export class WorkInteraction implements Interaction<NpcName> {
     workSpots() {
         const { halfWidth, halfHeight } = this.host.npc('susan').body;
         return this.tiles.flatMap((d) => this.openSides(d).map(({ dir }) => ({
-            ...this.spotFor(d, dir, halfWidth, halfHeight, (d.tx + 0.5) * this.tileSize),
+            ...this.spotFor(d, dir, halfWidth, halfHeight, this.centreX(d)),
             back: SEAT_BACK[facingFor(dir) ?? 'down']
         })));
     }
@@ -497,7 +486,7 @@ export class WorkInteraction implements Interaction<NpcName> {
                 name,
                 from: { x: npc.body.center.x, y: npc.body.center.y },
                 spot: this.spotFor(desk, this.sideFor(name, desk), npc.body.halfWidth, npc.body.halfHeight, npc.body.center.x),
-                tile: { x0: desk.tx * size, y0: desk.ty * size, x1: (desk.tx + 1) * size, y1: (desk.ty + 1) * size }
+                tile: rectToPx(desk.rect, size)
             });
         }
         return found;

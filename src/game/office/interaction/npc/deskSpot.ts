@@ -1,12 +1,5 @@
 import type { Facing } from '../player/playerSprite';
-import { tileRect, type Rect } from '../zones';
-
-export interface DeskGeometry {
-    tx: number;
-    ty: number;
-    // The side of the work tile the worker stands on
-    dir?: { dx: number; dy: number };
-}
+import type { Rect } from '../zones';
 
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
@@ -25,10 +18,10 @@ export function spotAgainst(rect: Rect, dir: { dx: number; dy: number } | undefi
     return { x, y };
 }
 
-// Body centre (px) of the spot flush against the work tile, level with it along the edge (`alongX` picks where on
-// an up/down tile's edge). A tile with no direction has its centre as the spot.
-export function spotFor(desk: DeskGeometry, tileSize: number, halfWidth: number, halfHeight: number, alongX: number) {
-    return spotAgainst(tileRect(desk.tx, desk.ty), desk.dir, tileSize, halfWidth, halfHeight, alongX);
+// Body centre (px) of the spot flush against a desk rectangle (tile units), level with it along the edge (`alongX`
+// picks where on an up/down edge). A desk with no side has its centre as the spot.
+export function spotFor(desk: Rect, dir: { dx: number; dy: number } | undefined, tileSize: number, halfWidth: number, halfHeight: number, alongX: number) {
+    return spotAgainst(desk, dir, tileSize, halfWidth, halfHeight, alongX);
 }
 
 // dir is the side of the tile they stand on, so they face the opposite way: left of the tile means facing right, and so on.
