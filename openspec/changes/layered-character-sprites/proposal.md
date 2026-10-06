@@ -24,7 +24,7 @@ Each character sheet is a flat image drawn by its own `build.py`: body, clothes,
 
 ## Impact
 
-- `pixel-art/` scripts: new shared layer library and per-character scripts replacing `gloria-idle`, `susan-idle` and the `npc-type` / `player-type` builds as the source of the sheets; sheets move from `public/assets/sprites/<name>/` to per-layer-type folders of variant files (with a generated guide sheet, a layout JSON, a layer-order file and character presets).
+- `pixel-art/` scripts: new shared layer library and per-character scripts replacing `gloria-idle`, `susan-idle` and the `npc-type` / `player-type` builds as the source of the sheets; sheets move from `public/assets/sprites/<name>/` to per-layer-type folders of variant files (with a layout JSON, a layer-order file and character presets; the guide sheet and previews are generated for authors and not committed).
 - `src/game/office/interaction/player/playerSprite.ts` (`DIRECTIONS`, `Facing`, anim creation for layered 8-row Idle/Walk), `interaction/npc/workFacing.ts` and its tests (8-way facing, hysteresis), `OfficeScene.ts` and everywhere a character sprite's position, alpha, depth, flip, animation or `Shadows` follow is applied (they must apply to the whole layer stack), `furniture/SeatLayers.ts` (chair sandwich around the stack), `fadeWalkBehind`, the speech-event call sites in `interaction/npc/`.
 - Unchanged: work, sit and water poses keep four facings; chair offsets, water props and shadows keep working with cardinal facings.
 - No new runtime dependencies.

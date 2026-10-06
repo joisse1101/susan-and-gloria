@@ -1,12 +1,14 @@
 ## 1. Shared layer library (pilot: Gloria)
 
-- [ ] 1.1 Create the shared library under `pixel-art/` (body, walk cycles, layer export, mirroring) and verify it exports one variant file per layer type folder (`bodies`, `top`, `bottom`, `hair`, `accessories`, `face`), all animations stacked in rows on one cell grid
-- [ ] 1.1b Generate the layout JSON and the labelled guide PNG with the sheets, and verify every animation row and facing column in the layer files is identified in the guide
-- [ ] 1.1c Add character presets (one variant per layer type) and verify Gloria's preset builds her layer stack from the variant files
-- [ ] 1.2 Port the player's body and walk cycle into the library as the shared body with a skin palette parameter, and verify the composited result matches `public/assets/sprites/player/Walk.png` and `Idle.png` pixel for pixel
-- [ ] 1.3 Define Gloria in a thin script: top clothes (cardigan, blouse), bottom clothes (skirt), hair (bun), accessories (glasses), face; verify the layers composite back to her current four-facing `Idle.png` and `Walk.png`
-- [ ] 1.4 Write the per-facing layer-order JSON from the build and verify it lists every layer for every facing
-- [ ] 1.5 Verify a rebuild twice gives byte-identical files, and that editing only the skirt changes only the bottom-clothes sheet
+- [x] 1.1 Create the shared library under `pixel-art/` (body, walk cycles, layer export, mirroring) and verify it exports one variant file per layer type folder (`bodies`, `top`, `bottom`, `hair`, `accessories`, `face`), all animations stacked in rows on one cell grid
+- [x] 1.1b Generate the layout JSON and the labelled guide PNG with the sheets, and verify every animation row and facing column in the layer files is identified in the guide
+- [x] 1.1c Add character presets (one variant per layer type) and verify Gloria's preset builds her layer stack from the variant files
+- [ ] 1.2 Give the shared library a complete body (head, neck, torso, arms, hips, legs, feet) with a skin palette parameter, and verify it never shows outside the clothed silhouette (done: hidden underlay, feet from the player's frozen sheets); the pixel-for-pixel match against the player's `Walk.png` and `Idle.png` moves to 5.2, since the player's art is fused and needs colour segmentation
+- [x] 1.3 Define Gloria in a thin script: top clothes (cardigan, blouse), bottom clothes (skirt), hair (bun), accessories (glasses), face; verify the layers composite back to her current four-facing `Idle.png` and `Walk.png`
+- [x] 1.4 Write the per-facing layer-order JSON from the build and verify it lists every layer for every facing
+- [x] 1.5 Verify a rebuild twice gives byte-identical files, and that editing only the skirt changes only the bottom-clothes sheet
+
+- [ ] 1.6 Add WorkStanding and WorkSitting (four cardinal facings, two frames each) to the layout and to every layer of Gloria, rebuilt from the layers rather than by editing the flat Idle sheets; verify each composites back to her current `WorkStanding.png` and `WorkSitting.png` pixel for pixel
 
 ## 2. Character rig in the game
 

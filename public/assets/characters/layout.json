@@ -1,0 +1,38 @@
+{
+  "cell": 32,
+  "width": 128,
+  "height": 256,
+  "animations": [
+    {
+      "name": "idle",
+      "frames": 2,
+      "facings": {
+        "down": 0,
+        "up": 1,
+        "right": 2,
+        "left": 3
+      }
+    },
+    {
+      "name": "walk",
+      "frames": 4,
+      "facings": {
+        "down": 4,
+        "up": 5,
+        "right": 6,
+        "left": 7
+      }
+    }
+  ],
+  "mirrors": {
+    "left": "right"
+  },
+  "layers": {
+    "body": "bodies",
+    "bottom": "bottom",
+    "top": "top",
+    "hair": "hair",
+    "face": "face",
+    "accessories": "accessories"
+  }
+}
