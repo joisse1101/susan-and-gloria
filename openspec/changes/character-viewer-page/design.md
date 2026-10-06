@@ -26,7 +26,7 @@ See proposal.md for motivation and specs/character-viewer/spec.md for behaviour.
 
 **5. Images load once, by URL, into an `ImageBitmap`/`HTMLImageElement` cache.** The cache is keyed by sheet path; changing a layer's variant loads only the new sheet, and a failed load reports its path (spec: missing data). Sheets are tiny, so all variants are not preloaded.
 
-**6. Keyboard map.** Up/down selects a layer row, left/right changes its variant, `h` hides it, `1`-`4` pick the animation, `[` and `]` change the facing, space plays or pauses, `,` and `.` step. Shown on the page. Keys are ignored while a form control with text entry is focused.
+**6. Keyboard map.** Up/down selects a layer row, left/right changes its variant, `h` hides it, `1`-`4` pick the animation, `[` and `]` change the facing, space plays or pauses, `,` and `.` step, `-` and `+` slow down or speed up. Shown on the page. Keys are ignored while a form control with text entry is focused.
 
 **7. Expression is a face-layer sub-choice.** Face files are per expression, so the face row cycles variants and a second control cycles that variant's expressions from `variants.json`.
 

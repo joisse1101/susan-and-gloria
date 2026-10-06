@@ -1,0 +1,27 @@
+{
+  "layers": {
+    "body": [
+      "light"
+    ],
+    "bottom": [
+      "gloria-skirt"
+    ],
+    "top": [
+      "gloria-cardigan"
+    ],
+    "hair": [
+      "gloria-bun"
+    ],
+    "face": [
+      "gloria"
+    ],
+    "accessories": [
+      "gloria-glasses"
+    ]
+  },
+  "expressions": {
+    "gloria": [
+      "neutral"
+    ]
+  }
+}

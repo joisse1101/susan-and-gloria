@@ -336,9 +336,30 @@ def export(chars):
         json.dump({facing: [k for k in LAYERS if not (k == "face" and facing == "up")] for facing in FACINGS},
                   f, indent=2)
         f.write("\n")
+    with open(os.path.join(OUT, "variants.json"), "w") as f:
+        json.dump(variants_on_disk(), f, indent=2)
+        f.write("\n")
     guide(lay).save(os.path.join(HERE, "guide.png"))   # for authors, not shipped
     with open(os.path.join(HERE, "LAYOUT.md"), "w", encoding="utf-8", newline="\n") as f:
         f.write(layout_doc(lay))
+
+
+def variants_on_disk(root=OUT):
+    """What the viewer may offer, read from the sheet files present (so any character's variants show up, not only
+    the ones a preset uses): {"layers": {layer: [variant, ...]}, "expressions": {face variant: [expression, ...]}}.
+    Face files are `<variant>-<expression>.png`; every other layer's are `<variant>.png`."""
+    layers, expressions = {}, {}
+    for layer in LAYERS:
+        folder = os.path.join(root, FOLDERS[layer])
+        names = sorted(n[:-4] for n in os.listdir(folder) if n.endswith(".png")) if os.path.isdir(folder) else []
+        if layer == "face":
+            for n in names:
+                variant, _, expression = n.rpartition("-")
+                expressions.setdefault(variant, []).append(expression)
+            layers[layer] = sorted(expressions)
+        else:
+            layers[layer] = names
+    return {"layers": layers, "expressions": expressions}
 
 
 def layout_doc(lay):

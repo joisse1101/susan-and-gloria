@@ -44,6 +44,31 @@ def verify_order():
     return missing
 
 
+def verify_variants():
+    """variants.json and the sheet files must agree both ways: every entry has its file, every file an entry."""
+    with open(os.path.join(charlib.OUT, "variants.json")) as f:
+        manifest = json.load(f)
+    listed = set()
+    problems = []
+    for layer in charlib.LAYERS:
+        for variant in manifest["layers"].get(layer, []):
+            names = [f"{variant}-{e}" for e in manifest["expressions"].get(variant, [])] if layer == "face" else [variant]
+            if not names:
+                problems.append(f"{layer}/{variant} has no expressions")
+            for name in names:
+                path = os.path.join(charlib.FOLDERS[layer], name + ".png")
+                listed.add(path)
+                if not os.path.isfile(os.path.join(charlib.OUT, path)):
+                    problems.append(f"manifest lists {path} but the file is missing")
+    for layer in charlib.LAYERS:
+        folder = os.path.join(charlib.OUT, charlib.FOLDERS[layer])
+        for n in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            path = os.path.join(charlib.FOLDERS[layer], n)
+            if n.endswith(".png") and path not in listed:
+                problems.append(f"{path} is not in the manifest")
+    return problems
+
+
 def preview(char, path, scale=4):
     """One strip per facing: the composite, then each layer alone, for the first frame of idle and walk frame 1."""
     lay = charlib.layout()
@@ -71,6 +96,9 @@ if __name__ == "__main__":
     missing = verify_order()
     if missing:
         print("layer-order is missing", missing)
-    print("OK: layers composite to the flat sheets, layer order complete" if not problems and not missing
-          else f"FAILED: {problems} cells differ")
-    sys.exit(1 if problems or missing else 0)
+    stray = verify_variants()
+    for s in stray:
+        print("variants.json:", s)
+    print("OK: layers composite to the flat sheets, layer order and variants complete"
+          if not problems and not missing and not stray else f"FAILED: {problems} cells differ")
+    sys.exit(1 if problems or missing or stray else 0)
