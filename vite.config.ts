@@ -23,9 +23,20 @@ const mapDump = {
   },
 }
 
+// GitHub Pages has no SPA rewrites: it serves 404.html for unknown paths, so a copy of index.html there lets
+// BrowserRouter handle deep links such as /susan-and-gloria/office/ (served with a 404 status, but the app loads)
+const spaFallback = {
+  name: 'spa-404-fallback',
+  apply: 'build' as const,
+  closeBundle() {
+    const out = path.resolve(import.meta.dirname, 'dist')
+    fs.copyFileSync(path.join(out, 'index.html'), path.join(out, '404.html'))
+  },
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), mapDump],
+  plugins: [react(), mapDump, spaFallback],
   base: '/susan-and-gloria/',
   resolve: {
     tsconfigPaths: true,

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './styles/main.scss';
 import MainLayout from './layouts/MainLayout';
 import Home from './pages/Home';
@@ -11,7 +11,7 @@ const CharacterViewer = import.meta.env.DEV ? lazy(() => import('./pages/Charact
 
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         {/* Parent route using the layout */}
         <Route path="/" element={<MainLayout />}>
@@ -23,6 +23,6 @@ export default function App() {
           <Route path="/dev/characters" element={<Suspense fallback={null}><CharacterViewer /></Suspense>} />
         )}
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 }

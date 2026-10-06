@@ -38,8 +38,8 @@ Everything runs in the browser, with no backend. The chat is a [LangGraph](https
    ```
 
 4. Open the URL Vite prints (under `/susan-and-gloria/`).
-   - Chat: `/#/`
-   - The Office: `/#/office`
+   - Chat: `/susan-and-gloria/`
+   - The Office: `/susan-and-gloria/office/`
 
 To use a different model or Ollama host, edit `src/agents/llm.ts`.
 

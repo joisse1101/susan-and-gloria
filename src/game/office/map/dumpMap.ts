@@ -12,9 +12,7 @@ export function dumpMapIfRequested(
     loaded: { mapSize: { width: number; height: number }; walkBehind: WalkBehindPiece[] }
 ) {
     if (!import.meta.env.DEV) return;
-    // HashRouter keeps the query after the '#' (#/office?dumpMap), so look there as well as in the real search string
-    const hash = window.location.hash;
-    const params = new URLSearchParams(hash.includes('?') ? hash.slice(hash.indexOf('?')) : window.location.search);
+    const params = new URLSearchParams(window.location.search);
     if (!params.has('dumpMap')) return;
     const name = params.get('dumpMap') === 'baseline' ? 'office-baseline' : 'office-current';
 
