@@ -1,0 +1,213 @@
+import Phaser from 'phaser';
+import { FACING } from './npc/facing';
+import type { WalkGrid } from './npc/WalkGrid';
+import { PathFollower } from './npc/PathFollower';
+import { facingFor, spotAgainst } from './npc/deskSpot';
+import { stepOntoSpot } from './npc/approach';
+import { routeToRect } from './npc/route';
+import { shouldStart, stillBlocked } from './trigger';
+import { PRAISE_PHRASES } from './workPhrases';
+import { containsPx } from './zones';
+import { reachZone, standSide, type Plant } from './plants';
+import type { PlantShared } from './plantShared';
+import type { WaterActor } from './waterActor';
+import type { Interaction, Pose } from './registry';
+import { WATER_COOLDOWN_MS, WATER_DURATION_MS, WATER_GIVE_UP_MS, WATER_REACH_PX } from './waterTuning';
+
+// The goal beside a plant can sit on a cell the grid keeps clear; settle for a reachable cell this close (in cells)
+const GOAL_FALLBACK_CELLS = 4;
+// The spot is this far (px) off the plant's solid, not exactly on it: a body pressed against the plant keeps being pushed
+// back by the collision and never settles on the spot, so it would run against the plant until the step times out
+const SPOT_GAP_PX = 1;
+// Bumps on the way before giving up the trip
+const MAX_BUMPS = 3;
+
+type Stage = 'walking' | 'approach' | 'watering';
+
+interface Trip {
+    plant: Plant;
+    // The side of the plant it comes in on: the side it was on when it set off, or the plant's own direction
+    side: { dx: number; dy: number };
+    stage: Stage;
+    follower?: PathFollower;
+    startedAt: number; // the trip, then the step onto the spot, then the watering
+    giveUpAt: number;
+    bumps: number;
+}
+
+export interface WaterHost<Id extends string> {
+    actor(id: Id): WaterActor;
+    walkGrid(): WalkGrid;
+}
+
+// Walks an actor to the plant, has it face the plant and water for WATER_DURATION_MS. Used for coworkers and for the
+// player (one instance each, sharing the plants' claims and cooldowns), and reads only the actor adapter.
+export class WaterInteraction<Id extends string> implements Interaction<Id> {
+    private trips = new Map<Id, Trip>();
+    // Actors that must stand still to start (the player): set when a trip ends, until they have left the plant's reach
+    private ended = new Map<Id, boolean>();
+    private scene: Phaser.Scene;
+    private host: WaterHost<Id>;
+    private shared: PlantShared;
+
+    constructor(scene: Phaser.Scene, host: WaterHost<Id>, shared: PlantShared) {
+        this.scene = scene;
+        this.host = host;
+        this.shared = shared;
+    }
+
+    // True while the actor is busy with the plant (it has set the velocity, so it should not wander)
+    update(id: Id): boolean {
+        const actor = this.host.actor(id);
+        const trip = this.trips.get(id);
+        if (!trip) return this.maybeStart(id, actor);
+        if (actor.interrupted()) {
+            this.cancel(id);
+            return false;
+        }
+        const now = this.scene.time.now;
+        const npc = actor.sprite;
+        if (trip.stage === 'watering') {
+            npc.setVelocity(0);
+            if (now >= trip.startedAt + WATER_DURATION_MS) this.end(id);
+            return this.trips.has(id);
+        }
+        // Someone took the plant on the way, or the trip takes too long: it is lost
+        if (this.shared.slots.holderOf(trip.plant.id) !== id || now > trip.giveUpAt) return this.giveUp(id, npc);
+        if (trip.stage === 'walking') return this.walk(id, trip, actor);
+        return this.approach(id, trip, actor);
+    }
+
+    // A free plant in reach, under the shared start rule
+    private maybeStart(id: Id, actor: WaterActor): boolean {
+        const now = this.scene.time.now;
+        const { x, y } = actor.sprite.body.center;
+        const interrupted = actor.interrupted();
+        const standingStill = actor.standingStill();
+        const inReach = (plant: Plant) => containsPx(reachZone(plant, WATER_REACH_PX), plant.tileSize, x, y);
+        // Where the player's last watering ended, standing still does not start another until they have left reach
+        if (actor.stillRequired) this.ended.set(id, stillBlocked(this.ended.get(id) ?? false, this.shared.plants.some(inReach), true));
+        for (const plant of this.shared.plants) {
+            const near = inReach(plant);
+            const holder = this.shared.slots.holderOf(plant.id);
+            // Finding someone else at the plant: a praise line, once per visit
+            const praise = this.shared.praise.update(id, plant.id, {
+                inReach: near,
+                someoneWaters: holder !== undefined && holder !== id,
+                canSay: !interrupted && (!actor.stillRequired || standingStill)
+            });
+            if (praise) actor.say(PRAISE_PHRASES);
+            const go = shouldStart({
+                inReach: near,
+                interrupted,
+                onCooldown: this.shared.cooldowns.isCoolingDown(plant.id, now) || (this.ended.get(id) ?? false),
+                free: this.shared.slots.isFree(plant.id, id),
+                stillRequired: actor.stillRequired,
+                standingStill
+            });
+            if (go) return this.begin(id, actor, plant);
+        }
+        return false;
+    }
+
+    private begin(id: Id, actor: WaterActor, plant: Plant): boolean {
+        const now = this.scene.time.now;
+        if (!this.shared.slots.claim(plant.id, id)) return false;
+        const side = standSide(plant, actor.sprite.body.center.x, actor.sprite.body.center.y);
+        const follower = this.route(actor, plant, side);
+        if (!follower) {
+            this.shared.finish(plant.id, id, now, WATER_COOLDOWN_MS);
+            return false;
+        }
+        this.trips.set(id, { plant, side, stage: 'walking', follower, startedAt: now, giveUpAt: now + WATER_GIVE_UP_MS, bumps: 0 });
+        return true;
+    }
+
+    // Chat command: drop whatever it was doing and go to the plant now, ignoring reach, cooldown and the start
+    // conditions. The plant must still be free. True when the trip started.
+    force(id: Id): boolean {
+        this.cancel(id);
+        const actor = this.host.actor(id);
+        const plant = this.shared.plants.find((p) => this.shared.slots.isFree(p.id, id));
+        return !!plant && this.begin(id, actor, plant);
+    }
+
+    // To the spot flush against the plant on `side`, so someone beside it is not sent round to the front
+    private route(actor: WaterActor, plant: Plant, side: { dx: number; dy: number }) {
+        const aim = this.spot(plant, side, actor.sprite);
+        return routeToRect(this.host.walkGrid(), actor.sprite.body.center, plant.rect, plant.tileSize, GOAL_FALLBACK_CELLS, aim);
+    }
+
+    // Flush against the plant's solid part (not its whole tile area), level with the middle of it, so the water lands on it
+    private spot(plant: Plant, side: { dx: number; dy: number }, sprite: WaterActor['sprite']) {
+        const { body } = sprite;
+        const r = plant.solid ?? plant.rect;
+        return spotAgainst(r, side, plant.tileSize, body.halfWidth + SPOT_GAP_PX, body.halfHeight + SPOT_GAP_PX, body.center.x, ((r.y0 + r.y1) / 2) * plant.tileSize);
+    }
+
+    private walk(id: Id, trip: Trip, actor: WaterActor): boolean {
+        const npc = actor.sprite;
+        if (PathFollower.isBlocked(npc)) {
+            // Something got in the way: route again from where it stands
+            npc.setVelocity(0);
+            const follower = ++trip.bumps >= MAX_BUMPS ? null
+                : this.route(actor, trip.plant, trip.side);
+            if (!follower) return this.giveUp(id, npc);
+            trip.follower = follower;
+        }
+        if (trip.follower!.step(npc) === 'arrived') {
+            trip.stage = 'approach';
+            trip.startedAt = this.scene.time.now;
+        }
+        return true;
+    }
+
+    // The straight step flush against the plant, then face it and start
+    private approach(id: Id, trip: Trip, actor: WaterActor): boolean {
+        const npc = actor.sprite;
+        const { plant } = trip;
+        const dir = trip.side;
+        const spot = this.spot(plant, dir, npc);
+        const step = stepOntoSpot(npc, spot, trip.startedAt, this.scene.time.now);
+        if (step === 'failed') return this.giveUp(id, npc);
+        if (step === 'moving') return true;
+        npc.setVelocity(0);
+        npc.setData(FACING, facingFor(dir));
+        trip.stage = 'watering';
+        trip.startedAt = this.scene.time.now;
+        return true;
+    }
+
+    private giveUp(id: Id, npc: WaterActor['sprite']) {
+        npc.setVelocity(0);
+        this.end(id);
+        return false;
+    }
+
+    // Done, interrupted or lost: free the plant and rest it
+    private end(id: Id) {
+        const trip = this.trips.get(id);
+        if (!trip) return;
+        this.trips.delete(id);
+        if (this.host.actor(id).stillRequired) this.ended.set(id, true);
+        this.shared.finish(trip.plant.id, id, this.scene.time.now, WATER_COOLDOWN_MS);
+    }
+
+    cancel(id: Id) {
+        this.end(id);
+    }
+
+    isActive(id: Id) {
+        return this.trips.has(id);
+    }
+
+    // At the plant: stepping onto the spot or watering
+    isEngaged(id: Id) {
+        const stage = this.trips.get(id)?.stage;
+        return stage === 'approach' || stage === 'watering';
+    }
+
+    pose(id: Id): Pose | undefined {
+        return this.trips.get(id)?.stage === 'watering' ? { kind: 'water', working: true } : undefined;
+    }
+}

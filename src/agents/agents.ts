@@ -1,16 +1,9 @@
 // agents.ts
-import { ChatOpenAI } from "@langchain/openAI";
 import { HumanMessage, BaseMessage, SystemMessage, AIMessageChunk } from "@langchain/core/messages";
 import { GUARDRAIL, PERSONAS } from "./personas";
+import { createLLM } from "./llm";
 
-const llm = new ChatOpenAI({
-    configuration: {
-        baseURL: "http://localhost:11434/v1",
-    },
-    apiKey: "ollama",
-    modelName: "llama3.1:8b",
-    temperature: 0,
-});
+const llm = createLLM();
 
 // LangGraph Agent Node Factory
 export function createAgentNode(persona: "susan" | "gloria") {

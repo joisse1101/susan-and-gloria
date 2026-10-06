@@ -1,7 +1,9 @@
+import { Link, NavLink } from 'react-router-dom';
+
 export default function Header() {
     return (
         <header className="site-header" role="banner">
-            <div className="wrapper"><a className="site-title" rel="author" href="/">Joisse1101</a>
+            <div className="wrapper"><Link className="site-title" rel="author" to="/">Joisse1101</Link>
                 <nav className="site-nav">
                     <input type="checkbox" id="nav-trigger" className="nav-trigger" />
                     <label htmlFor="nav-trigger" aria-label="Toggle Navigation">
@@ -15,7 +17,8 @@ export default function Header() {
                     </label>
 
                     <div className="trigger">
-                        <a className="page-link" href="/about/">About</a>
+                        <NavLink className="page-link" to="/" end>Chat</NavLink>
+                        <NavLink className="page-link" to="/office">Office</NavLink>
                     </div>
                 </nav>
             </div>

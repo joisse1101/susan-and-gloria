@@ -1,15 +1,10 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { GraphState } from "./agentGraph";
-import { ChatOpenAI } from "@langchain/openAI";
 import { PERSONAS } from "./personas";
+import { createLLM } from "./llm";
 
 export const orchestratorNode = async (state: typeof GraphState.State) => {
-    const orchestratorLLM = new ChatOpenAI({
-        configuration: { baseURL: "http://localhost:11434/v1" },
-        apiKey: "ollama",
-        modelName: "llama3.1:8b",
-        temperature: 0,
-    });
+    const orchestratorLLM = createLLM();
 
     const personas = Object.entries(PERSONAS)
         .map(([key, persona]) => `- "${key}": ${persona.whyMe}`)

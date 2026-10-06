@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Dev map dumps (?dumpMap)
+.map-dumps
+
+__pycache__/
+
+# Layer build previews and guide (generated, not used by the game)
+pixel-art/layers/*.png

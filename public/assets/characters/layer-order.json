@@ -1,0 +1,33 @@
+{
+  "down": [
+    "body",
+    "bottom",
+    "top",
+    "hair",
+    "face",
+    "accessories"
+  ],
+  "up": [
+    "body",
+    "bottom",
+    "top",
+    "hair",
+    "accessories"
+  ],
+  "right": [
+    "body",
+    "bottom",
+    "top",
+    "hair",
+    "face",
+    "accessories"
+  ],
+  "left": [
+    "body",
+    "bottom",
+    "top",
+    "hair",
+    "face",
+    "accessories"
+  ]
+}

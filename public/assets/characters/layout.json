@@ -1,0 +1,58 @@
+{
+  "cell": 32,
+  "width": 128,
+  "height": 512,
+  "animations": [
+    {
+      "name": "idle",
+      "frames": 2,
+      "facings": {
+        "down": 0,
+        "up": 1,
+        "right": 2,
+        "left": 3
+      }
+    },
+    {
+      "name": "walk",
+      "frames": 4,
+      "facings": {
+        "down": 4,
+        "up": 5,
+        "right": 6,
+        "left": 7
+      }
+    },
+    {
+      "name": "workStanding",
+      "frames": 2,
+      "facings": {
+        "down": 8,
+        "up": 9,
+        "right": 10,
+        "left": 11
+      }
+    },
+    {
+      "name": "workSitting",
+      "frames": 2,
+      "facings": {
+        "down": 12,
+        "up": 13,
+        "right": 14,
+        "left": 15
+      }
+    }
+  ],
+  "mirrors": {
+    "left": "right"
+  },
+  "layers": {
+    "body": "bodies",
+    "bottom": "bottom",
+    "top": "top",
+    "hair": "hair",
+    "face": "face",
+    "accessories": "accessories"
+  }
+}
