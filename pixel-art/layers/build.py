@@ -22,7 +22,7 @@ def verify_flat(char):
     bad = 0
     lay = charlib.layout()
     for a in lay["animations"]:
-        flat = Image.open(os.path.join(FLAT, char.name, a["name"].capitalize() + ".png")).convert("RGBA")
+        flat = Image.open(os.path.join(FLAT, char.name, a["name"][0].upper() + a["name"][1:] + ".png")).convert("RGBA")
         for facing, row in a["facings"].items():
             for frame in range(a["frames"]):
                 got = charlib.composite(char, a["name"], facing, frame)
@@ -48,7 +48,7 @@ def preview(char, path, scale=4):
     """One strip per facing: the composite, then each layer alone, for the first frame of idle and walk frame 1."""
     lay = charlib.layout()
     cols = ("composite",) + charlib.LAYERS
-    shots = [("idle", 0), ("walk", 1)]
+    shots = [("idle", 0), ("walk", 1), ("workStanding", 1), ("workSitting", 1)]
     w = 32 * len(cols)
     sheet = Image.new("RGBA", (w, 32 * len(charlib.FACINGS) * len(shots)), (96, 120, 100, 255))
     for si, (anim, frame) in enumerate(shots):

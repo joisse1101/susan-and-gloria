@@ -27,7 +27,7 @@ OVERLAYS = ("face", "accessories")
 
 FACINGS = ("down", "up", "right", "left")
 MIRRORS = {"left": "right"}          # drawn once, flipped per layer for the west side
-ANIMS = (("idle", 2), ("walk", 4))   # name, frames; rows follow in this order, FACINGS each
+ANIMS = (("idle", 2), ("walk", 4), ("workStanding", 2), ("workSitting", 2))   # name, frames; rows follow in this order, FACINGS each
 
 IDLE_BOB = (0, -1)
 WALK_BOB = (0, -1, 0, -1)
@@ -107,7 +107,8 @@ LEG_SOURCE_ROW = {"down": 0, "up": 1, "right": 2}
 
 BODY_VARIANTS = {
     # skin light/shade, shoe light/dark, outline
-    "light": {"A": "#0c0a07", "S": "#e4b5a5", "s": "#c98f82", "O": "#5b463e", "o": "#362623"},
+    # (f: the shaded far hand while working)
+    "light": {"A": "#0c0a07", "S": "#e4b5a5", "s": "#c98f82", "O": "#5b463e", "o": "#362623", "f": "#b08478"},
 }
 
 _feet = {}
@@ -173,6 +174,90 @@ def draw_underlay(cell, ctx, palette):
                 fill(x, y, "s")
 
 
+# ---- work poses ---------------------------------------------------------------------------------------------------
+# WorkStanding and WorkSitting are the idle pose with the arms tucked against the torso and the hands redrawn: the
+# body of Idle frame 0 sinks SIT_DROP px onto the chair (the rows from `leg_row` down stay planted) or, standing,
+# is Idle's tall frame 1; the hanging arms become sleeve colour, the hands sit on the belly (front), lift
+# alternately (back) or reach out to the right (side). Every layer moves together, so a different top, hair or
+# skin still works.
+SIT_DROP = 2
+STAND_RISE = 1
+TYPE_SWING = 2                       # px each hand travels between the two frames
+NEAR_SLEEVE_X = 15                   # the near sleeve starts at the shoulder
+FAR_X = 19                           # left column of the shaded hand
+
+
+def _opaque(cell, x, y):
+    return any(cell.img[k].getpixel((x, y))[3] for k in LAYERS)
+
+
+def _tuck_arms(cell, cfg, rows):
+    """The hanging arms (and hands) are replaced by straight sides: outline at x=10 and 21, sleeve between."""
+    for y in rows:
+        for x in range(CELL):
+            if _opaque(cell, x, y) and (x <= 12 or x >= 19):
+                for k in LAYERS:
+                    cell.img[k].putpixel((x, y), (0, 0, 0, 0))
+        for x in range(11, 21):
+            if not _opaque(cell, x, y):
+                cell.px("top", x, y, cfg["sleeve"])
+        cell.px("top", 10, y, cfg["outline"])
+        cell.px("top", 21, y, cfg["outline"])
+
+
+def _lift_columns(cell, columns, rows):
+    """Move the pixels of each layer in `rows` up one px, filling the vacated bottom pixel from the one below."""
+    rows = list(rows)
+    for k in LAYERS:
+        img = cell.img[k]
+        for x in columns:
+            col = [img.getpixel((x, y)) for y in rows + [rows[-1] + 1]]
+            for i, y in enumerate(rows):
+                img.putpixel((x, y), col[i + 1])
+
+
+def work_pose(cell, char, view, standing, frame):
+    """Turn the drawn idle cell of `view` (down, up or right) into frame `frame` of the work pose."""
+    cfg = char.work
+    pal = BODY_VARIANTS[char.variants["body"]]
+    rise = -STAND_RISE if standing else 0
+    leg_row = cfg["stand_leg_row"] if standing else cfg["leg_row"]
+    arm_rows = tuple(y + rise for y in cfg["arm_rows"])
+    hand_y = cfg["hand_y"] + rise
+    lower = Cell()
+    for k in LAYERS:
+        lower.img[k].paste(cell.img[k].crop((0, leg_row, CELL, CELL)), (0, leg_row))
+        cell.img[k].paste((0, 0, 0, 0), (0, leg_row, CELL, CELL))
+    _tuck_arms(cell, cfg, arm_rows)
+    if view == "down":
+        for x, ch in zip(range(14, 18), "SssS"):
+            cell.px("body", x, hand_y, pal[ch])
+        for x, ch in zip((16, 17) if frame == 0 else (14, 15), "sS" if frame == 0 else "Ss"):
+            cell.px("body", x, hand_y + 1, pal[ch])
+    elif view == "up":
+        _lift_columns(cell, (11, 12) if frame == 0 else (19, 20), range(arm_rows[0] - 2, arm_rows[1] + 1))
+    else:
+        hy = 19 + rise - TYPE_SWING // 2 + TYPE_SWING * frame
+        fy = 20 + rise - TYPE_SWING // 2 + TYPE_SWING * (1 - frame)
+        for y in (hy, hy + 1):
+            for x in range(NEAR_SLEEVE_X, 22):
+                cell.px("top", x, y, cfg["sleeve"])
+            for x in (22, 23):
+                cell.px("body", x, y, pal["S"])
+        for y in (fy, fy + 1):
+            for x in (FAR_X, FAR_X + 1):
+                cell.px("body", x, y, pal["f"])
+    out = Cell()
+    for k in LAYERS:
+        out.img[k].paste(cell.img[k], (0, 0 if standing else SIT_DROP))
+        for y in range(leg_row, CELL):
+            for x in range(CELL):
+                c = lower.img[k].getpixel((x, y))
+                if c[3]:
+                    out.px(k, x, y, c)
+    return out
+
+
 # ---- characters -----------------------------------------------------------------------------------------------
 
 class Character:
@@ -185,11 +270,13 @@ class Character:
                          "face": face}
         self.expressions = expressions
         self.draw = {}
+        self.work = None       # sleeve, outline, leg_row, stand_leg_row, arm_rows, hand_y (see work_pose)
 
 
 def draw_cell(char, expression, anim, facing, frame):
     view = MIRRORS.get(facing, facing)
-    ctx = Ctx(anim, view, frame)
+    work = anim.startswith("work")
+    ctx = Ctx("idle", view, 1 if anim == "workStanding" else 0) if work else Ctx(anim, view, frame)
     cell = Cell()
     char.draw["bottom"](cell, ctx)
     char.draw["top"](cell, ctx)
@@ -198,6 +285,8 @@ def draw_cell(char, expression, anim, facing, frame):
     char.draw["accessories"](cell, ctx)
     char.draw["face"](cell, ctx, expression)
     draw_underlay(cell, ctx, BODY_VARIANTS[char.variants["body"]])
+    if work:
+        cell = work_pose(cell, char, view, anim == "workStanding", frame)
     return cell.mirrored() if view != facing else cell
 
 
@@ -248,6 +337,28 @@ def export(chars):
                   f, indent=2)
         f.write("\n")
     guide(lay).save(os.path.join(HERE, "guide.png"))   # for authors, not shipped
+    with open(os.path.join(HERE, "LAYOUT.md"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(layout_doc(lay))
+
+
+def layout_doc(lay):
+    """Markdown table of which row of every layer sheet is which animation and facing (generated, do not edit)."""
+    lines = ["# Layer sheet layout", "",
+             "Generated by `build.py` from `layout.json`; do not edit. Every layer file (body, bottom, top, hair, face,",
+             f"accessories) has the same grid: {lay['width']}x{lay['height']} px, {lay['cell']}px cells, one row per",
+             "animation and facing, one column per frame (0-based). A cell at (frame, row) is the same pose in every layer.",
+             "The left view is the right view mirrored per layer (`mirrors` in `layout.json`).", "",
+             "| Row | y (px) | Animation | Facing | Frames | Notes |", "|---|---|---|---|---|---|"]
+    notes = {"idle": "frame 1 is the tall frame (body 1px higher)", "walk": "4-frame cycle",
+             "workStanding": "frame 0 and 1 alternate the hands; legs as idle",
+             "workSitting": "upper body sunk 2px onto the chair; 4 cardinal facings only"}
+    for a in lay["animations"]:
+        for facing, row in a["facings"].items():
+            note = notes.get(a["name"], "") + (" (mirrored from right)" if facing in lay["mirrors"] else "")
+            lines.append(f"| {row} | {row * lay['cell']} | {a['name']} | {facing} | {a['frames']} | {note.strip()} |")
+    lines += ["", "The flat sheets in `public/assets/sprites/<name>/` are different: one row per facing only",
+              "(down, up, right, left = rows 0-3), one file per animation."]
+    return "\n".join(lines) + "\n"
 
 
 def guide(lay, scale=3):

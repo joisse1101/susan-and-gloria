@@ -1,7 +1,7 @@
 {
   "cell": 32,
   "width": 128,
-  "height": 256,
+  "height": 512,
   "animations": [
     {
       "name": "idle",
@@ -21,6 +21,26 @@
         "up": 5,
         "right": 6,
         "left": 7
+      }
+    },
+    {
+      "name": "workStanding",
+      "frames": 2,
+      "facings": {
+        "down": 8,
+        "up": 9,
+        "right": 10,
+        "left": 11
+      }
+    },
+    {
+      "name": "workSitting",
+      "frames": 2,
+      "facings": {
+        "down": 12,
+        "up": 13,
+        "right": 14,
+        "left": 15
       }
     }
   ],

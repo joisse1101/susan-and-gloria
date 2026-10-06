@@ -8,7 +8,7 @@
 - [x] 1.4 Write the per-facing layer-order JSON from the build and verify it lists every layer for every facing
 - [x] 1.5 Verify a rebuild twice gives byte-identical files, and that editing only the skirt changes only the bottom-clothes sheet
 
-- [ ] 1.6 Add WorkStanding and WorkSitting (four cardinal facings, two frames each) to the layout and to every layer of Gloria, rebuilt from the layers rather than by editing the flat Idle sheets; verify each composites back to her current `WorkStanding.png` and `WorkSitting.png` pixel for pixel
+- [x] 1.6 Add WorkStanding and WorkSitting (four cardinal facings, two frames each) to the layout and to every layer of Gloria, rebuilt from the layers rather than by editing the flat Idle sheets; verify each composites back to her current `WorkStanding.png` and `WorkSitting.png` pixel for pixel
 
 ## 2. Character rig in the game
 

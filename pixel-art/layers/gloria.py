@@ -117,5 +117,7 @@ def face(cell, ctx, expression):
 def character():
     g = Character("gloria", body="light", bottom="gloria-skirt", top="gloria-cardigan", hair="gloria-bun",
                   accessories="gloria-glasses", face="gloria")
+    g.work = {"sleeve": C["G"], "outline": C["A"], "leg_row": 27, "stand_leg_row": 28, "arm_rows": (21, 22),
+              "hand_y": 20}
     g.draw = {"bottom": bottom, "top": top, "hair": hair, "accessories": glasses, "face": face}
     return g
