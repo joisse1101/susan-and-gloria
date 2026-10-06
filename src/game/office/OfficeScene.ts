@@ -414,17 +414,15 @@ export class OfficeScene extends Phaser.Scene {
 
     // Each tile a character is behind (or under, for the over-the-player layers) fades to WALK_BEHIND_ALPHA and comes back when they leave
     private fadeWalkBehind(delta: number) {
+        // Only the player fades tiles: coworkers walking behind an object leave it opaque.
         // Someone watering stands beside the plant on purpose, under its leaves: nothing fades for them
-        const watering = [
-            { sprite: this.player, on: this.playerWater.isEngaged('player') },
-            { sprite: this.gloria, on: this.coworkerWater.isEngaged('gloria') },
-            { sprite: this.susan, on: this.coworkerWater.isEngaged('susan') }
-        ];
-        const walkers: Walker[] = watering.filter((w) => !w.on).map(({ sprite: s }) => {
+        const walkers: Walker[] = [];
+        if (!this.playerWater.isEngaged('player')) {
+            const s = this.player;
             const b = s.getBounds();
             // Sideways only the feet body counts: the sprite's own bounds include transparent margins that would fade the neighbouring tiles
-            return { feetY: s.body.bottom, bounds: { x: s.body.left, y: b.y, w: s.body.width, h: b.height } };
-        });
+            walkers.push({ feetY: s.body.bottom, bounds: { x: s.body.left, y: b.y, w: s.body.width, h: b.height } });
+        }
         for (const piece of this.walkBehind) {
             const target = isBehind(piece, walkers) ? WALK_BEHIND_ALPHA : 1;
             const alpha = easeAlpha(piece.alpha, target, delta, WALK_BEHIND_FADE_MS);
