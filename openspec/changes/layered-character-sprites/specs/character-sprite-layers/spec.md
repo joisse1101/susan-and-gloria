@@ -67,19 +67,12 @@ A character's top clothes, bottom clothes, hair and accessory layers SHALL each 
 - **WHEN** a character's top-clothes layer is swapped for another variant
 - **THEN** only the top clothes change appearance, in every animation and facing
 
-### Requirement: Idle and Walk have eight facings
-The Idle and Walk sheets of every layer SHALL provide eight facings: down, down-right, right, up-right, up, up-left, left and down-left. The three west-side facings SHALL be mirrors of the east-side ones.
+### Requirement: All animations keep four facings
+Every animation sheet (Idle, Walk, WorkStanding, WorkSitting) of every layer SHALL provide the four cardinal facings: down, up, right and left. Seating, chair offsets and watering props SHALL keep working with cardinal facings only.
 
-#### Scenario: Diagonal walk
-- **WHEN** a character walks diagonally
-- **THEN** it shows the walk animation for that diagonal facing
-
-#### Scenario: Mirrored side
-- **WHEN** a character faces down-left
-- **THEN** its sprite is the mirror of its down-right art
-
-### Requirement: Work poses keep four facings
-WorkStanding and WorkSitting sheets SHALL keep the four cardinal facings, and seating, chair offsets and watering props SHALL keep working with cardinal facings only.
+#### Scenario: Walking
+- **WHEN** a character walks
+- **THEN** it shows the walk animation for one of the four cardinal facings
 
 #### Scenario: Working at a desk
 - **WHEN** a character works at a desk or waters a plant

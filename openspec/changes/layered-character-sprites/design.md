@@ -8,11 +8,10 @@ Constraints: sheets stay generated, never hand-edited; the chair sandwich (chair
 
 **Goals:**
 - Layers authored once in a shared library, exported as aligned sheets, stacked in the game and swappable.
-- 8-way Idle and Walk with a drawn-5/mirrored-3 split.
 - One place that owns "a character is a stack of sprites", so the rest of the scene treats it as one thing.
 
 **Non-Goals:**
-- Diagonal work, sitting or watering poses.
+- Diagonal facings of any kind (all animations stay four-way).
 - Changing pathfinding, desks or chair logic.
 - A player-facing outfit editor (swapping is supported, not exposed in UI).
 
@@ -26,13 +25,9 @@ Constraints: sheets stay generated, never hand-edited; the chair sandwich (chair
 
 **4. Faces are layers too.** One sheet per expression for the face layer, same cell grid. Changing expression swaps the face sprite's texture. Accessories worn on the face (Gloria's glasses) are in the accessory layer, drawn above the face, so they need no special handling and survive every expression. Hair fringe likewise sits in the hair layer above the face. This removes the need for an anchors file.
 
-**5. Mirroring for the west side.** Five views are drawn (S, SE, E, NE, N) and SW, W, NW are produced by flipping (`flipX` on every layer, mirror in the build for sheets). The existing sheets draw the left row separately; the new pipeline derives it. Asymmetric details (bun position, hair parting) must still read when mirrored; a character that can't mirror a layer gets an explicit override in its definition.
+**5. Expression state.** A small controller on the rig holds the current expression and a blink timer; `set(name, ms)` ignores unknown names so dropped expressions are harmless, and the available names come from the build output rather than a hardcoded list.
 
-**6. Facing becomes 8-way with hysteresis.** `facingFromVelocity` and `playerFacing` return one of eight facings from the velocity angle, keeping the current facing while the new angle stays within a margin of it. Work, seat and water code keep taking cardinal facings: where they now receive a diagonal walking facing they snap to the nearest cardinal when they take over (desk arrival), through the existing `facingForStandingWork` / `deskFacing` paths. Whether coworkers ever move diagonally depends on `PathFollower` routing, which this design does not change.
-
-**7. Expression state.** A small controller on the rig holds the current expression and a blink timer; `set(name, ms)` ignores unknown names so dropped expressions are harmless, and the available names come from the build output rather than a hardcoded list.
-
-**8. Expressions are decided in development.** Neutral and blink ship. Each candidate (happy, annoyed, confused) is drawn on the pilot character and previewed zoomed; the user keeps or drops it before it is exported or wired to its event. This is a checkpoint in tasks.md.
+**6. Expressions are decided in development.** Neutral and blink ship. Each candidate (happy, annoyed, confused) is drawn on the pilot character and previewed zoomed; the user keeps or drops it before it is exported or wired to its event. This is a checkpoint in tasks.md.
 
 ## Risks / Trade-offs
 
@@ -41,19 +36,13 @@ Constraints: sheets stay generated, never hand-edited; the chair sandwich (chair
 - [Depth fighting between layers or with chair layers] → layer order inside one depth step, covered by a scene check with a seated character.
 - [Alpha mismatch during walk-behind fade] → fade acts on the rig, not on individual sprites.
 - [1px eyes under glasses could be unreadable on Gloria] → preview expressions with glasses on; drop one that fails rather than enlarge the face.
-- [8-way art for six layers and three characters] → shared body and walk cycles; hair, face and accessories reuse a drawing per facing with a per-frame bob offset; pilot on Gloria and wait for sign-off before Susan and the player.
-- [Flicker near 45 degrees] → hysteresis margin in the pure facing functions, covered by unit tests.
+- [Art for six layers and three characters] → shared body and walk cycles; pilot on Gloria and wait for sign-off before Susan and the player.
 
 ## Migration Plan
 
 1. Build the shared library and Gloria's definition; export one sheet per layer, and first reproduce today's four-facing look to prove the layers composite back to the current art.
 2. Add `CharacterRig` and route the scene's single-sprite operations through it, with Gloria on layered sheets and the others unchanged, so the game works throughout.
-3. Add the diagonal rows and 8-way facing (library, loader, pure functions and tests).
-4. Add the face layer, blinking and the expression API; review candidate expressions with the user and wire the kept ones.
-5. Repeat for Susan and the player after sign-off.
+3. Add the face layer, blinking and the expression API; review candidate expressions with the user and wire the kept ones.
+4. Repeat for Susan and the player after sign-off.
 
 Rollback: sheets are generated and tracked in git, so reverting restores the previous sheets and single-sprite loader.
-
-## Open Questions
-
-- Does `PathFollower` ever route diagonally? Answering this only changes how often coworkers show diagonal facings, not the design.
