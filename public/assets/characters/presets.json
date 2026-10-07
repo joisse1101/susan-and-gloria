@@ -8,6 +8,15 @@
       "hair": "gloria-bun",
       "accessories": "gloria-glasses",
       "face": "gloria"
+    },
+    "susan": {
+      "body": "light",
+      "shoes": "susan-shoes",
+      "bottom": "susan-jeans",
+      "top": "susan-jacket",
+      "hair": "susan-ponytails",
+      "accessories": "none",
+      "face": "gloria"
     }
   }
 }

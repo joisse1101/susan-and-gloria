@@ -4,22 +4,27 @@
       "light"
     ],
     "shoes": [
-      "gloria-loafers"
+      "gloria-loafers",
+      "susan-shoes"
     ],
     "bottom": [
-      "gloria-skirt"
+      "gloria-skirt",
+      "susan-jeans"
     ],
     "top": [
-      "gloria-cardigan"
+      "gloria-cardigan",
+      "susan-jacket"
     ],
     "hair": [
-      "gloria-bun"
+      "gloria-bun",
+      "susan-ponytails"
     ],
     "face": [
       "gloria"
     ],
     "accessories": [
-      "gloria-glasses"
+      "gloria-glasses",
+      "none"
     ]
   }
 }
