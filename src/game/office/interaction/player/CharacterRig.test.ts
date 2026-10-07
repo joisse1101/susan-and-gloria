@@ -105,6 +105,20 @@ describe('parseLayerOrder', () => {
 });
 
 describe('CharacterRig', () => {
+    it('makes no sprite for a layer the character has no variant for', () => {
+        const created: string[] = [];
+        const rig = new CharacterRig<FakeSprite>({
+            order: ORDER,
+            variants: { body: 'light', bottom: 'skirt', top: 'cardigan', hair: 'bun' },
+            textureKey: (layer, variant) => `${layer}/${variant}`,
+            create: (layer, texture) => (created.push(layer), new FakeSprite(texture))
+        });
+        expect(created).toEqual(['body', 'bottom', 'top', 'hair']);
+        rig.setFacing('down');
+        rig.sync();
+        expect(rig.sprites()).toHaveLength(4);
+    });
+
     it('creates one sprite per layer with the body as the only base', () => {
         const { rig, created } = makeRig();
         expect(created.map((c) => c.layer)).toEqual(['body', 'bottom', 'top', 'hair', 'face']);

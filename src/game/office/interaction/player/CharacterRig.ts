@@ -22,8 +22,9 @@ export interface RigSprite {
 
 export interface RigOptions<S extends RigSprite> {
     order: LayerOrder;
-    // Layer name -> variant currently worn (from the character's preset)
-    variants: Record<LayerName, string>;
+    // Layer name -> variant currently worn (from the character's preset). A layer the character has no variant
+    // for gets no sprite (Susan wears no accessory); the body must have one.
+    variants: Partial<Record<LayerName, string>>;
     // Texture key for a layer variant, as loaded in preload
     textureKey: (layer: LayerName, variant: string) => string;
     // Create the sprite of one layer; the base is the one that gets the physics body and plays the animations
@@ -39,7 +40,7 @@ export class CharacterRig<S extends RigSprite> {
     private readonly order: LayerOrder;
     private readonly textureKey: RigOptions<S>['textureKey'];
     private readonly followers = new Map<LayerName, S>();
-    private readonly variants: Record<LayerName, string>;
+    private readonly variants: Partial<Record<LayerName, string>>;
     private facing: Facing = 'down';
 
     constructor(options: RigOptions<S>) {
@@ -47,10 +48,11 @@ export class CharacterRig<S extends RigSprite> {
         this.textureKey = options.textureKey;
         this.variants = { ...options.variants };
         const [baseLayer] = options.order.down;
-        this.base = options.create(baseLayer, this.textureKey(baseLayer, this.variants[baseLayer]), true);
+        this.base = options.create(baseLayer, this.textureKey(baseLayer, this.variants[baseLayer]!), true);
         for (const layer of allLayers(options.order)) {
-            if (layer === baseLayer) continue;
-            this.followers.set(layer, options.create(layer, this.textureKey(layer, this.variants[layer]), false));
+            const variant = this.variants[layer];
+            if (layer === baseLayer || variant === undefined) continue;
+            this.followers.set(layer, options.create(layer, this.textureKey(layer, variant), false));
         }
         this.sync();
     }

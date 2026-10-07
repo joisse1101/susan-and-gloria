@@ -8,8 +8,7 @@ FLAT = os.path.join(ROOT, 'public/assets/sprites/susan')
 OUT = os.path.join(ROOT, 'public/assets/characters')
 OUTLINE = (12, 10, 7)
 NAMES = {'shoes': ('shoes', 'susan-shoes'), 'bottom': ('bottom', 'susan-jeans'),
-         'top': ('top', 'susan-jacket'), 'hair': ('hair', 'susan-ponytails'),
-         'accessories': ('accessories', 'none')}   # Susan wears no accessory: an empty sheet
+         'top': ('top', 'susan-jacket'), 'hair': ('hair', 'susan-ponytails')}
 SHARED = ('body', 'face')    # Susan wears the shared light body and the shared face, so her skin, eyes and blush are not split out
 COLOURS = {
     (154, 51, 32): 'hair', (194, 74, 42): 'hair', (107, 34, 24): 'hair', (229, 123, 75): 'hair',
@@ -83,6 +82,7 @@ def main():
                 for f in range(frames):
                     box = (f * cell, (row0 + r) * cell, (f + 1) * cell, (row0 + r + 1) * cell)
                     for layer in order[facing]:
+                        if layer not in sheets: continue
                         out.alpha_composite(sheets[layer].crop(box), (f * cell, r * cell))
                     out.alpha_composite(flats[name].crop((f * cell, r * cell, (f + 1) * cell, (r + 1) * cell)), ((frames + f) * cell, r * cell))
             out.resize((out.width * 8, out.height * 8), Image.NEAREST).save(os.path.join(scratch, f'susan-{name}.png'))
