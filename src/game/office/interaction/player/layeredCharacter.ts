@@ -126,3 +126,25 @@ export function createLayeredRig<S extends Phaser.GameObjects.Sprite>(
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.events.off(Phaser.Scenes.Events.POST_UPDATE, onRender));
     return rig;
 }
+
+// Dev only: a copy of a layer sheet with red and blue swapped, under a new texture key, so a layer swap can be
+// tried before a second variant is drawn. Returns the variant name to pass to `CharacterRig.setLayer`.
+export function addRecoloredVariant(scene: Phaser.Scene, layer: LayerName, variant: string, name: string): string {
+    const key = layerTextureKey(layer, name);
+    if (scene.textures.exists(key)) return name;
+    const source = scene.textures.get(layerTextureKey(layer, variant)).getSourceImage() as HTMLImageElement;
+    const texture = scene.textures.createCanvas(key, source.width, source.height);
+    if (!texture) throw new Error(`could not create texture ${key}`);
+    const ctx = texture.getContext();
+    ctx.drawImage(source, 0, 0);
+    const image = ctx.getImageData(0, 0, source.width, source.height);
+    for (let i = 0; i < image.data.length; i += 4) [image.data[i], image.data[i + 2]] = [image.data[i + 2], image.data[i]];
+    ctx.putImageData(image, 0, 0);
+    texture.refresh();
+    const layout = scene.cache.json.get(LAYOUT_KEY) as Layout;
+    const columns = source.width / layout.cell;
+    for (let frame = 0; frame < columns * (source.height / layout.cell); frame++) {
+        texture.add(frame, 0, (frame % columns) * layout.cell, Math.floor(frame / columns) * layout.cell, layout.cell, layout.cell);
+    }
+    return name;
+}

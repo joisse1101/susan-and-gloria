@@ -61,7 +61,8 @@ import {
     type CharacterSprite,
     type Facing
 } from './interaction/player/playerSprite';
-import { createLayeredAnims, createLayeredRig, preloadLayeredCharacters } from './interaction/player/layeredCharacter';
+import { CharacterRig } from './interaction/player/CharacterRig';
+import { addRecoloredVariant, createLayeredAnims, createLayeredRig, preloadLayeredCharacters } from './interaction/player/layeredCharacter';
 import { FACING } from './interaction/npc/facing';
 import { facingFromVelocity, playerFacing } from './interaction/npc/workFacing';
 import { Shadows } from './interaction/Shadows';
@@ -86,6 +87,7 @@ type AtlasChoice = 'interior' | 'office' | 'furniture';
 export class OfficeScene extends Phaser.Scene {
     private player!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private gloria!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+    private gloriaRig!: CharacterRig<Phaser.Types.Physics.Arcade.SpriteWithDynamicBody>;
     private susan!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
     private work!: WorkInteraction;
     private coworkerWater!: WaterInteraction<NpcName>;
@@ -303,7 +305,8 @@ export class OfficeScene extends Phaser.Scene {
         }, SPEECH_DEPTH - 1, 'C', () => this.chat.isTyping);
 
         // Gloria is a stack of layer sprites; the body layer is the sprite everything else works on
-        this.gloria = createLayeredRig(this, 'gloria', (texture) => this.createSheetCoworker(GLORIA_SPRITE, 0, 0, texture), (base) => base.getData(FACING) ?? 'down').base;
+        this.gloriaRig = createLayeredRig(this, 'gloria', (texture) => this.createSheetCoworker(GLORIA_SPRITE, 0, 0, texture), (base) => base.getData(FACING) ?? 'down');
+        this.gloria = this.gloriaRig.base;
         this.susan = this.createSheetCoworker(SUSAN_SPRITE, 0, 0);
         this.bubbles = new NpcBubbles(this, {
             npc: (name) => (name === 'susan' ? this.susan : this.gloria),
@@ -524,6 +527,12 @@ export class OfficeScene extends Phaser.Scene {
     // coworker head for a work desk now, "/gloria-water" and "/susan-water" for the plant (if it is free).
     // True when the line was a command.
     private debugCommand(text: string) {
+        // Dev only: "/gloria-swap" toggles her top between the cardigan and a recoloured copy, to check a layer swap
+        if (import.meta.env.DEV && /^\/*gloria-swap$/i.test(text.trim())) {
+            const recolored = addRecoloredVariant(this, 'top', 'gloria-cardigan', 'gloria-cardigan-swapped');
+            this.gloriaRig.setLayer('top', this.gloriaRig.variantOf('top') === recolored ? 'gloria-cardigan' : recolored);
+            return true;
+        }
         const match = /^\/*(gloria|susan)-(work|water)$/i.exec(text.trim());
         if (!match) return false;
         const name = match[1].toLowerCase() as NpcName;

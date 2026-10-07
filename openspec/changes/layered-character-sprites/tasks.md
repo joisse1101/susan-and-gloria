@@ -16,9 +16,9 @@
 
 - [x] 2.1 Add `CharacterRig` (one sprite per layer, position, flip, animation frame, alpha, depth, destroy, `setLayer`) with unit tests for the pure parts (layer order, depth offsets) and a check that every operation reaches every layer
 - [x] 2.2 Load layer sheets and layer-order data in `playerSprite.ts` and create per-layer anims; verify Gloria renders and animates identically to before in the office
-- [ ] 2.3 Route `OfficeScene` position/flip/anim updates, `fadeWalkBehind`, `Shadows` and the walk-behind fade through the rig; verify Gloria fades as one when walking behind furniture
-- [ ] 2.4 Make `SeatLayers` bracket the whole stack; verify a seated Gloria shows chair back behind, armrests in front, no layer popping
-- [ ] 2.5 Verify layer swap by swapping Gloria's top-clothes sheet at runtime (dev only) and checking only the top changes in every animation
+- [x] 2.3 Route `OfficeScene` position/flip/anim updates, `fadeWalkBehind`, `Shadows` and the walk-behind fade through the rig; verify Gloria fades as one when walking behind furniture
+- [x] 2.4 Make `SeatLayers` bracket the whole stack; verify a seated Gloria shows chair back behind, armrests in front, no layer popping
+- [x] 2.5 Verify layer swap by swapping Gloria's top-clothes sheet at runtime (dev only) and checking only the top changes in every animation
 
 ## 3. Face and expressions
 
