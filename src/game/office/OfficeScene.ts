@@ -61,6 +61,7 @@ import {
     type CharacterSprite,
     type Facing
 } from './interaction/player/playerSprite';
+import { createLayeredAnims, createLayeredRig, preloadLayeredCharacters } from './interaction/player/layeredCharacter';
 import { FACING } from './interaction/npc/facing';
 import { facingFromVelocity, playerFacing } from './interaction/npc/workFacing';
 import { Shadows } from './interaction/Shadows';
@@ -140,7 +141,7 @@ export class OfficeScene extends Phaser.Scene {
         Shadows.preload(this);
         WaterProps.preload(this);
         preloadCharacterSprite(this, SUSAN_SPRITE);
-        preloadCharacterSprite(this, GLORIA_SPRITE);
+        preloadLayeredCharacters(this, ['gloria']);
         preloadOfficeMap(this);
         preloadBathroomMap(this);
     }
@@ -249,7 +250,7 @@ export class OfficeScene extends Phaser.Scene {
         // 2. AVATARS: Player & Coworkers
         createPlayerAnims(this);
         createCharacterAnims(this, SUSAN_SPRITE);
-        createCharacterAnims(this, GLORIA_SPRITE);
+        createLayeredAnims(this, 'gloria');
         this.player = this.physics.add.sprite(0, 0, PLAYER_IDLE_KEY); // moved to a random spawn once everything exists
         this.player.setScale(SPRITE_SCALE);
         this.shadows = new Shadows(this);
@@ -301,7 +302,8 @@ export class OfficeScene extends Phaser.Scene {
             clearGrid: () => this.clearGrid
         }, SPEECH_DEPTH - 1, 'C', () => this.chat.isTyping);
 
-        this.gloria = this.createSheetCoworker(GLORIA_SPRITE, 0, 0);
+        // Gloria is a stack of layer sprites; the body layer is the sprite everything else works on
+        this.gloria = createLayeredRig(this, 'gloria', (texture) => this.createSheetCoworker(GLORIA_SPRITE, 0, 0, texture), (base) => base.getData(FACING) ?? 'down').base;
         this.susan = this.createSheetCoworker(SUSAN_SPRITE, 0, 0);
         this.bubbles = new NpcBubbles(this, {
             npc: (name) => (name === 'susan' ? this.susan : this.gloria),
@@ -614,8 +616,8 @@ export class OfficeScene extends Phaser.Scene {
     }
 
     // Same feet-only body as the player: the coworkers' sheets share the player's cell layout
-    private createSheetCoworker(character: CharacterSprite, x: number, y: number) {
-        const sprite = this.physics.add.sprite(x, y, `${character.name}-idle`);
+    private createSheetCoworker(character: CharacterSprite, x: number, y: number, texture = `${character.name}-idle`) {
+        const sprite = this.physics.add.sprite(x, y, texture);
         sprite.setScale(SPRITE_SCALE);
         this.shadows.add(sprite, { hideWhen: () => this.npcSeats.isSeated(character.name as NpcName) });
         sprite.setMass(COWORKER_MASS);
