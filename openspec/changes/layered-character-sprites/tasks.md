@@ -10,6 +10,8 @@
 
 - [x] 1.6 Add WorkStanding and WorkSitting (four cardinal facings, two frames each) to the layout and to every layer of Gloria, rebuilt from the layers rather than by editing the flat Idle sheets; verify each composites back to her current `WorkStanding.png` and `WorkSitting.png` pixel for pixel
 
+- [x] 1.7 Replace the code-drawn body with the hand-drawn one (`pixel-art/layers/data/body-light.png`, idle and walk), rebuild Gloria's WorkStanding and WorkSitting from it and fit her cardigan to the new shoulders; verify the exported body's idle/walk rows equal the source and that a rebuild twice is byte-identical (her flat `Idle.png`/`Walk.png` no longer match by design; `build.py --flat` still compares them)
+
 ## 2. Character rig in the game
 
 - [ ] 2.1 Add `CharacterRig` (one sprite per layer, position, flip, animation frame, alpha, depth, destroy, `setLayer`) with unit tests for the pure parts (layer order, depth offsets) and a check that every operation reaches every layer

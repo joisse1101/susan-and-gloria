@@ -2,6 +2,7 @@
   "characters": {
     "gloria": {
       "body": "light",
+      "shoes": "gloria-loafers",
       "bottom": "gloria-skirt",
       "top": "gloria-cardigan",
       "hair": "gloria-bun",

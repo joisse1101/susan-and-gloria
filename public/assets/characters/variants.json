@@ -1,7 +1,11 @@
 {
   "layers": {
     "body": [
-      "light"
+      "light",
+      "light copy"
+    ],
+    "shoes": [
+      "gloria-loafers"
     ],
     "bottom": [
       "gloria-skirt"

@@ -1,5 +1,5 @@
 // Pure core of the character viewer: which cells of which layer sheets to stack, in what order and at what alpha.
-// Mirrors pixel-art/layers/charlib.py `composite()`: one aligned sheet per layer variant, the cell at
+// Stacks layers the way the old charlib `composite()` did: one aligned sheet per layer variant, the cell at
 // (frame, row of the animation + facing) in every layer.
 
 export interface Layout {

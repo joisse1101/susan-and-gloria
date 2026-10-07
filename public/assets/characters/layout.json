@@ -49,6 +49,7 @@
   },
   "layers": {
     "body": "bodies",
+    "shoes": "shoes",
     "bottom": "bottom",
     "top": "top",
     "hair": "hair",

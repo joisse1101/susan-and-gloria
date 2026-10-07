@@ -1,14 +1,16 @@
 {
   "down": [
     "body",
+    "shoes",
     "bottom",
     "top",
     "hair",
-    "face",
-    "accessories"
+    "accessories",
+    "face"
   ],
   "up": [
     "body",
+    "shoes",
     "bottom",
     "top",
     "hair",
@@ -16,18 +18,20 @@
   ],
   "right": [
     "body",
+    "shoes",
     "bottom",
     "top",
     "hair",
-    "face",
-    "accessories"
+    "accessories",
+    "face"
   ],
   "left": [
     "body",
+    "shoes",
     "bottom",
     "top",
     "hair",
-    "face",
-    "accessories"
+    "accessories",
+    "face"
   ]
 }
