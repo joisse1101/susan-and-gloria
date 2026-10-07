@@ -14,6 +14,7 @@ Constraints: sheets stay generated, never hand-edited; the chair sandwich (chair
 - Diagonal facings of any kind (all animations stay four-way).
 - Changing pathfinding, desks or chair logic.
 - A player-facing outfit editor (swapping is supported, not exposed in UI).
+- Expressions and blinking (dropped: the sprite's 1px eyes are too small to carry them).
 
 ## Decisions
 
@@ -23,11 +24,7 @@ Constraints: sheets stay generated, never hand-edited; the chair sandwich (chair
 
 **3. Depth.** All layers sit within one depth step of the character's base depth, separated by tiny increments in the per-facing layer order, so the chair back (one step behind) and armrests (one step in front) still bracket the whole stack and y-sorting against furniture treats it as one. The layer order per facing comes from a small JSON the build writes (for example up view: hair over body; side view: far arm under body).
 
-**4. Faces are layers too.** One sheet per expression for the face layer, same cell grid. Changing expression swaps the face sprite's texture. Accessories worn on the face (Gloria's glasses) are in the accessory layer, drawn above the face, so they need no special handling and survive every expression. Hair fringe likewise sits in the hair layer above the face. This removes the need for an anchors file.
-
-**5. Expression state.** A small controller on the rig holds the current expression and a blink timer; `set(name, ms)` ignores unknown names so dropped expressions are harmless, and the available names come from the build output rather than a hardcoded list.
-
-**6. Expressions are decided in development.** Neutral and blink ship. Each candidate (happy, annoyed, confused) is drawn on the pilot character and previewed zoomed; the user keeps or drops it before it is exported or wired to its event. This is a checkpoint in tasks.md.
+**4. Faces are layers too.** One static face sheet per character, same cell grid, no expressions or blinking. Accessories worn on the face (Gloria's glasses) are in the accessory layer. The face is drawn last, over the accessories, so the eyes show through the lenses and the glasses need no special handling. Hair fringe likewise sits in the hair layer above the face. This removes the need for an anchors file.
 
 ## Risks / Trade-offs
 
@@ -35,14 +32,13 @@ Constraints: sheets stay generated, never hand-edited; the chair sandwich (chair
 - [Layers drift apart for one frame (position, frame, flip updated in different orders)] → the rig applies all state in a single update call; the physics body sprite is the only source of truth for position.
 - [Depth fighting between layers or with chair layers] → layer order inside one depth step, covered by a scene check with a seated character.
 - [Alpha mismatch during walk-behind fade] → fade acts on the rig, not on individual sprites.
-- [1px eyes under glasses could be unreadable on Gloria] → preview expressions with glasses on; drop one that fails rather than enlarge the face.
 - [Art for six layers and three characters] → shared body and walk cycles; pilot on Gloria and wait for sign-off before Susan and the player.
 
 ## Migration Plan
 
 1. Build the shared library and Gloria's definition; export one sheet per layer, and first reproduce today's four-facing look to prove the layers composite back to the current art.
 2. Add `CharacterRig` and route the scene's single-sprite operations through it, with Gloria on layered sheets and the others unchanged, so the game works throughout.
-3. Add the face layer, blinking and the expression API; review candidate expressions with the user and wire the kept ones.
+3. Add the face layer.
 4. Repeat for Susan and the player after sign-off.
 
 Rollback: sheets are generated and tracked in git, so reverting restores the previous sheets and single-sprite loader.

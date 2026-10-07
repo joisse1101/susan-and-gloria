@@ -15,7 +15,7 @@ import '../dev/characters/characterViewer.scss';
 
 const LEGEND: [string, string][] = [
     ['Up / Down', 'select layer row'], ['Left / Right', 'previous / next variant'], ['H', 'hide layer'],
-    ['E', 'next expression'], ['1-4', 'animation'], ['[ ]', 'facing'], ['Space', 'play / pause'],
+    ['1-4', 'animation'], ['[ ]', 'facing'], ['Space', 'play / pause'],
     [', .', 'step frame'], ['- +', 'slower / faster'], ['G', 'cell overlay'], ['O', 'layer-order list'], ['S', 'shadow'], ['B', 'background'],
     ['Esc', 'clear keyboard highlight'],
 ];
@@ -109,8 +109,6 @@ function Viewer({ data, cache, shadowCache }: { data: ViewerData; cache: SheetCa
     const highlight = highlightOf(state, layers);
     const animation = layout.animations.find((a) => a.name === state.anim)!;
     const facings = Object.keys(animation.facings);
-    const face = state.sel.layers.face?.variant;
-    const expressions = variants.expressions[face] ?? [];
     const common = { layout, order, cache, shadowCache, version, background: state.background, shadow: state.shadow, cellOverlay: state.cellOverlay, fps: state.fps };
 
     return (
@@ -161,13 +159,6 @@ function Viewer({ data, cache, shadowCache }: { data: ViewerData; cache: SheetCa
                                 <span className="cv-variant" title={choice.variant}>{choice.variant || '(none)'}{list.length > 0 && <small> {at + 1}/{list.length}</small>}</span>
                                 <button type="button" aria-label={`Next ${layer}`} onClick={() => dispatch({ type: 'cycle', layer, dir: 1 })}>▶</button>
                                 <button type="button" aria-pressed={choice.hidden} aria-label={`Hide ${layer}`} onClick={() => dispatch({ type: 'hide', layer })}>{choice.hidden ? 'hidden' : 'hide'}</button>
-                                {layer === 'face' && expressions.length > 0 && (
-                                    <span className="cv-expr">
-                                        <button type="button" aria-label="Previous expression" onClick={() => dispatch({ type: 'expression', dir: -1 })}>◀</button>
-                                        <span>{state.sel.expression}</span>
-                                        <button type="button" aria-label="Next expression" onClick={() => dispatch({ type: 'expression', dir: 1 })}>▶</button>
-                                    </span>
-                                )}
                             </div>
                         );
                     })}

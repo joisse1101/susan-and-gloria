@@ -31,7 +31,6 @@ export type Action =
     | { type: 'preset'; name: string }
     | { type: 'cycle'; layer: string; dir: 1 | -1 }
     | { type: 'hide'; layer: string }
-    | { type: 'expression'; dir: 1 | -1 }
     | { type: 'anim'; name: string }
     | { type: 'facing'; name: string }
     | { type: 'facingStep'; dir: 1 | -1 }
@@ -52,17 +51,11 @@ export const layerNames = (layout: Layout) => Object.keys(layout.layers);
 
 const wrap = (i: number, n: number) => ((i % n) + n) % n;
 
-function pickExpression(data: ViewerData, faceVariant: string, want: string) {
-    const list = data.variants.expressions[faceVariant] ?? [];
-    return list.includes(want) ? want : list.includes('neutral') ? 'neutral' : (list[0] ?? want);
-}
-
 function selectionFor(data: ViewerData, name: string): Selection {
     const preset = data.presets.characters[name] ?? {};
     const layers: Selection['layers'] = {};
     for (const layer of layerNames(data.layout)) layers[layer] = { variant: preset[layer] ?? '', hidden: false };
-    const face = layers.face?.variant ?? '';
-    return { layers, expression: pickExpression(data, face, 'neutral') };
+    return { layers };
 }
 
 export function initialState(data: ViewerData): ViewerState {
@@ -101,18 +94,10 @@ export function reduce(data: ViewerData, s: ViewerState, a: Action): ViewerState
             if (!list.length) return s;
             const at = list.indexOf(s.sel.layers[a.layer].variant);
             const variant = list[at < 0 ? (a.dir > 0 ? 0 : list.length - 1) : wrap(at + a.dir, list.length)];
-            const next = withLayer(s, a.layer, { variant });
-            if (a.layer === 'face') next.sel = { ...next.sel, expression: pickExpression(data, variant, s.sel.expression) };
-            return next;
+            return withLayer(s, a.layer, { variant });
         }
         case 'hide':
             return withLayer(s, a.layer, { hidden: !s.sel.layers[a.layer].hidden });
-        case 'expression': {
-            const list = data.variants.expressions[s.sel.layers.face?.variant] ?? [];
-            if (list.length < 2) return s;
-            const at = Math.max(0, list.indexOf(s.sel.expression));
-            return { ...s, preset: null, sel: { ...s.sel, expression: list[wrap(at + a.dir, list.length)] } };
-        }
         case 'anim': {
             const facings = Object.keys(animationOf(data.layout, a.name).facings);
             return { ...s, anim: a.name, facing: facings.includes(s.facing) ? s.facing : facings[0], frame: s.frame % frames(a.name) };
@@ -169,7 +154,6 @@ export function actionForKey(key: string, layers: string[], anims: string[], sta
         case 'ArrowLeft': return { type: 'cycle', layer: layers[state.row], dir: -1 };
         case 'ArrowRight': return { type: 'cycle', layer: layers[state.row], dir: 1 };
         case 'h': return { type: 'hide', layer: layers[state.row] };
-        case 'e': return { type: 'expression', dir: 1 };
         case '[': return { type: 'facingStep', dir: -1 };
         case ']': return { type: 'facingStep', dir: 1 };
         case ' ': return { type: 'play', frame };

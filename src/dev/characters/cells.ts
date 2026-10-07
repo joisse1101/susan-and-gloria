@@ -15,12 +15,10 @@ export type LayerOrder = Record<string, string[]>;      // facing -> layer types
 
 export interface Variants {
     layers: Record<string, string[]>;
-    expressions: Record<string, string[]>;       // face variant -> expressions
 }
 
 export interface Presets {
     characters: Record<string, Record<string, string>>;
-    expressions: Record<string, string[]>;
 }
 
 export interface LayerChoice {
@@ -30,7 +28,6 @@ export interface LayerChoice {
 
 export interface Selection {
     layers: Record<string, LayerChoice>;
-    expression: string;
 }
 
 export interface CellDraw {
@@ -48,7 +45,7 @@ export function sheetPath(layout: Layout, sel: Selection, layer: string): string
     const choice = sel.layers[layer];
     const folder = layout.layers[layer];
     if (!choice || !choice.variant || !folder) return null;
-    return `${folder}/${choice.variant}${layer === 'face' ? `-${sel.expression}` : ''}.png`;
+    return `${folder}/${choice.variant}.png`;
 }
 
 /** A selection that shows only `layer`, used for the layer-by-layer tiles (the layer is forced visible). */

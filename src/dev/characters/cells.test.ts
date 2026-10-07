@@ -14,7 +14,6 @@ const layout: Layout = {
 };
 const order: LayerOrder = Object.fromEntries(FACINGS.map((f) => [f, LAYERS.filter((l) => !(l === 'face' && f === 'up'))]));
 const sel = (): Selection => ({
-    expression: 'neutral',
     layers: Object.fromEntries(LAYERS.map((l) => [l, { variant: `${l}-v`, hidden: false }])),
 });
 
@@ -25,9 +24,9 @@ describe('cellsToDraw', () => {
         expect(cells.every((c) => c.sx === 96 && c.sy === 6 * 32 && c.alpha === 1)).toBe(true);
     });
 
-    it('names face sheets by expression and others by variant', () => {
+    it('names each sheet by its folder and variant', () => {
         const cells = cellsToDraw(sel(), layout, order, 'idle', 'down', 0);
-        expect(cells.find((c) => c.layer === 'face')!.path).toBe('face/face-v-neutral.png');
+        expect(cells.find((c) => c.layer === 'face')!.path).toBe('face/face-v.png');
         expect(cells.find((c) => c.layer === 'hair')!.path).toBe('hair/hair-v.png');
         expect(cells.find((c) => c.layer === 'body')!.path).toBe('bodies/body-v.png');
     });

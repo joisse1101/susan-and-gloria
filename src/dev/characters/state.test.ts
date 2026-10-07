@@ -14,11 +14,9 @@ const data: ViewerData = {
     order: {},
     presets: {
         characters: { gloria: { body: 'light', top: 'cardigan', hair: 'bun', face: 'gloria' } },
-        expressions: { gloria: ['neutral'] },
     },
     variants: {
         layers: { body: ['light'], top: ['cardigan', 'hoodie', 'shirt'], hair: ['bun'], face: ['gloria', 'sam'] },
-        expressions: { gloria: ['neutral', 'blink'], sam: ['blink', 'neutral'] },
     },
 };
 const run = (s = initialState(data), ...actions: Action[]) => actions.reduce((acc, a) => reduce(data, acc, a), s);
@@ -28,7 +26,6 @@ describe('layers', () => {
         const s = initialState(data);
         expect(s.preset).toBe('gloria');
         expect(s.sel.layers.top.variant).toBe('cardigan');
-        expect(s.sel.expression).toBe('neutral');
     });
 
     it('cycling a layer changes only that layer', () => {
@@ -54,12 +51,6 @@ describe('layers', () => {
         expect(s.sel.layers.hair.hidden).toBe(true);
         expect(s.sel.layers.top.hidden).toBe(false);
         expect(run(s, { type: 'hide', layer: 'hair' }).sel.layers.hair.hidden).toBe(false);
-    });
-
-    it('keeps a valid expression when the face variant changes', () => {
-        const s = run(initialState(data), { type: 'expression', dir: 1 }, { type: 'cycle', layer: 'face', dir: 1 });
-        expect(s.sel.layers.face.variant).toBe('sam');
-        expect(s.sel.expression).toBe('blink');
     });
 
     it('loading a preset resets hidden flags and variants', () => {

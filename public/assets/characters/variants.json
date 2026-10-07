@@ -1,8 +1,7 @@
 {
   "layers": {
     "body": [
-      "light",
-      "light copy"
+      "light"
     ],
     "shoes": [
       "gloria-loafers"
@@ -21,11 +20,6 @@
     ],
     "accessories": [
       "gloria-glasses"
-    ]
-  },
-  "expressions": {
-    "gloria": [
-      "neutral"
     ]
   }
 }

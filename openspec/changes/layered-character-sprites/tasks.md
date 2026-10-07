@@ -20,15 +20,13 @@
 - [x] 2.4 Make `SeatLayers` bracket the whole stack; verify a seated Gloria shows chair back behind, armrests in front, no layer popping
 - [x] 2.5 Verify layer swap by swapping Gloria's top-clothes sheet at runtime (dev only) and checking only the top changes in every animation
 
-## 3. Face and expressions
+## 3. Face
 
-- [ ] 3.1 Draw Gloria's neutral and blink faces for S, E, W (N has none; the left face drawn or mirrored as the library already does) under her glasses and export one face sheet per expression; verify with a zoomed preview
-- [ ] 3.2 Add the expression controller to the rig (`set(name, ms)`, return to neutral, unknown names ignored, blink timer) with unit tests for timing and replacement
-- [ ] 3.3 Draw candidate expressions on Gloria (happy, annoyed, confused), show zoomed previews to the user and record keep or drop for each before exporting any; verify the decision is noted here
-- [ ] 3.4 Wire kept expressions to their events (candidates: praise, chair jam, stolen chair, forgotten trip); verify each triggers in the office and returns to neutral
+- [x] 3.1 Verify Gloria's face layer (down, right, left; none for up) is drawn over her glasses so the eyes show through the lenses, with a zoomed preview
+- [x] 3.2 Remove the leftover expression plumbing: rename `face/gloria-neutral.png` to `face/gloria.png` and drop the `REST_EXPRESSION` suffix in `layeredCharacter.ts`; drop the `expressions` lists from `presets.json` and `variants.json`; remove the dev viewer's expression key (**E**) from `state.ts`, its tests and the viewer UI; verify Gloria's face still renders in the office and the viewer, and `npm run build`, `npm run lint` and `npm test` pass
 
 ## 4. Susan and the player
 
-- [ ] 4.1 After sign-off on Gloria, define Susan in the library and verify her layers composite to her current art, then add face and expressions
+- [ ] 4.1 After sign-off on Gloria, define Susan in the library and verify her layers composite to her current art, then add its face
 - [ ] 4.2 After sign-off on Susan, define the player the same way and verify it
-- [ ] 4.3 Remove the superseded flat-sheet scripts (`gloria-idle`, `susan-idle`, `npc-type`, `player-type`) and update `CLAUDE.md` for the layered pipeline; verify `npm run build`, `npm run lint` and `npm test` pass
+- [ ] 4.3 Remove the superseded flat-sheet scripts (`gloria-idle`, `susan-idle`, `npc-type`, `player-type`) and update `CLAUDE.md` for the layered pipeline (and drop the expression key (**E**) from its character viewer section); verify `npm run build`, `npm run lint` and `npm test` pass

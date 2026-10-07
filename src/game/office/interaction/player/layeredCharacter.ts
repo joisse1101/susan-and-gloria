@@ -30,9 +30,6 @@ const ORDER_KEY = 'characters-layer-order';
 const PRESETS_KEY = 'characters-presets';
 const dataUrl = (file: string) => `${import.meta.env.BASE_URL}assets/characters/${file}`;
 
-// The face layer has one sheet per expression (<variant>-<expression>.png); neutral is the resting one
-const REST_EXPRESSION = 'neutral';
-
 export const layerTextureKey = (layer: LayerName, variant: string) => `layer-${layer}-${variant}`;
 
 // Layout animation name -> the key the scene already plays for it
@@ -65,11 +62,11 @@ export function preloadLayeredCharacters(scene: Phaser.Scene, names: string[]) {
     });
 }
 
-// What a character wears, by layer: the preset, with the face at its resting expression
+// What a character wears, by layer: its preset
 export function presetVariants(scene: Phaser.Scene, name: string): Record<LayerName, string> {
     const preset = (scene.cache.json.get(PRESETS_KEY) as Presets).characters[name];
     if (!preset) throw new Error(`presets.json has no character "${name}"`);
-    return { ...preset, face: `${preset.face}-${REST_EXPRESSION}` };
+    return preset;
 }
 
 export function layerOrder(scene: Phaser.Scene): LayerOrder {
