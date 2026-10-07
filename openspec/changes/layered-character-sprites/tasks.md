@@ -1,9 +1,8 @@
-## 1. Shared layer library (pilot: Gloria)
+## 1. Layer files (pilot: Gloria)
 
 - [x] 1.1 Create the shared library under `pixel-art/` (body, walk cycles, layer export, mirroring) and verify it exports one variant file per layer type folder (`bodies`, `top`, `bottom`, `hair`, `accessories`, `face`), all animations stacked in rows on one cell grid
 - [x] 1.1b Generate the layout JSON and the labelled guide PNG with the sheets, and verify every animation row and facing column in the layer files is identified in the guide
 - [x] 1.1c Add character presets (one variant per layer type) and verify Gloria's preset builds her layer stack from the variant files
-- [ ] 1.2 Give the shared library a complete body (head, neck, torso, arms, hips, legs, feet) with a skin palette parameter, and verify it never shows outside the clothed silhouette (done: hidden underlay, feet from the player's frozen sheets); the pixel-for-pixel match against the player's `Walk.png` and `Idle.png` moves to 4.2, since the player's art is fused and needs colour segmentation
 - [x] 1.3 Define Gloria in a thin script: top clothes (cardigan, blouse), bottom clothes (skirt), hair (bun), accessories (glasses), face; verify the layers composite back to her current four-facing `Idle.png` and `Walk.png`
 - [x] 1.4 Write the per-facing layer-order JSON from the build and verify it lists every layer for every facing
 - [x] 1.5 Verify a rebuild twice gives byte-identical files, and that editing only the skirt changes only the bottom-clothes sheet
@@ -27,6 +26,6 @@
 
 ## 4. Susan and the player
 
-- [ ] 4.1 After sign-off on Gloria, define Susan in the library and verify her layers composite to her current art, then add its face
-- [ ] 4.2 After sign-off on Susan, define the player the same way and verify it
-- [ ] 4.3 Remove the superseded flat-sheet scripts (`gloria-idle`, `susan-idle`, `npc-type`, `player-type`) and update `CLAUDE.md` for the layered pipeline (and drop the expression key (**E**) from its character viewer section); verify `npm run build`, `npm run lint` and `npm test` pass
+- [ ] 4.1 Split Susan's flat sheets (Idle, Walk, WorkStanding, WorkSitting) into draft layer files on the shared grid, one file per layer (body, shoes, bottom, top, hair, accessories, face), add her preset, and verify the layers composite back to her current art; then wait for the user's hand edits and sign-off
+- [ ] 4.2 Do the same for the player, after sign-off on Susan; verify the layers composite back to the player's current art and wait for sign-off
+- [ ] 4.3 After sign-off, remove the flat-sheet scripts (`gloria-idle`, `susan-idle`, `npc-type`, `player-type`), the one-off split scripts, the character `preview.png` files and the flat sheets nothing loads any more, and update `CLAUDE.md` for the layered pipeline; verify `npm run build`, `npm run lint` and `npm test` pass

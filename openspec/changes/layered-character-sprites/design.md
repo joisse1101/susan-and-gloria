@@ -2,7 +2,7 @@
 
 See proposal.md for motivation. Today each character's sheets (`Idle`, `Walk`, `WorkStanding`, `WorkSitting`, 32x32 cells, rows = down, up, right, left) are flat images produced by separate scripts (`pixel-art/gloria-idle`, `susan-idle`, `npc-type`, `player-type`). Susan and Gloria copy the player's legs pixel for pixel. Facing is chosen in `interaction/npc/workFacing.ts` (stronger velocity axis for coworkers, horizontal first for the player), and `DIRECTIONS` in `playerSprite.ts` maps rows to facings. Work and water code (`deskSpot.facingFor`, `SeatLayers` chair offsets, `waterPropLayout`) only ever uses the four cardinals. A character is currently one Phaser sprite, with `Shadows` and `SeatLayers` following it and `fadeWalkBehind` fading it.
 
-Constraints: sheets stay generated, never hand-edited; the chair sandwich (chair one depth step behind, armrests one step in front) must still bracket the whole character.
+Constraints: the layer sheets are hand-drawn source files, not generated (one-off scripts only seed Susan's and the player's drafts and are deleted at the end); the chair sandwich (chair one depth step behind, armrests one step in front) must still bracket the whole character.
 
 ## Goals / Non-Goals
 
@@ -18,7 +18,7 @@ Constraints: sheets stay generated, never hand-edited; the chair sandwich (chair
 
 ## Decisions
 
-**1. Every layer is a runtime sprite on aligned sheets.** Layers: body, bottom clothes, top clothes, hair, accessories, face. Following the pack-style generator layout, each layer type has a folder and each variant is one file holding every animation stacked in rows, on the same cell grid as every other variant, so a single frame index applies to all of them and no per-frame offsets or anchors are needed. A layout JSON (animation, row, frames per facing) is generated beside them, and a labelled guide PNG is generated for authors in `pixel-art/layers/` (not shipped with the game, like the previews), and the game reads the layout JSON rather than hardcoding rows. Characters are presets naming one variant per layer type. Top and bottom clothes stay separate layer types (the pack has a single outfit layer; we split it so tops and bottoms mix). Alternative considered: bake body/clothes/hair into one sheet and keep only the face separate (rejected by the user: parts must be swappable in the game). Alternative: baked composites per outfit, rejected as combinatorial.
+**1. Every layer is a runtime sprite on aligned sheets.** Layers: body, bottom clothes, top clothes, hair, accessories, face. Following the pack-style generator layout, each layer type has a folder and each variant is one file holding every animation stacked in rows, on the same cell grid as every other variant, so a single frame index applies to all of them and no per-frame offsets or anchors are needed. A hand-maintained layout JSON (animation, row, frames per facing) sits beside them, `pixel-art/layers/LAYOUT.md` documents the grid for authors, and the game reads the layout JSON rather than hardcoding rows. Characters are presets naming one variant per layer type. Top and bottom clothes stay separate layer types (the pack has a single outfit layer; we split it so tops and bottoms mix). Alternative considered: bake body/clothes/hair into one sheet and keep only the face separate (rejected by the user: parts must be swappable in the game). Alternative: baked composites per outfit, rejected as combinatorial.
 
 **2. A `CharacterRig` owns the stack.** It creates one sprite per layer, and exposes the operations the scene currently performs on a single sprite: set position, flip, play animation / frame, set alpha, set depth, destroy, and layer swap (`setLayer(type, variant)`). Existing code that touches a character sprite directly (`OfficeScene` update, `fadeWalkBehind`, `Shadows`, `SeatLayers`, `PathFollower` hosts) goes through the rig or a thin facade. The physics body stays on a single base sprite (the body layer) so collision, pushing and `FEET_LIFT` are untouched; the other layers follow it each frame.
 
@@ -39,6 +39,6 @@ Constraints: sheets stay generated, never hand-edited; the chair sandwich (chair
 1. Build the shared library and Gloria's definition; export one sheet per layer, and first reproduce today's four-facing look to prove the layers composite back to the current art.
 2. Add `CharacterRig` and route the scene's single-sprite operations through it, with Gloria on layered sheets and the others unchanged, so the game works throughout.
 3. Add the face layer.
-4. Repeat for Susan and the player after sign-off.
+4. Split Susan, then the player, into draft layers on the same grid with a one-off script, and let the user refine each by hand. After sign-off, delete the scripts and previews.
 
 Rollback: sheets are generated and tracked in git, so reverting restores the previous sheets and single-sprite loader.

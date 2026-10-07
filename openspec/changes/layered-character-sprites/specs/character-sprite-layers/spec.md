@@ -1,16 +1,12 @@
 ## ADDED Requirements
 
 ### Requirement: Characters are authored as separate layers
-Each character SHALL be authored as separate body, top clothes, bottom clothes, hair, accessory and face layers, with a shared library supplying the body, walk cycles and exporting, so that a character's own definition contains only its top clothes, bottom clothes, hair, accessories and face.
+Each character SHALL be authored as separate hand-drawn body, top clothes, bottom clothes, hair, accessory and face layers, each on the common cell grid.
 
 #### Scenario: Changing one layer
-- **WHEN** one layer of a character (for example Gloria's skirt, a bottom-clothes layer) is changed and the sheets are rebuilt
-- **THEN** only that layer's sheet differs in the regenerated output
-- **AND** no other character's sheets change
-
-#### Scenario: Shared body
-- **WHEN** Susan, Gloria and the player are built
-- **THEN** their bodies and walk cycles come from the same shared source, differing only in skin palette
+- **WHEN** one layer of a character (for example Gloria's skirt, a bottom-clothes layer) is edited
+- **THEN** only that layer's sheet file changes
+- **AND** no other layer's or character's sheets change
 
 ### Requirement: Layer variants are aligned files in per-layer-type folders
 Each layer variant (for example one hairstyle or one skirt) SHALL be exported as one file in the folder for its layer type (body, top clothes, bottom clothes, hair, accessories, face), holding every animation stacked in rows, with cells, rows and columns matching every other variant's file, so that the same frame of any combination of variants lines up without per-frame offsets.
@@ -24,18 +20,11 @@ Each layer variant (for example one hairstyle or one skirt) SHALL be exported as
 - **THEN** the two register exactly in every animation and facing
 
 ### Requirement: Characters are presets of variants
-Each character SHALL be defined as a preset naming one variant for each layer type, and the shared library SHALL build every variant referenced by a preset.
+Each character SHALL be defined as a preset naming one variant for each layer type, and every variant a preset names SHALL exist as a layer file.
 
 #### Scenario: Preset
 - **WHEN** a character preset names its body, top, bottom, hair, accessory and face variants
 - **THEN** the game builds that character's layer stack from those files
-
-### Requirement: A guide sheet labels the animation rows
-The build SHALL generate a guide sheet that labels each animation, facing and frame of the shared layout, and it SHALL be regenerated with the sheets.
-
-#### Scenario: Reading the layout
-- **WHEN** the guide sheet is opened
-- **THEN** every animation row and facing column in the layer files is identified
 
 ### Requirement: Layers are separate sprites in the game
 In the game each layer of a character SHALL be its own sprite, and all of a character's layers SHALL share its position, flip, animation frame, alpha and depth order against furniture, chairs and shadows, so the stack behaves as one character.
@@ -78,9 +67,9 @@ Every animation sheet (Idle, Walk, WorkStanding, WorkSitting) of every layer SHA
 - **WHEN** a character works at a desk or waters a plant
 - **THEN** it faces one of the four cardinal directions
 
-### Requirement: Sheets are regenerated, not hand-edited
-All layer sheets and layer-order data SHALL be produced by the build scripts, and rebuilding SHALL be deterministic.
+### Requirement: Layer sheets are hand-drawn source files
+All layer sheets and the layout, layer-order, preset and variant data SHALL be edited directly as files. The repository SHALL NOT keep a generator or preview image for the characters' layers once they are hand-drawn.
 
-#### Scenario: Rebuild
-- **WHEN** the build is run twice without changes
-- **THEN** both runs produce identical files
+#### Scenario: Editing a sheet
+- **WHEN** an artist edits a layer sheet and reloads the game or the character viewer
+- **THEN** the change shows without running any build script

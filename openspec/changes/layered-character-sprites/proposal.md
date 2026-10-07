@@ -4,7 +4,7 @@ Each character sheet is a flat image drawn by its own `build.py`: body, clothes,
 
 ## What Changes
 
-- Build each character from separate layers in the pixel-art studio: body, top clothes, bottom clothes, hair (front and back halves where the view needs it), accessories, and face. A shared layer library holds the body, walk cycles and exporting; each character's thin script defines only its top clothes, bottom clothes, hair, accessories and face.
+- Build each character from separate layers: body, top clothes, bottom clothes, hair (front and back halves where the view needs it), accessories, and face. Layers are hand-drawn source files. Gloria's are done. Susan's and the player's are first split out of their current flat sheets by a one-off script, which gives a starting draft; the user then redraws and refines them by hand.
 - Sheets are organized pack style: one folder per layer type (`bodies`, `top`, `bottom`, `hair`, `accessories`, `face`), one file per variant, each file holding every animation stacked in rows. All files share the **same cell layout** (32x32 cells, same rows and columns per animation), so one frame index selects the matching frame in every layer. The build also generates a guide sheet labelling each animation row, and each character (Gloria, Susan, the player) is a preset naming one variant per layer.
 - In the game each layer is its own sprite, stacked as one character: all layers share position, flip, alpha (walk-behind fade), animation frame and depth, with a per-facing layer order (for example hair-back behind the body in the up view). A layer can be swapped at runtime (outfit, hair, accessory) by changing its sheet.
 - All sheets (Idle, Walk, WorkStanding, WorkSitting) keep the four cardinal facings: down, up, right, left.
@@ -22,7 +22,7 @@ Each character sheet is a flat image drawn by its own `build.py`: body, clothes,
 
 ## Impact
 
-- `pixel-art/` scripts: new shared layer library and per-character scripts replacing `gloria-idle`, `susan-idle` and the `npc-type` / `player-type` builds as the source of the sheets; sheets move from `public/assets/sprites/<name>/` to per-layer-type folders of variant files (with a layout JSON, a layer-order file and character presets; the guide sheet and previews are generated for authors and not committed).
+- `pixel-art/` scripts: the flat-sheet generators (`gloria-idle`, `susan-idle`, `npc-type`, `player-type`), the one-off split scripts and the character `preview.png` files are deleted once the user has signed off the hand-drawn layers. Sheets move from `public/assets/sprites/<name>/` to per-layer-type folders of variant files, with a hand-maintained layout JSON, layer-order file and character presets.
 - `src/game/office/interaction/player/playerSprite.ts` (anim creation for layered sheets), `OfficeScene.ts` and everywhere a character sprite's position, alpha, depth, flip, animation or `Shadows` follow is applied (they must apply to the whole layer stack), `furniture/SeatLayers.ts` (chair sandwich around the stack), `fadeWalkBehind`.
 - Unchanged: all poses and walking keep four facings (`DIRECTIONS`, `Facing`, `workFacing.ts`); chair offsets, water props and shadows keep working with cardinal facings.
 - No new runtime dependencies.
